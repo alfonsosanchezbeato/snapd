@@ -29,4 +29,8 @@ void die(const char *msg);
 __attribute__ ((format(printf, 1, 2)))
 void kmsg(const char *fmt, ...);
 
+// Reads a possible argument for reboot syscall in /run/systemd/reboot-param,
+// which is the place where systemd stores it.
+int read_reboot_arg(char *arg, int max_size);
+
 #endif

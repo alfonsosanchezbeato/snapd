@@ -66,6 +66,27 @@ void die(const char *msg)
 	exit(1);
 }
 
+int read_reboot_arg(char *arg, int max_size)
+{
+	FILE *f;
+
+	*arg = '\0';
+
+	f = fopen("/run/systemd/reboot-param", "r");
+	if (!f)
+		return -1;
+
+	if (!fgets(arg, max_size, f)) {
+		fclose(f);
+		return -1;
+	}
+	arg[strcspn(arg, "\n")] = '\0';
+
+	kmsg("reboot arg is %s", arg);
+	fclose(f);
+	return 0;
+}
+
 static void detach_loop(const char *src)
 {
 	int fd = open(src, O_RDONLY);
