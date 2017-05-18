@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -39,10 +38,10 @@ import (
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/i18n/dumb"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -358,10 +357,12 @@ func (d *Daemon) Start() {
 		case state.RestartDaemon:
 			d.tomb.Kill(nil)
 		case state.RestartSystem:
-			cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				logger.Noticef("%s", osutil.OutputErr(out, err))
+			bootloader, err := partition.FindBootloader()
+			if err != nil {
+				logger.Noticef("cannot get bootloader: %s", err)
+				break
 			}
+			bootloader.Reboot()
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)

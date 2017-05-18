@@ -94,3 +94,7 @@ func (u *uboot) GetBootVars(names ...string) (map[string]string, error) {
 
 	return out, nil
 }
+
+func (u *uboot) Reboot() error {
+	return reboot()
+}

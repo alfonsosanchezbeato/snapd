@@ -23,8 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/i18n/dumb"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -45,6 +48,8 @@ var (
 	ErrBootloader = errors.New("cannot determine bootloader")
 )
 
+var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
+
 // Bootloader provides an interface to interact with the system
 // bootloader
 type Bootloader interface {
@@ -62,6 +67,10 @@ type Bootloader interface {
 
 	// ConfigFile returns the name of the config file
 	ConfigFile() string
+
+	// Reboots the system, this can require special actions depending on the
+	// bootloader
+	Reboot() error
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
@@ -145,4 +154,14 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	m["snap_mode"] = modeSuccess
 
 	return bootloader.SetBootVars(m)
+}
+
+func reboot() error {
+	cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		logger.Noticef("%s", osutil.OutputErr(out, err))
+		return err
+	}
+
+	return nil
 }

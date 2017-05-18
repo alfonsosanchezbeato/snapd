@@ -81,3 +81,7 @@ func (g *grub) SetBootVars(values map[string]string) error {
 	}
 	return env.Save()
 }
+
+func (g *grub) Reboot() error {
+	return reboot()
+}

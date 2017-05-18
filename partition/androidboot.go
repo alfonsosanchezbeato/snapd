@@ -20,6 +20,7 @@
 package partition
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -74,4 +75,14 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 		env.Set(k, v)
 	}
 	return env.Save()
+}
+
+func (a *androidboot) Reboot() error {
+	// Write argument so we reboot to recovery partition
+	param := []byte("recovery\n")
+	if err := ioutil.WriteFile("/run/systemd/reboot-param", param, 0644); err != nil {
+		return err
+	}
+
+	return reboot()
 }
