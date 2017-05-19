@@ -359,7 +359,8 @@ func (d *Daemon) Start() {
 				logger.Noticef("cannot get bootloader: %s", err)
 				break
 			}
-			bootloader.Reboot()
+			// Reboot in 10 minutes
+			bootloader.RebootForUpdate(10)
 		default:
 			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
 			d.tomb.Kill(nil)

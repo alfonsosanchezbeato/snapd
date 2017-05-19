@@ -70,7 +70,7 @@ type Bootloader interface {
 
 	// Reboots the system, this can require special actions depending on the
 	// bootloader
-	Reboot() error
+	RebootForUpdate(afterMins int) error
 }
 
 // InstallBootConfig installs the bootloader config from the gadget
@@ -156,8 +156,8 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	return bootloader.SetBootVars(m)
 }
 
-func reboot() error {
-	cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
+func reboot(afterMins int) error {
+	cmd := exec.Command("shutdown", fmt.Sprintf("+%d", afterMins), "-r", shutdownMsg)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		logger.Noticef("%s", osutil.OutputErr(out, err))
 		return err

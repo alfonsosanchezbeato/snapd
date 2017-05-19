@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -72,7 +73,7 @@ func (b *mockBootloader) SetBootVars(values map[string]string) error {
 func (b *mockBootloader) ConfigFile() string {
 	return "/boot/mocky/mocky.env"
 }
-func (b *mockBootloader) Reboot() error {
+func (b *mockBootloader) RebootForUpdate(afterMins int) error {
 	return nil
 }
 
@@ -159,4 +160,24 @@ func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
 		fn := filepath.Join(dirs.GlobalRootDir, t.systemFile)
 		c.Assert(osutil.FileExists(fn), Equals, true)
 	}
+}
+
+func (s *PartitionTestSuite) TestRebootNoError(c *C) {
+	systemdCmd := testutil.MockCommand(c, "shutdown", `
+exit 0
+	`)
+	defer systemdCmd.Restore()
+
+	err := reboot(10)
+	c.Assert(err, IsNil)
+}
+
+func (s *PartitionTestSuite) TestRebootError(c *C) {
+	systemdCmd := testutil.MockCommand(c, "shutdown", `
+exit 1
+	`)
+	defer systemdCmd.Restore()
+
+	err := reboot(10)
+	c.Assert(err, NotNil)
 }

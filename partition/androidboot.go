@@ -77,12 +77,15 @@ func (a *androidboot) SetBootVars(values map[string]string) error {
 	return env.Save()
 }
 
-func (a *androidboot) Reboot() error {
-	// Write argument so we reboot to recovery partition
+func (a *androidboot) RebootForUpdate(afterMins int) error {
+	// Write argument so we reboot to recovery partition. We use for this
+	// the same file as systemd. See
+	// https://github.com/systemd/systemd/blob/v229/src/basic/def.h#L44
 	param := []byte("recovery\n")
-	if err := ioutil.WriteFile("/run/systemd/reboot-param", param, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(dirs.SystemdRunDir,
+		"reboot-param"), param, 0644); err != nil {
 		return err
 	}
 
-	return reboot()
+	return reboot(afterMins)
 }

@@ -79,6 +79,8 @@ var (
 	XdgRuntimeDirGlob string
 
 	CompletionHelper string
+
+	SystemdRunDir string
 )
 
 const (
@@ -187,4 +189,6 @@ func SetRootDir(rootdir string) {
 	XdgRuntimeDirGlob = filepath.Join(rootdir, XdgRuntimeDirBase, "*/")
 
 	CompletionHelper = filepath.Join(CoreLibExecDir, "etelpmoc.sh")
+
+	SystemdRunDir = filepath.Join(rootdir, "/run/systemd")
 }

@@ -19,6 +19,7 @@
 #define SYSTEM_SHUTDOWN_UTILS_H
 
 #include <stdbool.h>
+#include <stddef.h>    // size_t
 
 // tries to umount all (well, most) things. Returns whether in the last pass it
 // no longer found writable.
@@ -31,6 +32,6 @@ void kmsg(const char *fmt, ...);
 
 // Reads a possible argument for reboot syscall in /run/systemd/reboot-param,
 // which is the place where systemd stores it.
-int read_reboot_arg(char *arg, int max_size);
+int sc_read_reboot_arg(char *arg, size_t max_size);
 
 #endif

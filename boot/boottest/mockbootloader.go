@@ -71,6 +71,6 @@ func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }
 
-func (b *MockBootloader) Reboot() error {
+func (b *MockBootloader) RebootForUpdate(afterMins int) error {
 	return nil
 }

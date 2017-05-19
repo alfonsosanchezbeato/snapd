@@ -66,12 +66,12 @@ void die(const char *msg)
 	exit(1);
 }
 
-int read_reboot_arg(char *arg, int max_size)
+int sc_read_reboot_arg(char *arg, size_t max_size)
 {
 	FILE *f;
 
-	*arg = '\0';
-
+	// This file is used by systemd to pass around a reboot parameter See
+	// https://github.com/systemd/systemd/blob/v229/src/basic/def.h#L44
 	f = fopen("/run/systemd/reboot-param", "r");
 	if (!f)
 		return -1;

@@ -20,10 +20,15 @@
 package partition_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type androidBootTestSuite struct {
@@ -62,4 +67,21 @@ func (s *androidBootTestSuite) TestSetGetBootVar(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(v, HasLen, 1)
 	c.Check(v["snap_mode"], Equals, "try")
+}
+
+func (s *androidBootTestSuite) TestRebootWritesArg(c *C) {
+
+	a := partition.NewAndroidBoot()
+	systemdCmd := testutil.MockCommand(c, "shutdown", `
+exit 0
+	`)
+	defer systemdCmd.Restore()
+
+	os.MkdirAll(dirs.SystemdRunDir, 0755)
+
+	err := a.RebootForUpdate(10)
+	c.Assert(err, IsNil)
+	param, err := ioutil.ReadFile(filepath.Join(dirs.SystemdRunDir, "reboot-param"))
+	c.Assert(err, IsNil)
+	c.Check(string(param), Equals, "recovery\n")
 }
