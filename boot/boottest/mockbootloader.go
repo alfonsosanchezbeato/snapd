@@ -70,3 +70,7 @@ func (b *MockBootloader) Name() string {
 func (b *MockBootloader) ConfigFile() string {
 	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }
+
+func (b *MockBootloader) Reboot() error {
+	return nil
+}

@@ -72,6 +72,9 @@ func (b *mockBootloader) SetBootVars(values map[string]string) error {
 func (b *mockBootloader) ConfigFile() string {
 	return "/boot/mocky/mocky.env"
 }
+func (b *mockBootloader) Reboot() error {
+	return nil
+}
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
