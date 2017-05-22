@@ -22,14 +22,14 @@
 #include <unistd.h>		// getpid, close
 #include <stdlib.h>		// exit
 #include <stdio.h>		// fprintf, stderr
-#include <string.h>             // strerror
+#include <string.h>		// strerror
 #include <sys/ioctl.h>		// ioctl
 #include <linux/loop.h>		// LOOP_CLR_FD
 #include <sys/reboot.h>		// reboot, RB_*
 #include <fcntl.h>		// open
 #include <errno.h>		// errno, sys_errlist
-#include <linux/reboot.h>       // LINUX_REBOOT_MAGIC*
-#include <sys/syscall.h>        // SYS_reboot
+#include <linux/reboot.h>	// LINUX_REBOOT_MAGIC*
+#include <sys/syscall.h>	// SYS_reboot
 
 #include "system-shutdown-utils.h"
 #include "../libsnap-confine-private/string-utils.h"
@@ -62,7 +62,6 @@ int main(int argc, char *argv[])
 	if (mkdir("/writable", 0755) < 0) {
 		die("cannot create directory /writable");
 	}
-
 	// We are reading a file from /run and need to do this before unmounting
 	sc_read_reboot_arg(reboot_arg, sizeof reboot_arg);
 
