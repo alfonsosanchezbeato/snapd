@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -53,6 +55,14 @@ func main() {
 }
 
 func run() error {
+	// Profile CPU
+	proff, err := os.Create("/writable/system-data/snapd-cpu.prof")
+	if err != nil {
+		fmt.Println(err)
+	}
+	pprof.StartCPUProfile(proff)
+	runtime.SetBlockProfileRate(1)
+
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)
 
