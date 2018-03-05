@@ -23,8 +23,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
-	"runtime/pprof"
+	// "runtime"
+	// "runtime/pprof"
+	"runtime/trace"
 	"syscall"
 	"time"
 
@@ -56,12 +57,19 @@ func main() {
 
 func run() error {
 	// Profile CPU
-	proff, err := os.Create("/writable/system-data/snapd-cpu.prof")
+	// proff, err := os.Create("/writable/system-data/snapd-cpu.prof")
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+	// pprof.StartCPUProfile(proff)
+	// runtime.SetBlockProfileRate(1)
+
+	// Trace
+	ftrace, err := os.Create("/writable/system-data/snapd.trace")
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("cannot create trace file")
 	}
-	pprof.StartCPUProfile(proff)
-	runtime.SetBlockProfileRate(1)
+	trace.Start(ftrace)
 
 	t0 := time.Now().Truncate(time.Millisecond)
 	httputil.SetUserAgentFromVersion(cmd.Version)

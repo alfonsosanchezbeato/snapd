@@ -20,8 +20,9 @@
 package state
 
 import (
-	"os"
-	"runtime/pprof"
+	// "os"
+	// "runtime/pprof"
+	"runtime/trace"
 	"sync"
 	"time"
 
@@ -405,20 +406,23 @@ func (r *TaskRunner) Ensure() {
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		if t.Status() == DoStatus && t.Summary() == "Run prepare-device hook" {
 			logger.Noticef("STOPPING PROFILING")
-			pprof.StopCPUProfile()
 
-			f, err := os.Create("/writable/system-data/snapd-block.prof")
-			if err != nil {
-				logger.Noticef("cannot create block profile file")
-			}
+			trace.Stop()
 
-			p := pprof.Lookup("block")
-			defer func() {
-				err := p.WriteTo(f, 0)
-				if err != nil {
-					logger.Noticef("Error writing block profile")
-				}
-			}()
+			// pprof.StopCPUProfile()
+
+			// f, err := os.Create("/writable/system-data/snapd-block.prof")
+			// if err != nil {
+			// 	logger.Noticef("cannot create block profile file")
+			// }
+
+			// p := pprof.Lookup("block")
+			// defer func() {
+			// 	err := p.WriteTo(f, 0)
+			// 	if err != nil {
+			// 		logger.Noticef("Error writing block profile")
+			// 	}
+			// }()
 		}
 		r.run(t)
 
