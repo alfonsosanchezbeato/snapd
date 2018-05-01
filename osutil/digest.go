@@ -21,8 +21,11 @@ package osutil
 
 import (
 	"crypto"
+	"hash"
 	"io"
 	"os"
+
+	"github.com/anonymouse64/crypto/sha3"
 )
 
 const (
@@ -31,13 +34,22 @@ const (
 
 // FileDigest computes a hash digest of the file using the given hash.
 // It also returns the file size.
-func FileDigest(filename string, hash crypto.Hash) ([]byte, uint64, error) {
+func FileDigest(filename string, hashType crypto.Hash) ([]byte, uint64, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer f.Close()
-	h := hash.New()
+	var h hash.Hash
+	switch hashType {
+	case crypto.SHA3_384:
+		h = sha3.New384()
+	case crypto.SHA3_512:
+		h = sha3.New512()
+	default:
+		h = hashType.New()
+	}
+
 	size, err := io.CopyBuffer(h, f, make([]byte, hashDigestBufSize))
 	if err != nil {
 		return nil, 0, err
