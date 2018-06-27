@@ -120,15 +120,15 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 		return fmt.Errorf("creating tmp for fake update: %v", err)
 	}
 	// ensure the "." of the squashfs has sane owner/permissions
-	err = exec.Command("sudo", "chown", "root:root", fakeUpdateDir).Run()
+	err = osutil.ExecCommand("sudo", "chown", "root:root", fakeUpdateDir).Run()
 	if err != nil {
 		return fmt.Errorf("changing owner of fake update dir: %v", err)
 	}
-	err = exec.Command("sudo", "chmod", "0755", fakeUpdateDir).Run()
+	err = osutil.ExecCommand("sudo", "chmod", "0755", fakeUpdateDir).Run()
 	if err != nil {
 		return fmt.Errorf("changing permissions of fake update dir: %v", err)
 	}
-	defer exec.Command("sudo", "rm", "-rf", fakeUpdateDir)
+	defer osutil.ExecCommand("sudo", "rm", "-rf", fakeUpdateDir)
 
 	origInfo, err := copySnap(snap, fakeUpdateDir)
 	if err != nil {
@@ -141,7 +141,7 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asse
 	}
 
 	// fake new version
-	err = exec.Command("sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
+	err = osutil.ExecCommand("sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
 	if err != nil {
 		return fmt.Errorf("changing fake snap version: %v", err)
 	}
@@ -184,7 +184,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 	origRevision := filepath.Base(revnoDir)
 
 	for _, m := range files {
-		if err = exec.Command("sudo", "cp", "-a", m, targetDir).Run(); err != nil {
+		if err = osutil.ExecCommand("sudo", "cp", "-a", m, targetDir).Run(); err != nil {
 			return nil, err
 
 		}
@@ -206,7 +206,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 
 func buildSnap(snapDir, targetDir string) (*info, error) {
 	// build in /var/tmp (which is not a tempfs)
-	cmd := exec.Command("snap", "pack", snapDir, targetDir)
+	cmd := osutil.ExecCommand("snap", "pack", snapDir, targetDir)
 	cmd.Env = append(os.Environ(), "TMPDIR=/var/tmp")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

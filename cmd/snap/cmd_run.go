@@ -579,7 +579,7 @@ func (x *cmdRun) runCmdUnderGdb(origCmd, env []string) error {
 	cmd := []string{"sudo", "-E", "gdb", "-ex=run", "-ex=catch exec", "-ex=continue", "--args"}
 	cmd = append(cmd, origCmd...)
 
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd := osutil.ExecCommand(cmd[0], cmd[1:]...)
 	gcmd.Stdin = os.Stdin
 	gcmd.Stdout = os.Stdout
 	gcmd.Stderr = os.Stderr
@@ -601,7 +601,7 @@ func (x *cmdRun) runCmdUnderStrace(origCmd, env []string) error {
 	cmd = append(cmd, origCmd...)
 
 	// run with filter
-	gcmd := exec.Command(cmd[0], cmd[1:]...)
+	gcmd := osutil.ExecCommand(cmd[0], cmd[1:]...)
 	gcmd.Env = env
 	gcmd.Stdin = Stdin
 	gcmd.Stdout = Stdout

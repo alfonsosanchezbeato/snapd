@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -33,6 +32,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -50,7 +50,8 @@ var (
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
-	bs, err := exec.Command("systemctl", args...).CombinedOutput()
+	logger.Noticef("EXEC: systemctl " + strings.Join(args, " "))
+	bs, err := osutil.ExecCommand("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}

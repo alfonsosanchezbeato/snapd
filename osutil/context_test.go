@@ -68,7 +68,7 @@ func (ctxSuite) TestWriterSuccess(c *check.C) {
 
 func (ctxSuite) TestRun(c *check.C) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second/100)
-	cmd := exec.Command("/bin/sleep", "1")
+	cmd := osutil.ExecCommand("/bin/sleep", "1")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.Equals, context.DeadlineExceeded)
 }
@@ -76,7 +76,7 @@ func (ctxSuite) TestRun(c *check.C) {
 func (ctxSuite) TestRunRace(c *check.C) {
 	// first, time how long /bin/false takes
 	t0 := time.Now()
-	cmderr := exec.Command("/bin/false").Run()
+	cmderr := osutil.ExecCommand("/bin/false").Run()
 	dt := time.Since(t0)
 
 	// note in particular the error is not "killed"
@@ -88,7 +88,7 @@ func (ctxSuite) TestRunRace(c *check.C) {
 	nkilled := 0
 	nfailed := 0
 	for nfailed == 0 || nkilled == 0 {
-		cmd := exec.Command("/bin/false")
+		cmd := osutil.ExecCommand("/bin/false")
 		ctx, _ := context.WithTimeout(context.Background(), dt)
 		err := osutil.RunWithContext(ctx, cmd)
 		switch err.Error() {
@@ -107,21 +107,21 @@ func (ctxSuite) TestRunRace(c *check.C) {
 func (ctxSuite) TestRunDone(c *check.C) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	cmd := exec.Command("/bin/sleep", "1")
+	cmd := osutil.ExecCommand("/bin/sleep", "1")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.Equals, context.Canceled)
 }
 
 func (ctxSuite) TestRunSuccess(c *check.C) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	cmd := exec.Command("/bin/sleep", "0.01")
+	cmd := osutil.ExecCommand("/bin/sleep", "0.01")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.IsNil)
 }
 
 func (ctxSuite) TestRunSuccessfulFailure(c *check.C) {
 	ctx, _ := context.WithTimeout(context.Background(), time.Second)
-	cmd := exec.Command("not/something/you/can/run")
+	cmd := osutil.ExecCommand("not/something/you/can/run")
 	err := osutil.RunWithContext(ctx, cmd)
 	c.Check(err, check.ErrorMatches, `fork/exec \S+: no such file or directory`)
 }

@@ -142,7 +142,7 @@ func (u *unsquashfsStderrWriter) Err() error {
 func (s *Snap) Unpack(src, dstDir string) error {
 	usw := newUnsquashfsStderrWriter()
 
-	cmd := exec.Command("unsquashfs", "-f", "-d", dstDir, s.path, src)
+	cmd := osutil.ExecCommand("unsquashfs", "-f", "-d", dstDir, s.path, src)
 	cmd.Stderr = usw
 	if err := cmd.Run(); err != nil {
 		return err
@@ -172,7 +172,7 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := exec.Command("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
+	if err := osutil.ExecCommand("unsquashfs", "-i", "-d", unpackDir, s.path, filePath).Run(); err != nil {
 		return nil, err
 	}
 
@@ -216,9 +216,9 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 	var cmd *exec.Cmd
 	if relative == "." {
-		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
+		cmd = osutil.ExecCommand("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path)
 	} else {
-		cmd = exec.Command("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
+		cmd = osutil.ExecCommand("unsquashfs", "-no-progress", "-dest", ".", "-ll", s.path, relative)
 	}
 	cmd.Env = []string{"TZ=UTC"}
 	stdout, err := cmd.StdoutPipe()
@@ -274,7 +274,7 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
-	output, err := exec.Command(
+	output, err := osutil.ExecCommand(
 		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath).CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
@@ -304,7 +304,7 @@ func (s *Snap) Build(buildDir string) error {
 	}
 
 	return osutil.ChDir(buildDir, func() error {
-		return exec.Command(
+		return osutil.ExecCommand(
 			"mksquashfs",
 			".", fullSnapPath,
 			"-noappend",
@@ -330,7 +330,7 @@ func BuildDate(path string) time.Time {
 		N:      1,
 	}
 
-	cmd := exec.Command("unsquashfs", "-s", path)
+	cmd := osutil.ExecCommand("unsquashfs", "-s", path)
 	cmd.Env = []string{"TZ=UTC"}
 	cmd.Stdout = m
 	cmd.Stderr = m

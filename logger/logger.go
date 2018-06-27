@@ -25,9 +25,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
-
-	"github.com/snapcore/snapd/osutil"
+	//"github.com/snapcore/snapd/osutil"
 )
 
 // A Logger is a fairly minimal logging tool.
@@ -114,9 +115,23 @@ type Log struct {
 	log *log.Logger
 }
 
+func getenvBool(key string, dflt ...bool) bool {
+	if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			return b
+		}
+	}
+
+	if len(dflt) > 0 {
+		return dflt[0]
+	}
+
+	return false
+}
+
 // Debug only prints if SNAPD_DEBUG is set
 func (l Log) Debug(msg string) {
-	if osutil.GetenvBool("SNAPD_DEBUG") {
+	if getenvBool("SNAPD_DEBUG") {
 		l.log.Output(3, "DEBUG: "+msg)
 	}
 }

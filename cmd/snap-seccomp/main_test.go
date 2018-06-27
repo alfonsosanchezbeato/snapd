@@ -161,7 +161,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	s.seccompBpfLoader = filepath.Join(c.MkDir(), "seccomp_bpf_loader")
 	err := ioutil.WriteFile(s.seccompBpfLoader+".c", seccompBpfLoaderContent, 0644)
 	c.Assert(err, IsNil)
-	cmd := exec.Command("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
+	cmd := osutil.ExecCommand("gcc", "-Werror", "-Wall", s.seccompBpfLoader+".c", "-o", s.seccompBpfLoader)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
@@ -172,7 +172,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	err = ioutil.WriteFile(s.seccompSyscallRunner+".c", seccompSyscallRunnerContent, 0644)
 	c.Assert(err, IsNil)
 
-	cmd = exec.Command("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
+	cmd = osutil.ExecCommand("gcc", "-std=c99", "-Werror", "-Wall", "-static", s.seccompSyscallRunner+".c", "-o", s.seccompSyscallRunner, "-Wl,-static", "-static-libgcc")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
@@ -185,7 +185,7 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
 	// it seems tricky to find the right gcc-multilib for this.
 	if arch.UbuntuArchitecture() == "amd64" && s.canCheckCompatArch {
-		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
+		cmd = osutil.ExecCommand(cmd.Args[0], cmd.Args[1:]...)
 		cmd.Args = append(cmd.Args, "-m32")
 		for i, k := range cmd.Args {
 			if k == s.seccompSyscallRunner {
@@ -313,7 +313,7 @@ restart_syscall
 		}
 	}
 
-	cmd := exec.Command(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
+	cmd := osutil.ExecCommand(s.seccompBpfLoader, bpfPath, syscallRunner, syscallRunnerArgs[0], syscallRunnerArgs[1], syscallRunnerArgs[2], syscallRunnerArgs[3], syscallRunnerArgs[4], syscallRunnerArgs[5], syscallRunnerArgs[6])
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

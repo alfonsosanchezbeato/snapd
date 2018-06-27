@@ -157,18 +157,18 @@ func allUsers() ([]*user.User, error) {
 // to change to the given username before running the given command.
 //
 // If username is "root", or the effective user id is 0, the given
-// command is passed directly to exec.Command.
+// command is passed directly to osutil.ExecCommand.
 //
 // TODO: maybe move this to osutil
 func maybeRunuserCommand(username string, args ...string) *exec.Cmd {
 	if username == "root" || sys.Geteuid() != 0 {
 		// runuser only works for euid 0, and doesn't make sense for root
-		return exec.Command(args[0], args[1:]...)
+		return osutil.ExecCommand(args[0], args[1:]...)
 	}
 	sudoArgs := make([]string, len(args)+2)
 	copy(sudoArgs[2:], args)
 	sudoArgs[0] = "-u"
 	sudoArgs[1] = username
 
-	return exec.Command("runuser", sudoArgs...)
+	return osutil.ExecCommand("runuser", sudoArgs...)
 }

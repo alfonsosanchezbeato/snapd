@@ -39,7 +39,7 @@ func (*KDialog) YesNo(primary, secondary string, options *DialogOptions) bool {
 	if options.Footer != "" {
 		txt += fmt.Sprintf(`<p><small>%s</small></p>`, html.EscapeString(options.Footer))
 	}
-	cmd := exec.Command("kdialog", "--yesno="+txt)
+	cmd := osutil.ExecCommand("kdialog", "--yesno="+txt)
 	if err := cmd.Start(); err != nil {
 		return false
 	}

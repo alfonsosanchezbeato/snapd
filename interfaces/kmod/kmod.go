@@ -20,7 +20,7 @@
 package kmod
 
 import (
-	"os/exec"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // loadModules loads given list of modules via modprobe.
@@ -31,6 +31,6 @@ import (
 func loadModules(modules []string) {
 	for _, mod := range modules {
 		// ignore errors which are logged by loadModule() via syslog
-		_ = exec.Command("modprobe", "--syslog", mod).Run()
+		_ = osutil.ExecCommand("modprobe", "--syslog", mod).Run()
 	}
 }

@@ -21,7 +21,6 @@ package backend
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -44,9 +43,9 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 	// we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
-	if err := sysd.DaemonReload(); err != nil {
-		return err
-	}
+	// if err := sysd.DaemonReload(); err != nil {
+	// 	return err
+	// }
 
 	if err := sysd.Enable(mountUnitName); err != nil {
 		return err
@@ -68,7 +67,7 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 			return err
 		}
 		if isMounted {
-			if output, err := exec.Command("umount", "-d", "-l", baseDir).CombinedOutput(); err != nil {
+			if output, err := osutil.ExecCommand("umount", "-d", "-l", baseDir).CombinedOutput(); err != nil {
 				return osutil.OutputErr(output, err)
 			}
 

@@ -41,7 +41,7 @@ func runSnapRepair(cmdStr string, args []string) error {
 
 	snapRepairPath := filepath.Join(dirs.GlobalRootDir, dirs.CoreLibExecDir, "snap-repair")
 	args = append([]string{cmdStr}, args...)
-	cmd := exec.Command(snapRepairPath, args...)
+	cmd := osutil.ExecCommand(snapRepairPath, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

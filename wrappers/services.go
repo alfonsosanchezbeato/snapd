@@ -188,11 +188,11 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
 			}
 		}
-		if len(written) > 0 {
-			if e := sysd.DaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
+		// if len(written) > 0 {
+		// 	if e := sysd.DaemonReload(); e != nil {
+		// 		inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
+		// 	}
+		// }
 	}()
 
 	for _, app := range s.Apps {
@@ -250,11 +250,11 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 		enabled = append(enabled, svcName)
 	}
 
-	if len(written) > 0 {
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-	}
+	// if len(written) > 0 {
+	// 	if err := sysd.DaemonReload(); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }

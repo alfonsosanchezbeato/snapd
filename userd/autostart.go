@@ -131,7 +131,7 @@ func autostartCmd(snapName, desktopFilePath string) (*exec.Cmd, error) {
 	// NOTE: Ignore the actual argv[0] in Exec=.. line and replace it with a
 	// command of the snap application. Any arguments passed in the Exec=..
 	// line to the original command are preserved.
-	cmd := exec.Command(app.WrapperPath(), split[1:]...)
+	cmd := osutil.ExecCommand(app.WrapperPath(), split[1:]...)
 	return cmd, nil
 }
 

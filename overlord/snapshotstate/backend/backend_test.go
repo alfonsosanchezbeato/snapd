@@ -475,7 +475,7 @@ func (s *snapshotSuite) TestHappyRoundtrip(c *check.C) {
 	dirs.SetRootDir(newroot)
 
 	var diff = func() *exec.Cmd {
-		cmd := exec.Command("diff", "-urN", "-x*.zip", s.root, newroot)
+		cmd := osutil.ExecCommand("diff", "-urN", "-x*.zip", s.root, newroot)
 		// cmd.Stdout = os.Stdout
 		// cmd.Stderr = os.Stderr
 		return cmd

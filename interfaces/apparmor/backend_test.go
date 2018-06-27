@@ -865,7 +865,7 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
-// Test behavior when exec.Command "apparmor_parser" fails
+// Test behavior when osutil.ExecCommand "apparmor_parser" fails
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
 	// Make it appear as if NFS workaround was needed.
 	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })

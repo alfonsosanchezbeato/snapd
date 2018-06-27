@@ -97,7 +97,7 @@ func (s *Launcher) OpenURL(addr string) *dbus.Error {
 		return makeAccessDeniedError(fmt.Errorf("Supplied URL scheme %q is not allowed", u.Scheme))
 	}
 
-	if err = exec.Command("xdg-open", addr).Run(); err != nil {
+	if err = osutil.ExecCommand("xdg-open", addr).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 
@@ -179,7 +179,7 @@ func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender db
 		return dbus.MakeFailedError(fmt.Errorf("permission denied"))
 	}
 
-	if err = exec.Command("xdg-open", filename).Run(); err != nil {
+	if err = osutil.ExecCommand("xdg-open", filename).Run(); err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot open supplied URL"))
 	}
 

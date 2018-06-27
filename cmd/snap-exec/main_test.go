@@ -279,7 +279,7 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 }
 
 func actuallyExec(argv0 string, argv []string, env []string) error {
-	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd := osutil.ExecCommand(argv[0], argv[1:]...)
 	cmd.Env = env
 	output, err := cmd.CombinedOutput()
 	if len(output) > 0 {

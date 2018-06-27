@@ -36,7 +36,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -121,7 +120,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 		out := filepath.Join(dirs.SnapSeccompDir, strings.TrimSuffix(baseName, ".src")+".bin")
 
 		seccompToBpf := seccompToBpfPath()
-		cmd := exec.Command(seccompToBpf, "compile", in, out)
+		cmd := osutil.ExecCommand(seccompToBpf, "compile", in, out)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}

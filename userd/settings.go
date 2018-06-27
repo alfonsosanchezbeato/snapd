@@ -132,7 +132,7 @@ func (s *Settings) Check(setting, check string, sender dbus.Sender) (string, *db
 	// FIXME: this works only for desktop files
 	desktopFile := fmt.Sprintf("%s_%s", snap, check)
 
-	cmd := exec.Command("xdg-settings", "check", setting, desktopFile)
+	cmd := osutil.ExecCommand("xdg-settings", "check", setting, desktopFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot check setting %s: %s", setting, osutil.OutputErr(output, err)))
@@ -150,7 +150,7 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 		return "", err
 	}
 
-	cmd := exec.Command("xdg-settings", "get", setting)
+	cmd := osutil.ExecCommand("xdg-settings", "get", setting)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", dbus.MakeFailedError(fmt.Errorf("cannot get setting %s: %s", setting, osutil.OutputErr(output, err)))
@@ -216,7 +216,7 @@ func (s *Settings) Set(setting, new string, sender dbus.Sender) *dbus.Error {
 		return dbus.MakeFailedError(fmt.Errorf("cannot change configuration: user declined change"))
 	}
 
-	cmd := exec.Command("xdg-settings", "set", setting, new)
+	cmd := osutil.ExecCommand("xdg-settings", "set", setting, new)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return dbus.MakeFailedError(fmt.Errorf("cannot set setting %s: %s", setting, osutil.OutputErr(output, err)))

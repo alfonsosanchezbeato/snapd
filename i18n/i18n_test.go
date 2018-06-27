@@ -65,7 +65,7 @@ func makeMockTranslations(c *C, localeDir string) {
 	err = ioutil.WriteFile(po, mockLocalePo, 0644)
 	c.Assert(err, IsNil)
 
-	cmd := exec.Command("msgfmt", po, "--output-file", mo)
+	cmd := osutil.ExecCommand("msgfmt", po, "--output-file", mo)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()

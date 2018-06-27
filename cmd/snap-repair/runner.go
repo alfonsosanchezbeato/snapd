@@ -148,7 +148,7 @@ func (r *Repair) Run() error {
 	// run the script
 	env := os.Environ()
 	// we need to hardcode FD=3 because this is the FD after
-	// exec.Command() forked. there is no way in go currently
+	// osutil.ExecCommand() forked. there is no way in go currently
 	// to run something right after fork() in the child to
 	// know the fd. However because go will close all fds
 	// except the ones in "cmd.ExtraFiles" we are safe to set "3"
@@ -173,7 +173,7 @@ func (r *Repair) Run() error {
 		return err
 	}
 
-	cmd := exec.Command(script)
+	cmd := osutil.ExecCommand(script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = env
 	cmd.Dir = workdir

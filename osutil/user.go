@@ -22,7 +22,6 @@ package osutil
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -72,7 +71,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 	cmdStr = append(cmdStr, name)
 
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	cmd := ExecCommand(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
@@ -92,7 +91,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 			// no --extrauser required, see LP: #1562872
 			name,
 		}
-		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+		if output, err := ExecCommand(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
 			return fmt.Errorf("setting password failed: %s", OutputErr(output, err))
 		}
 	}

@@ -20,7 +20,6 @@
 package squashfs
 
 import (
-	"os/exec"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -38,7 +37,7 @@ func useFuseImpl() bool {
 		return false
 	}
 
-	out, err := exec.Command("systemd-detect-virt", "--container").Output()
+	out, err := osutil.ExecCommand("systemd-detect-virt", "--container").Output()
 	if err != nil {
 		return false
 	}

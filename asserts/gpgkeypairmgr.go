@@ -96,7 +96,7 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(path, allArgs...)
+	cmd := osutil.ExecCommand(path, allArgs...)
 	var outBuf bytes.Buffer
 	var errBuf bytes.Buffer
 

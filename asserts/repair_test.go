@@ -173,7 +173,7 @@ func (s *repairSuite) TestRepairCanEmbeddScripts(c *C) {
 	repairScript := filepath.Join(tmpdir, "repair")
 	err = ioutil.WriteFile(repairScript, []byte(repair.Body()), 0755)
 	c.Assert(err, IsNil)
-	cmd := exec.Command(repairScript)
+	cmd := osutil.ExecCommand(repairScript)
 	cmd.Dir = tmpdir
 	output, err := cmd.CombinedOutput()
 	c.Check(err, IsNil)

@@ -42,7 +42,7 @@ func (*Zenity) YesNo(primary, secondary string, options *DialogOptions) bool {
 	if options.Timeout > 0 {
 		args = append(args, fmt.Sprintf("--timeout=%d", int(options.Timeout/time.Second)))
 	}
-	cmd := exec.Command("zenity", args...)
+	cmd := osutil.ExecCommand("zenity", args...)
 	if err := cmd.Start(); err != nil {
 		return false
 	}

@@ -50,7 +50,7 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	}
 
 	s.tmpdir = c.MkDir()
-	s.dbusDaemon = exec.Command("dbus-daemon", "--session", fmt.Sprintf("--address=unix:%s/user_bus_socket", s.tmpdir))
+	s.dbusDaemon = osutil.ExecCommand("dbus-daemon", "--session", fmt.Sprintf("--address=unix:%s/user_bus_socket", s.tmpdir))
 	err := s.dbusDaemon.Start()
 	c.Assert(err, IsNil)
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")

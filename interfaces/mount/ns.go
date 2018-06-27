@@ -21,7 +21,6 @@ package mount
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/cmd"
@@ -40,7 +39,7 @@ func runNamespaceTool(toolName, snapName string) ([]byte, error) {
 	mntFile := mountNsPath(snapName)
 	if osutil.FileExists(mntFile) {
 		toolPath := cmd.InternalToolPath(toolName)
-		cmd := exec.Command(toolPath, snapName)
+		cmd := osutil.ExecCommand(toolPath, snapName)
 		output, err := cmd.CombinedOutput()
 		return output, err
 	}

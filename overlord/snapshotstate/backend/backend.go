@@ -209,6 +209,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 	if err != nil {
 		return nil, err
 	}
+	logger.Noticef("SHA3 384 hash!")
 	fmt.Fprintf(hashWriter, "%x\n", hasher.Sum(nil))
 	if err := w.Close(); err != nil {
 		return nil, err
@@ -259,6 +260,7 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 		return fmt.Errorf("tar failed: %v", err)
 	}
 
+	logger.Noticef("SHA3 384 hash!")
 	snapshot.SHA3_384[entry] = fmt.Sprintf("%x", hasher.Sum(nil))
 	snapshot.Size += sz.size
 

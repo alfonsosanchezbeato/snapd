@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"compress/gzip"
@@ -92,14 +91,14 @@ func trySquashfsMount() error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("mount", "-t", fstype, tmpSquashfsFile.Name(), tmpMountDir)
+	cmd := osutil.ExecCommand("mount", "-t", fstype, tmpSquashfsFile.Name(), tmpMountDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot mount squashfs image using %q: %v", fstype, osutil.OutputErr(output, err))
 	}
 
 	defer func() {
-		if output, err := exec.Command("umount", tmpMountDir).CombinedOutput(); err != nil {
+		if output, err := osutil.ExecCommand("umount", tmpMountDir).CombinedOutput(); err != nil {
 			// os.RemoveAll(tmpMountDir) will fail here if umount fails
 			logger.Noticef("cannot unmount selftest squashfs image: %v", osutil.OutputErr(output, err))
 		}

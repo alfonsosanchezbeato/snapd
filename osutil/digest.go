@@ -26,11 +26,15 @@ import (
 	"os"
 
 	"github.com/anonymouse64/crypto/sha3"
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
 	hashDigestBufSize = 2 * 1024 * 1024
 )
+
+var numSHA3l384 int
+var numSHA3l512 int
 
 // FileDigest computes a hash digest of the file using the given hash.
 // It also returns the file size.
@@ -43,8 +47,12 @@ func FileDigest(filename string, hashType crypto.Hash) ([]byte, uint64, error) {
 	var h hash.Hash
 	switch hashType {
 	case crypto.SHA3_384:
+		numSHA3l384++
+		logger.Noticef("SHA3 384 hash %d", numSHA3l384)
 		h = sha3.New384()
 	case crypto.SHA3_512:
+		numSHA3l512++
+		logger.Noticef("SHA3 512 hash %d", numSHA3l512)
 		h = sha3.New512()
 	default:
 		h = hashType.New()

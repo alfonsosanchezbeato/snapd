@@ -22,10 +22,10 @@ package boot
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -50,7 +50,7 @@ func RemoveKernelAssets(s snap.PlaceInfo) error {
 }
 
 func copyAll(src, dst string) error {
-	if output, err := exec.Command("cp", "-aLv", src, dst).CombinedOutput(); err != nil {
+	if output, err := osutil.ExecCommand("cp", "-aLv", src, dst).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot copy %q -> %q: %s (%s)", src, dst, err, output)
 	}
 	return nil

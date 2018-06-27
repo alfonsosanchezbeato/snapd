@@ -80,7 +80,7 @@ func (s *execSuite) TestCommandFromCore(c *C) {
 	cmd, err := osutil.CommandFromCore("/usr/bin/xdelta3", "--some-xdelta-arg")
 	c.Assert(err, IsNil)
 
-	out, err := exec.Command("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
+	out, err := osutil.ExecCommand("/bin/sh", "-c", fmt.Sprintf("readelf -l %s |grep interpreter:|cut -f2 -d:|cut -f1 -d]", truePath)).Output()
 	c.Assert(err, IsNil)
 	interp := strings.TrimSpace(string(out))
 
@@ -100,7 +100,7 @@ func (s *execSuite) TestCommandFromCoreSymlinkCycle(c *C) {
 	os.MkdirAll(filepath.Join(root, "/usr/bin"), 0755)
 	osutil.CopyFile(truePath, filepath.Join(root, "/usr/bin/xdelta3"), 0)
 
-	out, err := exec.Command("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
+	out, err := osutil.ExecCommand("/bin/sh", "-c", "readelf -l /bin/true |grep interpreter:|cut -f2 -d:|cut -f1 -d]").Output()
 	c.Assert(err, IsNil)
 	interp := strings.TrimSpace(string(out))
 
@@ -174,7 +174,7 @@ func (s *execSuite) TestKillProcessGroupKillsProcessGroup(c *C) {
 		return syscall.Kill(p, s)
 	})()
 
-	cmd := exec.Command("sleep", "1m")
+	cmd := osutil.ExecCommand("sleep", "1m")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Start()
 	defer cmd.Process.Kill()
@@ -188,7 +188,7 @@ func (s *execSuite) TestKillProcessGroupKillsProcessGroup(c *C) {
 func (s *execSuite) TestKillProcessGroupShyOfInit(c *C) {
 	defer osutil.MockSyscallGetpgid(func(int) (int, error) { return 1, nil })()
 
-	cmd := exec.Command("sleep", "1m")
+	cmd := osutil.ExecCommand("sleep", "1m")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Start()
 	defer cmd.Process.Kill()

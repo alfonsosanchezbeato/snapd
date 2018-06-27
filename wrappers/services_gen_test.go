@@ -450,7 +450,7 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		// daemon is not running (as it happens in LP builds) and writes
 		// the following to stderr:
 		//   Failed to create bus connection: No such file or directory
-		cmd := exec.Command(systemdAnalyzePath, "calendar", "12:00")
+		cmd := osutil.ExecCommand(systemdAnalyzePath, "calendar", "12:00")
 		err := cmd.Run()
 		if err != nil {
 			// turns out it's not usable, disable extra verification
@@ -536,7 +536,7 @@ func (s *servicesWrapperGenSuite) TestTimerGenerateSchedules(c *C) {
 		}
 
 		if systemdAnalyzePath != "" {
-			cmd := exec.Command(systemdAnalyzePath, append([]string{"calendar"}, timer...)...)
+			cmd := osutil.ExecCommand(systemdAnalyzePath, append([]string{"calendar"}, timer...)...)
 			out, err := cmd.CombinedOutput()
 			c.Check(err, IsNil, Commentf("systemd-analyze failed with output:\n%s", string(out)))
 		}

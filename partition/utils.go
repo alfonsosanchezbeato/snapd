@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"os/exec"
+	"github.com/snapcore/snapd/osutil"
 	"strings"
 )
 
@@ -37,7 +37,7 @@ func runCommandImpl(args ...string) (string, error) {
 		return "", errors.New("no command specified")
 	}
 
-	cmd := exec.Command(args[0], args[1:]...)
+	cmd := osutil.ExecCommand(args[0], args[1:]...)
 	stdout := bytes.NewBuffer(nil)
 	stderr := bytes.NewBuffer(nil)
 	cmd.Stdout = stdout

@@ -357,7 +357,7 @@ func (s *SquashfsTestSuite) TestBuild(c *C) {
 	// unsquashfs writes a funny header like:
 	//     "Parallel unsquashfs: Using 1 processor"
 	//     "1 inodes (1 blocks) to write"
-	outputWithHeader, err := exec.Command("unsquashfs", "-n", "-l", snap.path).Output()
+	outputWithHeader, err := osutil.ExecCommand("unsquashfs", "-n", "-l", snap.path).Output()
 	c.Assert(err, IsNil)
 	split := strings.Split(string(outputWithHeader), "\n")
 	output := strings.Join(split[3:], "\n")

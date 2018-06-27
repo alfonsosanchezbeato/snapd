@@ -31,6 +31,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/sha3"
 )
@@ -187,6 +188,7 @@ func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
 	if err != nil {
 		panic("internal error: cannot compute public key sha3-384")
 	}
+	logger.Noticef("SHA3 384 hash!")
 	sha3_384, err := EncodeDigest(crypto.SHA3_384, h.Sum(nil))
 	if err != nil {
 		panic("internal error: cannot compute public key sha3-384")

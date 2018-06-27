@@ -138,11 +138,11 @@ func runCmd(cmd *exec.Cmd, errdesc string) error {
 }
 
 func runSync(args ...string) error {
-	return runCmd(exec.Command("sync", args...), "sync")
+	return runCmd(ExecCommand("sync", args...), "sync")
 }
 
 func runCpPreserveAll(path, dest, errdesc string) error {
-	return runCmd(exec.Command("cp", "-av", path, dest), errdesc)
+	return runCmd(ExecCommand("cp", "-av", path, dest), errdesc)
 }
 
 // CopySpecialFile is used to copy all the things that are not files

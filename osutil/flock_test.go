@@ -46,7 +46,7 @@ func (s *flockSuite) TestNewFileLock(c *C) {
 }
 
 func flockSupportsConflictExitCodeSwitch(c *C) bool {
-	output, err := exec.Command("flock", "--help").CombinedOutput()
+	output, err := osutil.ExecCommand("flock", "--help").CombinedOutput()
 	c.Assert(err, IsNil)
 	return bytes.Contains(output, []byte("--conflict-exit-code"))
 }
@@ -67,7 +67,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 	// Run a flock command in another process, it should succeed because it can
 	// lock the lock as we didn't do it yet.
-	cmd := exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
+	cmd := osutil.ExecCommand("flock", "--exclusive", "--nonblock", lock.Path(), "true")
 	c.Assert(cmd.Run(), IsNil)
 
 	// Lock the lock.
@@ -75,7 +75,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 	// Run a flock command in another process, it should fail with the distinct
 	// error code because we hold the lock already and we asked it not to block.
-	cmd = exec.Command("flock", "--exclusive", "--nonblock",
+	cmd = osutil.ExecCommand("flock", "--exclusive", "--nonblock",
 		"--conflict-exit-code", "2", lock.Path(), "true")
 	c.Assert(cmd.Run(), ErrorMatches, "exit status 2")
 
@@ -84,7 +84,7 @@ func (s *flockSuite) TestLockUnlockWorks(c *C) {
 
 	// Run a flock command in another process, it should succeed because it can
 	// grab the lock again now.
-	cmd = exec.Command("flock", "--exclusive", "--nonblock", lock.Path(), "true")
+	cmd = osutil.ExecCommand("flock", "--exclusive", "--nonblock", lock.Path(), "true")
 	c.Assert(cmd.Run(), IsNil)
 }
 
@@ -126,7 +126,7 @@ func (s *flockSuite) TestLockUnlockNonblockingWorks(c *C) {
 	}
 
 	lockPath := filepath.Join(c.MkDir(), "lock")
-	cmd := exec.Command("flock", "--exclusive", lockPath, "sleep", "9999")
+	cmd := osutil.ExecCommand("flock", "--exclusive", lockPath, "sleep", "9999")
 	c.Assert(cmd.Start(), IsNil)
 	defer cmd.Process.Kill()
 

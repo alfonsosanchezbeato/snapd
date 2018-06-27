@@ -97,6 +97,7 @@ func Open(fn string) (reader *Reader, e error) {
 		return reader, errors.New(reader.Broken)
 	}
 
+	logger.Noticef("SHA3 384 hash!")
 	actualMetaHash := fmt.Sprintf("%x", hasher.Sum(nil))
 
 	// grab the metadata hash
@@ -140,6 +141,7 @@ func (r *Reader) checkOne(ctx context.Context, entry string, hasher hash.Hash) e
 		return fmt.Errorf("snapshot entry %q size (%d) different from actual (%d)", entry, reportedSize, readSize)
 	}
 
+	logger.Noticef("SHA3 384 hash!")
 	if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
 		return fmt.Errorf("snapshot entry %q expected hash (%.7s…) does not match actual (%.7s…)", entry, expectedHash, actualHash)
 	}
@@ -312,6 +314,7 @@ func (r *Reader) Restore(ctx context.Context, usernames []string, logf Logf) (rs
 				r.Name(), entry, expectedSize, sz.size)
 		}
 
+		logger.Noticef("SHA3 384 hash!")
 		if actualHash := fmt.Sprintf("%x", hasher.Sum(nil)); actualHash != expectedHash {
 			return rs, fmt.Errorf("snapshot %q entry %q expected hash (%.7s…) does not match actual (%.7s…)",
 				r.Name(), entry, expectedHash, actualHash)

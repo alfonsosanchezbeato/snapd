@@ -145,7 +145,7 @@ func (s *packSuite) TestCopyCopies(c *C) {
 	// actually this'll be on /tmp so it'll be a link
 	target := c.MkDir()
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	out, err := osutil.ExecCommand("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
 }
@@ -163,7 +163,7 @@ func (s *packSuite) TestCopyActuallyCopies(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	out, err := exec.Command("diff", "-qrN", sourceDir, target).Output()
+	out, err := osutil.ExecCommand("diff", "-qrN", sourceDir, target).Output()
 	c.Check(err, IsNil)
 	c.Check(out, DeepEquals, []byte{})
 }
@@ -174,7 +174,7 @@ func (s *packSuite) TestCopyExcludesBackups(c *C) {
 	// add a backup file
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, "foo~"), []byte("hi"), 0755), IsNil)
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd := osutil.ExecCommand("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
 	c.Check(err, NotNil)
@@ -189,7 +189,7 @@ func (s *packSuite) TestCopyExcludesTopLevelDEBIAN(c *C) {
 	// and a non-toplevel DEBIAN
 	c.Assert(os.MkdirAll(filepath.Join(sourceDir, "bar", "DEBIAN", "baz"), 0755), IsNil)
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd := osutil.ExecCommand("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
 	c.Check(err, NotNil)
@@ -205,9 +205,9 @@ func (s *packSuite) TestCopyExcludesWholeDirs(c *C) {
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, ".bzr"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(sourceDir, ".bzr", "foo"), []byte("hi"), 0755), IsNil)
 	c.Assert(pack.CopyToBuildDir(sourceDir, target), IsNil)
-	out, _ := exec.Command("find", sourceDir).Output()
+	out, _ := osutil.ExecCommand("find", sourceDir).Output()
 	c.Check(string(out), Not(Equals), "")
-	cmd := exec.Command("diff", "-qr", sourceDir, target)
+	cmd := osutil.ExecCommand("diff", "-qr", sourceDir, target)
 	cmd.Env = append(cmd.Env, "LANG=C")
 	out, err := cmd.Output()
 	c.Check(err, NotNil)
@@ -271,7 +271,7 @@ integration:
 	c.Assert(resultSnap, Equals, "hello_1.0.1_multi.snap")
 
 	// check that the content looks sane
-	output, err := exec.Command("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
+	output, err := osutil.ExecCommand("unsquashfs", "-ll", "hello_1.0.1_multi.snap").CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
 		"meta/snap.yaml",
@@ -303,7 +303,7 @@ integration:
 	c.Assert(resultSnap, Equals, snapOutput)
 
 	// check that the content looks sane
-	output, err := exec.Command("unsquashfs", "-ll", resultSnap).CombinedOutput()
+	output, err := osutil.ExecCommand("unsquashfs", "-ll", resultSnap).CombinedOutput()
 	c.Assert(err, IsNil)
 	for _, needle := range []string{
 		"meta/snap.yaml",

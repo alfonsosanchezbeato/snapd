@@ -36,8 +36,14 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/strutil"
 )
+
+func ExecCommand(name string, arg ...string) *exec.Cmd {
+	logger.Noticef("RUNNING %s %s", name, strings.Join(arg, " "))
+	return exec.Command(name, arg...)
+}
 
 func parseCoreLdSoConf(confPath string) []string {
 	root := filepath.Join(dirs.SnapMountDir, "/core/current")
@@ -138,7 +144,7 @@ func CommandFromCore(name string, cmdArgs ...string) (*exec.Cmd, error) {
 
 	ldSoArgs := []string{"--library-path", strings.Join(ldLibraryPathForCore, ":"), cmdPath}
 	allArgs := append(ldSoArgs, cmdArgs...)
-	return exec.Command(coreLdSo, allArgs...), nil
+	return ExecCommand(coreLdSo, allArgs...), nil
 }
 
 var cmdWaitTimeout = 5 * time.Second
@@ -171,7 +177,7 @@ func RunAndWait(argv []string, env []string, timeout time.Duration, tomb *tomb.T
 		return nil, fmt.Errorf("internal error: osutil.RunAndWait needs non-nil tomb")
 	}
 
-	command := exec.Command(argv[0], argv[1:]...)
+	command := ExecCommand(argv[0], argv[1:]...)
 
 	// setup a process group for the command so that we can kill parent
 	// and children on e.g. timeout
@@ -264,7 +270,7 @@ func (r *waitingReader) Read(b []byte) (int, error) {
 // The program will run until EOF is reached (at which point the
 // ReadCloser is closed), or until the ReadCloser is explicitly closed.
 func StreamCommand(name string, args ...string) (io.ReadCloser, error) {
-	cmd := exec.Command(name, args...)
+	cmd := ExecCommand(name, args...)
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, err

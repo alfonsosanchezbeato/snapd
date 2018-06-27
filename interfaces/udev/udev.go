@@ -21,7 +21,7 @@ package udev
 
 import (
 	"fmt"
-	"os/exec"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // ReloadRules runs two commands that reload udev rule database.
@@ -29,11 +29,11 @@ import (
 // The commands are: udevadm control --reload-rules
 //                   udevadm trigger
 func ReloadRules() error {
-	output, err := exec.Command("udevadm", "control", "--reload-rules").CombinedOutput()
+	output, err := osutil.ExecCommand("udevadm", "control", "--reload-rules").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot reload udev rules: %s\nudev output:\n%s", err, string(output))
 	}
-	output, err = exec.Command("udevadm", "trigger").CombinedOutput()
+	output, err = osutil.ExecCommand("udevadm", "trigger").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot run udev triggers: %s\nudev output:\n%s", err, string(output))
 	}

@@ -390,6 +390,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup) (*snap.Info, error
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
+	logger.Noticef("Start doDownloadSnap")
 	st := t.State()
 	st.Lock()
 	snapsup, err := TaskSnapSetup(t)
@@ -432,6 +433,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", snapsup)
 	st.Unlock()
+	logger.Noticef("End doDownloadSnap")
 
 	return nil
 }
@@ -441,6 +443,7 @@ var (
 )
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
+	logger.Noticef("Start doMountSnap")
 	t.State().Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
@@ -504,6 +507,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	logger.Noticef("Stop doMountSnap")
 	return nil
 }
 
@@ -987,6 +991,8 @@ func (m *SnapManager) doToggleSnapFlags(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	logger.Noticef("Start startSnapServices")
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1009,6 +1015,7 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	err = m.backend.StartServices(svcs, pb)
 	st.Lock()
+	logger.Noticef("End startSnapServices")
 	return err
 }
 

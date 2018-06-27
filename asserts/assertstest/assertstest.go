@@ -147,7 +147,7 @@ func GPGImportKey(homedir, armoredKey string) {
 	if err != nil {
 		panic(err)
 	}
-	gpg := exec.Command(path, "--homedir", homedir, "-q", "--batch", "--import", "--armor")
+	gpg := osutil.ExecCommand(path, "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(armoredKey)
 	out, err := gpg.CombinedOutput()
 	if err != nil {

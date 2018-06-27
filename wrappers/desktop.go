@@ -176,7 +176,7 @@ func updateDesktopDatabase(desktopFiles []string) error {
 	}
 
 	if _, err := exec.LookPath("update-desktop-database"); err == nil {
-		if output, err := exec.Command("update-desktop-database", dirs.SnapDesktopFilesDir).CombinedOutput(); err != nil {
+		if output, err := osutil.ExecCommand("update-desktop-database", dirs.SnapDesktopFilesDir).CombinedOutput(); err != nil {
 			return fmt.Errorf("cannot update-desktop-database %q: %s", output, err)
 		}
 		logger.Debugf("update-desktop-database successful")

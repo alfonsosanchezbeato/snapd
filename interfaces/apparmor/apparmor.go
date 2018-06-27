@@ -29,7 +29,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -61,7 +60,7 @@ func loadProfile(fname, cacheDir string) error {
 	}
 	args = append(args, fname)
 
-	output, err := exec.Command("apparmor_parser", args...).CombinedOutput()
+	output, err := osutil.ExecCommand("apparmor_parser", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}
@@ -69,7 +68,7 @@ func loadProfile(fname, cacheDir string) error {
 }
 
 func unloadProfile(name, cacheDir string) error {
-	output, err := exec.Command("apparmor_parser", "--remove", name).CombinedOutput()
+	output, err := osutil.ExecCommand("apparmor_parser", "--remove", name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot unload apparmor profile: %s\napparmor_parser output:\n%s", err, string(output))
 	}

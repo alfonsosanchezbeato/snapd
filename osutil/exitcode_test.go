@@ -31,18 +31,18 @@ type ExitCodeTestSuite struct{}
 var _ = Suite(&ExitCodeTestSuite{})
 
 func (ts *ExitCodeTestSuite) TestExitCode(c *C) {
-	cmd := exec.Command("true")
+	cmd := osutil.ExecCommand("true")
 	err := cmd.Run()
 	c.Assert(err, IsNil)
 
-	cmd = exec.Command("false")
+	cmd = osutil.ExecCommand("false")
 	err = cmd.Run()
 	c.Assert(err, NotNil)
 	e, err := ExitCode(err)
 	c.Assert(err, IsNil)
 	c.Assert(e, Equals, 1)
 
-	cmd = exec.Command("sh", "-c", "exit 7")
+	cmd = osutil.ExecCommand("sh", "-c", "exit 7")
 	err = cmd.Run()
 	e, err = ExitCode(err)
 	c.Assert(err, IsNil)

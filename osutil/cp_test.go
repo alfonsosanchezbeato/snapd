@@ -229,7 +229,7 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	// syscall.Utime()? Well, syscall not implemented on armhf
 	// Aha, syscall.Utimes() then? No, not implemented on arm64
 	// Really, this is a just a test, touch is good enough!
-	err = exec.Command("touch", src, "-d", "2007-08-23 08:21:42").Run()
+	err = osutil.ExecCommand("touch", src, "-d", "2007-08-23 08:21:42").Run()
 	c.Assert(err, IsNil)
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll)

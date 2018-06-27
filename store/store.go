@@ -1539,6 +1539,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if _, err := io.Copy(h, w); err != nil {
 			return err
 		}
+		logger.Noticef("SHA3 384 hash!")
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if downloadInfo.Sha3_384 != actualSha3 {
 			err = HashError{name, actualSha3, downloadInfo.Sha3_384}
@@ -1678,6 +1679,7 @@ var download = func(ctx context.Context, name, sha3_384, downloadURL string, use
 			return fmt.Errorf("The download has been cancelled: %s", ctx.Err())
 		}
 
+		logger.Noticef("SHA3 384 hash!")
 		actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
 		if sha3_384 != "" && sha3_384 != actualSha3 {
 			finalErr = HashError{name, actualSha3, sha3_384}
@@ -1716,7 +1718,7 @@ func (s *Store) downloadDelta(deltaName string, downloadInfo *snap.DownloadInfo,
 func getXdelta3Cmd(args ...string) (*exec.Cmd, error) {
 	switch {
 	case osutil.ExecutableExists("xdelta3"):
-		return exec.Command("xdelta3", args...), nil
+		return osutil.ExecCommand("xdelta3", args...), nil
 	case osutil.FileExists(filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")):
 		return osutil.CommandFromCore("/usr/bin/xdelta3", args...)
 	}

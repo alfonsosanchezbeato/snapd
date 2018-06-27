@@ -36,9 +36,9 @@ const (
 func (s *mockCommandSuite) TestMockCommand(c *check.C) {
 	mock := MockCommand(c, "cmd", "true")
 	defer mock.Restore()
-	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
+	err := osutil.ExecCommand("cmd", "first-run", "--arg1", "arg2", "a space").Run()
 	c.Assert(err, check.IsNil)
-	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
+	err = osutil.ExecCommand("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
 	c.Assert(err, check.IsNil)
 	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"cmd", "first-run", "--arg1", "arg2", "a space"},
@@ -51,8 +51,8 @@ func (s *mockCommandSuite) TestMockCommandAlso(c *check.C) {
 	also := mock.Also("snd", "")
 	defer mock.Restore()
 
-	c.Assert(exec.Command("fst").Run(), check.IsNil)
-	c.Assert(exec.Command("snd").Run(), check.IsNil)
+	c.Assert(osutil.ExecCommand("fst").Run(), check.IsNil)
+	c.Assert(osutil.ExecCommand("snd").Run(), check.IsNil)
 	c.Check(mock.Calls(), check.DeepEquals, [][]string{{"fst"}, {"snd"}})
 	c.Check(mock.Calls(), check.DeepEquals, also.Calls())
 }
@@ -61,7 +61,7 @@ func (s *mockCommandSuite) TestMockCommandConflictEcho(c *check.C) {
 	mock := MockCommand(c, "do-not-swallow-echo-args", "")
 	defer mock.Restore()
 
-	c.Assert(exec.Command("do-not-swallow-echo-args", "-E", "-n", "-e").Run(), check.IsNil)
+	c.Assert(osutil.ExecCommand("do-not-swallow-echo-args", "-E", "-n", "-e").Run(), check.IsNil)
 	c.Assert(mock.Calls(), check.DeepEquals, [][]string{
 		{"do-not-swallow-echo-args", "-E", "-n", "-e"},
 	})

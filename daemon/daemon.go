@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -468,6 +467,7 @@ func (d *Daemon) Start() {
 	d.snapdServe = newShutdownServer(d.snapdListener, logit(d.router))
 
 	// the loop runs in its own goroutine
+	logger.Noticef("Starting overlord Loop")
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
@@ -499,7 +499,7 @@ func rebootImpl(rebootDelay time.Duration) error {
 		rebootDelay = 0
 	}
 	mins := int64((rebootDelay + time.Minute - 1) / time.Minute)
-	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
+	cmd := osutil.ExecCommand("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(out, err)
 	}

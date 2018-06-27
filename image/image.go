@@ -491,7 +491,7 @@ func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 }
 
 func runCommand(cmdStr ...string) error {
-	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	cmd := osutil.ExecCommand(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot run %v: %s", cmdStr, osutil.OutputErr(output, err))
 	}

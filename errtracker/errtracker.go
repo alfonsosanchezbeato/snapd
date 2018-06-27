@@ -28,7 +28,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -170,7 +169,7 @@ func (db *reportsDB) MarkReported(dupSig string) error {
 }
 
 func whoopsieEnabled() bool {
-	cmd := exec.Command("systemctl", "is-enabled", "whoopsie.service")
+	cmd := osutil.ExecCommand("systemctl", "is-enabled", "whoopsie.service")
 	output, _ := cmd.CombinedOutput()
 	switch string(output) {
 	case "enabled\n":
@@ -271,7 +270,7 @@ func ReportRepair(repair, errMsg, dupSig string, extra map[string]string) (strin
 }
 
 func detectVirt() string {
-	cmd := exec.Command("systemd-detect-virt")
+	cmd := osutil.ExecCommand("systemd-detect-virt")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
@@ -287,7 +286,7 @@ func journalError() string {
 	// anything from 238 (on arch) to 204 (on ubuntu 14.04); this is why
 	// doing the refactor to the systemd package to only worry about this in
 	// there might be worth it.
-	output, err := exec.Command("journalctl", "-b", "--priority=warning..err", "--lines=1000").CombinedOutput()
+	output, err := osutil.ExecCommand("journalctl", "-b", "--priority=warning..err", "--lines=1000").CombinedOutput()
 	if err != nil {
 		if len(output) == 0 {
 			return fmt.Sprintf("error: %v", err)

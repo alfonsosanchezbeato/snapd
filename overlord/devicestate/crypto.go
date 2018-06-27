@@ -25,7 +25,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 
@@ -45,7 +44,7 @@ func generateRSAKey(keyLength int) (*rsa.PrivateKey, error) {
 
 	rsaKeyFile := filepath.Join(tempDir, "rsa.key")
 
-	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", strconv.Itoa(keyLength), "-N", "", "-f", rsaKeyFile)
+	cmd := osutil.ExecCommand("ssh-keygen", "-t", "rsa", "-b", strconv.Itoa(keyLength), "-N", "", "-f", rsaKeyFile)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, osutil.OutputErr(out, err)
