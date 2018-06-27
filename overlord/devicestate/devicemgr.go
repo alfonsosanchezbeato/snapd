@@ -21,7 +21,9 @@ package devicestate
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -386,6 +389,23 @@ func markSeededInConfig(st *state.State) error {
 		}
 		tr.Commit()
 	}
+
+	logger.Noticef("STOPPING PROFILING")
+	pprof.StopCPUProfile()
+
+	f, err := os.Create("/writable/system-data/snapd-block.prof")
+	if err != nil {
+		logger.Noticef("cannot create block profile file")
+	}
+
+	p := pprof.Lookup("block")
+	defer func() {
+		err := p.WriteTo(f, 0)
+		if err != nil {
+			logger.Noticef("Error writing block profile")
+		}
+	}()
+
 	return nil
 }
 
