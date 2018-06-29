@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -891,5 +892,22 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 	}
 
 	task.SetStatus(state.DoneStatus)
+	return nil
+}
+
+// Loads security profiles
+func (m *InterfaceManager) doLoadProfiles(task *state.Task, _ *tomb.Tomb) error {
+	st := task.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var snapInfo snap.Info
+	err := task.Get("snap-info", &snapInfo)
+	if err != nil {
+		logger.Noticef("Got snap-info %q", snapInfo.SuggestedName)
+	} else {
+		logger.Noticef("No snap-info")
+	}
+
 	return nil
 }

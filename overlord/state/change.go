@@ -222,6 +222,20 @@ func (c *Change) finishUnmarshal() {
 	}
 }
 
+// GetTaskOfKind returns a task that belongs to this change, of the
+// specified kind
+func (c *Change) GetTaskOfKind(kind string) *Task {
+	// AAA is taskid unique?
+	for _, tid := range c.taskIDs {
+		t := c.state.tasks[tid]
+		if t.kind == kind {
+			return t
+		}
+	}
+
+	return nil
+}
+
 // ID returns the individual random key for the change.
 func (c *Change) ID() string {
 	return c.id

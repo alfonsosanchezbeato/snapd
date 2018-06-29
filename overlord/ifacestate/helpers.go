@@ -288,6 +288,11 @@ func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.In
 	snapName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
+		loadProf := task.Change().GetTaskOfKind("load-profiles")
+		if loadProf != nil {
+			loadProf.Set("snap-info", snapInfo)
+			logger.Noticef("Adding snap-info %q", snapInfo.SuggestedName)
+		}
 		st.Unlock()
 		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()

@@ -190,6 +190,11 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	addTask(autoConnect)
 	prev = autoConnect
 
+	// load security profiles
+	loadProfiles := st.NewTask("load-profiles", fmt.Sprintf(i18n.G("Load security profiles of snap %q"), snapsup.Name()))
+	addTask(loadProfiles)
+	prev = loadProfiles
+
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.Name()))
 	addTask(setAutoAliases)
