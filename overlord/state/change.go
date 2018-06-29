@@ -225,7 +225,6 @@ func (c *Change) finishUnmarshal() {
 // GetTaskOfKind returns a task that belongs to this change, of the
 // specified kind
 func (c *Change) GetTaskOfKind(kind string) *Task {
-	// AAA is taskid unique?
 	for _, tid := range c.taskIDs {
 		t := c.state.tasks[tid]
 		if t.kind == kind {

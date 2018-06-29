@@ -284,15 +284,26 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 }
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, snapInfo *snap.Info, opts interfaces.ConfinementOptions) error {
+	if task.Kind() != "load-profiles" {
+		logger.Noticef("setupSnapSecurity NO")
+		return nil
+	}
+
+	logger.Noticef("setupSnapSecurity YES")
+
 	st := task.State()
 	snapName := snapInfo.InstanceName()
 
 	for _, backend := range m.repo.Backends() {
+
 		loadProf := task.Change().GetTaskOfKind("load-profiles")
+
 		if loadProf != nil {
-			loadProf.Set("snap-info", snapInfo)
-			logger.Noticef("Adding snap-info %q", snapInfo.SuggestedName)
+			mystr := "xxxx"
+			loadProf.Set("snap-info", mystr)
+			logger.Noticef("Adding data %q", mystr)
 		}
+
 		st.Unlock()
 		err := backend.Setup(snapInfo, opts, m.repo)
 		st.Lock()

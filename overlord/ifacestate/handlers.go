@@ -896,18 +896,21 @@ func (m *InterfaceManager) doGadgetConnect(task *state.Task, _ *tomb.Tomb) error
 }
 
 // Loads security profiles
-func (m *InterfaceManager) doLoadProfiles(task *state.Task, _ *tomb.Tomb) error {
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
+func (m *InterfaceManager) doLoadProfiles(task *state.Task, tomb *tomb.Tomb) error {
+	// st := task.State()
+	// st.Lock()
+	// defer st.Unlock()
 
-	var snapInfo snap.Info
-	err := task.Get("snap-info", &snapInfo)
-	if err != nil {
-		logger.Noticef("Got snap-info %q", snapInfo.SuggestedName)
-	} else {
-		logger.Noticef("No snap-info")
-	}
+	// var passedData string
+	// err := task.Get("snap-info", &passedData)
+	// if err == nil {
+	// 	logger.Noticef("Got passedData %q", passedData)
+	// } else {
+	// 	logger.Noticef("No passedData")
+	// }
 
-	return nil
+	// return nil
+
+	logger.Noticef("doLoadProfiles")
+	return m.doSetupProfiles(task, tomb)
 }
