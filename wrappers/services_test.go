@@ -78,7 +78,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)},
-		{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", filepath.Base(svcFile)},
+		{"daemon-reload"},
 	})
 
 	content, err := ioutil.ReadFile(svcFile)
@@ -109,6 +110,7 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		{"--root", dirs.GlobalRootDir, "is-failed", filepath.Base(svcFile)},
 		{"--root", dirs.GlobalRootDir, "reset-failed", filepath.Base(svcFile)},
 		{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", "snap.hello-snap.svc1.service"},
+		{"daemon-reload"},
 	})
 }
 
@@ -671,6 +673,7 @@ apps:
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
 		{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", filepath.Base(survivorFile)},
+		{"daemon-reload"},
 	})
 
 	sysdLog = nil
@@ -730,6 +733,7 @@ apps:
 		c.Check(sysdLog, DeepEquals, [][]string{
 			{"--root", dirs.GlobalRootDir, "enable", filepath.Base(survivorFile)},
 			{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", filepath.Base(survivorFile)},
+			{"daemon-reload"},
 		})
 
 		sysdLog = nil
@@ -987,10 +991,11 @@ apps:
 	// fix the apps order to make the test stable
 	err := wrappers.AddSnapServices(info, nil)
 	c.Assert(err, IsNil)
-	c.Assert(sysdLog, HasLen, 2, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
+	c.Assert(sysdLog, HasLen, 3, Commentf("len: %v calls: %v", len(sysdLog), sysdLog))
 	c.Check(sysdLog, DeepEquals, [][]string{
 		// only svc3 gets started during boot
 		{"--root", dirs.GlobalRootDir, "enable", svc3Name},
 		{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", svc3Name},
+		{"daemon-reload"},
 	}, Commentf("calls: %v", sysdLog))
 }
