@@ -532,21 +532,25 @@ apps:
 Id=snap.foo.svc1.service
 ActiveState=fumbling
 UnitFileState=enabled
+NeedDaemonReload=no
 `),
 		[]byte(`Type=forking
 Id=snap.foo.svc2.service
 ActiveState=active
 UnitFileState=disabled
+NeedDaemonReload=no
 `),
 		[]byte(`Type=oneshot
 Id=snap.foo.svc3.service
 ActiveState=reloading
 UnitFileState=static
+NeedDaemonReload=no
 `),
 		[]byte(`Type=notify
 Id=snap.foo.svc4.service
 ActiveState=inactive
 UnitFileState=potatoes
+NeedDaemonReload=no
 `),
 	}
 
@@ -6305,6 +6309,7 @@ Id=snap.%s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:], name)))
 	}
 
@@ -6379,6 +6384,7 @@ Id=snap.%s.service
 Type=simple
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:], name)))
 	}
 
