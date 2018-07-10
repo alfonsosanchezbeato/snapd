@@ -166,11 +166,13 @@ func (*systemd) DaemonReload() error {
 func (s *systemd) DaemonReloadIfNeeded(serviceNames ...string) error {
 	needReload := false
 	for _, service := range serviceNames {
-		// A status error will happen if the service does not exist anymore.
-		// We do nothing in that case, as in some cases that is the expected
-		// state of the service when this function is called.
+		// A status error will happen if systemd thinks that the service does
+		// not exist anymore. We force the reload in that case, as we assume
+		// that the unit exists at this point.
 		status, err := s.Status(service)
 		if err != nil {
+			logger.Noticef("DaemonReloadIfNeeded - not exist - reload needed for %q", service)
+			needReload = true
 			continue
 		}
 
