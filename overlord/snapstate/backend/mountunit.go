@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -41,10 +42,11 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 	if err != nil {
 		return err
 	}
+	logger.Noticef("addMountUnit - created %q", mountUnitName)
 
-	// we need to do a daemon-reload here to ensure that systemd really
+	// occasionally we need to do a daemon-reload here to ensure that systemd really
 	// knows about this new mount unit file
-	if err := sysd.DaemonReload(); err != nil {
+	if err := sysd.DaemonReloadIfNeeded(mountUnitName); err != nil {
 		return err
 	}
 
@@ -63,28 +65,34 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 		// can be unmounted.
 		// note that the long option --lazy is not supported on trusty.
 		// the explicit -d is only needed on trusty.
+		logger.Noticef("removeMountUnit - %q", unit)
 		isMounted, err := osutil.IsMounted(baseDir)
 		if err != nil {
 			return err
 		}
+		mountUnitName := filepath.Base(unit)
 		if isMounted {
 			if output, err := exec.Command("umount", "-d", "-l", baseDir).CombinedOutput(); err != nil {
 				return osutil.OutputErr(output, err)
 			}
 
-			if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+			if err := sysd.Stop(mountUnitName, time.Duration(1*time.Second)); err != nil {
 				return err
 			}
 		}
-		if err := sysd.Disable(filepath.Base(unit)); err != nil {
+		if err := sysd.Disable(mountUnitName); err != nil {
 			return err
 		}
+
+		if err := sysd.ResetFailedIfNeeded(mountUnitName); err != nil {
+			return err
+		}
+
 		if err := os.Remove(unit); err != nil {
 			return err
 		}
-		// daemon-reload to ensure that systemd actually really
-		// forgets about this mount unit
-		if err := sysd.DaemonReload(); err != nil {
+
+		if err := sysd.DaemonReloadIfNeeded(mountUnitName); err != nil {
 			return err
 		}
 	}

@@ -33,6 +33,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -51,6 +52,10 @@ var (
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
+	if strings.Contains(string(bs), "changed on disk") {
+		logger.Noticef("DETECTED changed on disk, err %v, cmd %v", err, strings.Join(args, " "))
+		return nil, &Error{cmd: args, exitCode: 1, msg: bs}
+	}
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
 		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
@@ -104,6 +109,7 @@ func MockJournalctl(f func(svcs []string, n string, follow bool) (io.ReadCloser,
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	DaemonReload() error
+	DaemonReloadIfNeeded(serviceNames ...string) error
 	Enable(service string) error
 	Disable(service string) error
 	Start(service ...string) error
@@ -115,6 +121,9 @@ type Systemd interface {
 	WriteMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	Mask(service string) error
 	Unmask(service string) error
+	IsFailed(serviceNames ...string) bool
+	ResetFailed(serviceNames ...string) error
+	ResetFailedIfNeeded(serviceNames ...string) error
 }
 
 // A Log is a single entry in the systemd journal
@@ -154,6 +163,30 @@ func (*systemd) DaemonReload() error {
 	return err
 }
 
+func (s *systemd) DaemonReloadIfNeeded(serviceNames ...string) error {
+	needReload := false
+	for _, service := range serviceNames {
+		// A status error will happen if the service does not exist anymore.
+		// We do nothing in that case, as in some cases that is the expected
+		// state of the service when this function is called.
+		status, err := s.Status(service)
+		if err != nil {
+			continue
+		}
+
+		if status[0].NeedDaemonReload {
+			logger.Noticef("DaemonReloadIfNeeded - reload needed for %q", service)
+			needReload = true
+		}
+	}
+
+	if needReload {
+		return s.DaemonReload()
+	}
+
+	return nil
+}
+
 // Enable the given service
 func (s *systemd) Enable(serviceName string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "enable", serviceName)
@@ -184,6 +217,38 @@ func (*systemd) Start(serviceNames ...string) error {
 	return err
 }
 
+// Check if unit is in failed state
+func (s *systemd) IsFailed(serviceNames ...string) bool {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "is-failed"}, serviceNames...)...)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+// Clean failed state of unit
+func (s *systemd) ResetFailed(serviceNames ...string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "reset-failed"}, serviceNames...)...)
+	return err
+}
+
+func (s *systemd) ResetFailedIfNeeded(serviceNames ...string) error {
+	failedServices := []string{}
+	for _, service := range serviceNames {
+		if s.IsFailed(service) {
+			failedServices = append(failedServices, service)
+		}
+	}
+
+	if len(failedServices) > 0 {
+		logger.Noticef("ResetFailedIfNeeded - resetting the \"failed\" state for %q", failedServices)
+		return s.ResetFailed(failedServices...)
+	}
+
+	return nil
+}
+
 // LogReader for the given services
 func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.ReadCloser, error) {
 	return jctl(serviceNames, n, follow)
@@ -192,14 +257,19 @@ func (*systemd) LogReader(serviceNames []string, n string, follow bool) (io.Read
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type ServiceStatus struct {
-	Daemon          string
-	ServiceFileName string
-	Enabled         bool
-	Active          bool
+	Daemon           string
+	ServiceFileName  string
+	Enabled          bool
+	Active           bool
+	NeedDaemonReload bool
 }
 
 func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
-	expected := []string{"Id", "Type", "ActiveState", "UnitFileState"}
+	if len(serviceNames) == 0 {
+		return nil, nil
+	}
+
+	expected := []string{"Id", "Type", "ActiveState", "UnitFileState", "NeedDaemonReload"}
 	cmd := make([]string, len(serviceNames)+2)
 	cmd[0] = "show"
 	cmd[1] = "--property=" + strings.Join(expected, ",")
@@ -245,7 +315,7 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 		v := string(bs[2])
 
 		if v == "" {
-			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’ output", k)
+			return nil, fmt.Errorf("cannot get service status: empty field %q in ‘systemctl show’", k)
 		}
 
 		switch k {
@@ -259,6 +329,8 @@ func (s *systemd) Status(serviceNames ...string) ([]*ServiceStatus, error) {
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+		case "NeedDaemonReload":
+			cur.NeedDaemonReload = v == "yes"
 		default:
 			return nil, fmt.Errorf("cannot get service status: unexpected field %q in ‘systemctl show’ output", k)
 		}

@@ -181,16 +181,19 @@ Type=simple
 Id=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=bar.service
 ActiveState=reloading
 UnitFileState=static
+NeedDaemonReload=no
 
 Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+NeedDaemonReload=yes
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -198,24 +201,27 @@ UnitFileState=disabled
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*ServiceStatus{
 		{
-			Daemon:          "simple",
-			ServiceFileName: "foo.service",
-			Active:          true,
-			Enabled:         true,
+			Daemon:           "simple",
+			ServiceFileName:  "foo.service",
+			Active:           true,
+			Enabled:          true,
+			NeedDaemonReload: false,
 		}, {
-			Daemon:          "simple",
-			ServiceFileName: "bar.service",
-			Active:          true,
-			Enabled:         true,
+			Daemon:           "simple",
+			ServiceFileName:  "bar.service",
+			Active:           true,
+			Enabled:          true,
+			NeedDaemonReload: false,
 		}, {
-			Daemon:          "potato",
-			ServiceFileName: "baz.service",
-			Active:          false,
-			Enabled:         false,
+			Daemon:           "potato",
+			ServiceFileName:  "baz.service",
+			Active:           false,
+			Enabled:          false,
+			NeedDaemonReload: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
-	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState", "foo.service", "bar.service", "baz.service"}})
+	c.Assert(s.argses, DeepEquals, [][]string{{"show", "--property=Id,Type,ActiveState,UnitFileState,NeedDaemonReload", "foo.service", "bar.service", "baz.service"}})
 }
 
 func (s *SystemdTestSuite) TestStatusBadNumberOfValues(c *C) {
@@ -225,11 +231,13 @@ Type=simple
 Id=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 
 Type=simple
 Id=foo.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -262,6 +270,7 @@ Type=simple
 Id=bar.service
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -278,6 +287,7 @@ Id=foo.service
 ActiveState=active
 UnitFileState=enabled
 Potatoes=false
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -292,6 +302,7 @@ func (s *SystemdTestSuite) TestStatusMissingField(c *C) {
 Type=simple
 Id=foo.service
 ActiveState=active
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -308,6 +319,7 @@ Id=foo.service
 ActiveState=active
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -323,6 +335,7 @@ Type=simple
 Id=
 ActiveState=active
 UnitFileState=enabled
+NeedDaemonReload=no
 `[1:]),
 	}
 	s.errors = []error{nil}
@@ -368,6 +381,18 @@ func (s *SystemdTestSuite) TestUnmask(c *C) {
 	err := New("xyzzy", s.rep).Unmask("foo")
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "unmask", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsFailed(c *C) {
+	isFailed := New("xyzzy", s.rep).IsFailed("foo")
+	c.Assert(isFailed, Equals, true)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "is-failed", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestResetFailed(c *C) {
+	err := New("xyzzy", s.rep).ResetFailed("foo")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"--root", "xyzzy", "reset-failed", "foo"}})
 }
 
 func (s *SystemdTestSuite) TestRestart(c *C) {
