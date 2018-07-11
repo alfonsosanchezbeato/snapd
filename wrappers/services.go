@@ -177,6 +177,8 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	var written []string
 	var enabled []string
+	var units []string
+
 	defer func() {
 		if err == nil {
 			return
@@ -225,6 +227,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				return err
 			}
 			written = append(written, path)
+			units = append(units, filepath.Base(path))
 		}
 
 		if app.Timer != nil {
@@ -238,6 +241,7 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 				return err
 			}
 			written = append(written, path)
+			units = append(units, filepath.Base(path))
 		}
 
 		if app.Timer != nil || len(app.Sockets) != 0 {
@@ -252,9 +256,10 @@ func AddSnapServices(s *snap.Info, inter interacter) (err error) {
 			return err
 		}
 		enabled = append(enabled, svcName)
+		units = append(units, filepath.Base(svcName))
 	}
 
-	if err := sysd.DaemonReloadIfNeeded(enabled...); err != nil {
+	if err := sysd.DaemonReloadIfNeeded(units...); err != nil {
 		return err
 	}
 
