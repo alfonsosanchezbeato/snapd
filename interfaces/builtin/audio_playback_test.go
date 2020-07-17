@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
@@ -164,6 +165,7 @@ func (s *AudioPlaybackInterfaceSuite) TestAppArmor(c *C) {
 	c.Assert(spec.AddPermanentSlot(s.iface, s.coreSlotInfo), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
 	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "capability setuid,\n")
+	c.Check(spec.SnippetForTag("snap.audio-playback.app1"), testutil.Contains, "name=\"org.pulseaudio.Server\",\n")
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestAppArmorOnClassic(c *C) {
@@ -199,6 +201,15 @@ KERNEL=="pcmC[0-9]*D[0-9]*[cp]", TAG+="snap_audio-playback_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# audio-playback
 KERNEL=="timer", TAG+="snap_audio-playback_app1"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_audio-playback_app1", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_audio-playback_app1 $devpath $major:$minor"`)
+}
+
+func (s *AudioPlaybackInterfaceSuite) TestPermanentSlotDBus(c *C) {
+	dbusSpec := &dbus.Specification{}
+	err := dbusSpec.AddPermanentSlot(s.iface, s.coreSlotInfo)
+	c.Assert(err, IsNil)
+	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.audio-playback.app1"})
+	snippet := dbusSpec.SnippetForTag("snap.audio-playback.app1")
+	c.Assert(snippet, testutil.Contains, "allow own=\"org.pulseaudio.Server\"")
 }
 
 func (s *AudioPlaybackInterfaceSuite) TestInterfaces(c *C) {
