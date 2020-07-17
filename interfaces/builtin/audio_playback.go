@@ -22,6 +22,7 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
@@ -109,6 +110,21 @@ owner /{,var/}run/pulse/** rwk,
 owner /run/pulse/native/ rwk,
 owner /run/user/[0-9]*/ r,
 owner /run/user/[0-9]*/pulse/ rw,
+
+# DBus accesses
+include <abstractions/dbus-strict>
+
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=system
+    name="org.pulseaudio.Server",
+dbus (send)
+   bus=system
+   path=/org/freedesktop/DBus
+   interface=org.freedesktop.DBus
+   member={Request,Release}Name
+   peer=(name=org.freedesktop.DBus, label=unconfined),
+
 `
 
 const audioPlaybackPermanentSlotSecComp = `
@@ -126,6 +142,12 @@ setgroups
 setgroups32
 # libudev
 socket AF_NETLINK - NETLINK_KOBJECT_UEVENT
+`
+
+const audioPlaybackPermanentSlotDBus = `
+<policy user="root">
+    <allow own="org.pulseaudio.Server"/>
+</policy>
 `
 
 type audioPlaybackInterface struct{}
@@ -169,6 +191,11 @@ func (iface *audioPlaybackInterface) SecCompConnectedPlug(spec *seccomp.Specific
 
 func (iface *audioPlaybackInterface) SecCompPermanentSlot(spec *seccomp.Specification, slot *snap.SlotInfo) error {
 	spec.AddSnippet(audioPlaybackPermanentSlotSecComp)
+	return nil
+}
+
+func (iface *audioPlaybackInterface) DBusPermanentSlot(spec *dbus.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(audioPlaybackPermanentSlotDBus)
 	return nil
 }
 
