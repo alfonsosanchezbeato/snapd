@@ -138,6 +138,9 @@ dbus (send)
     path=/org/freedesktop/hostname1
     interface=org.freedesktop.DBus.Introspectable
     member=Introspect,
+
+# Access to device buttons
+/dev/uinput rw,
 `
 
 const bluezConnectedSlotAppArmor = `
