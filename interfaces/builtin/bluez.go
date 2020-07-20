@@ -186,6 +186,9 @@ dbus (receive)
     path=/org/bluez{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=unconfined),
+
+# Allow access to bluetooth audio streams
+network bluetooth,
 `
 
 const bluezPermanentSlotSecComp = `
