@@ -32,6 +32,7 @@ const cameraBaseDeclarationSlots = `
 const cameraConnectedPlugAppArmor = `
 # Until we have proper device assignment, allow access to all cameras
 /dev/video[0-9]* rw,
+/dev/media[0-9]* rw,
 
 # VideoCore cameras (shared device with VideoCore/EGL)
 /dev/vchiq rw,
@@ -54,6 +55,7 @@ const cameraConnectedPlugAppArmor = `
 var cameraConnectedPlugUDev = []string{
 	`KERNEL=="video[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`SUBSYSTEM=="media", KERNEL=="media[0-9]*"`,
 }
 
 func init() {
