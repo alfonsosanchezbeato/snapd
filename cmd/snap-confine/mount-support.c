@@ -183,6 +183,122 @@ struct sc_mount_config {
 	const char *base_snap_name;
 };
 
+struct sc_symlink {
+	const char *linkpath;
+	const char *target;
+};
+
+// Root folders for core20 base
+const struct sc_mount base_mnts[] = {
+	{ "boot" },
+	{ "dev" },
+	{ "etc" },
+	{ "home" },
+	{ "host" },
+	{ "media" },
+	{ "meta" },
+	{ "mnt" },
+	{ "opt" },
+	{ "proc" },
+	{ "root" },
+	{ "run" },
+	{ "snap" },
+	{ "srv" },
+	{ "sys" },
+	{ "tmp" },
+	{ "usr" },
+	{ "var" },
+	{ "writable" },
+	{}
+};
+
+const struct sc_symlink base_symlnks[] = {
+	{ .linkpath = "bin", .target = "usr/bin" },
+	{ .linkpath = "lib", .target = "usr/lib" },
+	{ .linkpath = "lib32", .target = "usr/lib32" },
+	{ .linkpath = "lib64", .target = "usr/lib64" },
+	{ .linkpath = "libx32", .target = "usr/libx32" },
+	{ .linkpath = "sbin", .target = "usr/sbin" },
+	{}
+};
+
+static void sc_create_base_dirs(const char *scratch_dir)
+{
+	const char * const homedir = "myhomedir";
+	char full_path[PATH_MAX];
+
+        // Create directories used as hooks to bind mount base
+	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
+		sc_must_snprintf(full_path, sizeof full_path, "%s/%s",
+				 scratch_dir, mnt->path);
+		if (mkdir(full_path, 0755) < 0 && errno != EEXIST) {
+			die("homedir: cannot create %s (errno %d)", full_path, errno);
+		}
+		debug("created %s", full_path);
+	}
+	// extra for our testing
+	sc_must_snprintf(full_path, sizeof full_path, "%s/%s",
+			 scratch_dir, homedir);
+	if (mkdir(full_path, 0755) < 0 && errno != EEXIST) {
+		die("homedir: cannot create %s", full_path);
+	}
+	// ...and standard symlinks
+	for (const struct sc_symlink * syml = base_symlnks; syml->target != NULL; syml++) {
+		sc_must_snprintf(full_path, sizeof full_path, "%s/%s",
+				 scratch_dir, syml->linkpath);
+		if (symlink(syml->target, full_path) != 0) {
+			die("homedir: cannot create symlink %s to %s (%d)",
+			    full_path, syml->target, errno);
+		}
+	}
+}
+
+static void sc_hack_root_homedir(const struct sc_mount_config *config,
+	const char *scratch_dir)
+{
+	char origin_dir[PATH_MAX];
+	char target_dir[PATH_MAX];
+
+	// Create folders as 0:0 so we can load seccomp rules
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
+        // Create tmpfs as base
+	debug("mounting tmpfs at %s", scratch_dir);
+	if (mount("none", scratch_dir, "tmpfs", 0, NULL) != 0) {
+		die("cannot mount tmpfs at %s", scratch_dir);
+	};
+
+	// Create dirs used as hooks for mounting base dirs
+	sc_create_base_dirs(scratch_dir);
+
+	// Adjust ownership to 0:0, and remount ro
+	if (chown(scratch_dir, 0, 0) < 0) {
+		die("cannot change ownership of %s", scratch_dir);
+	}
+	if (chmod(scratch_dir, 0755 < 0)) {
+		die("cannot change mode of %s", scratch_dir);
+	}
+	debug("remounting tmpfs as read-only %s", scratch_dir);
+	if (mount(NULL, scratch_dir, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
+		die("cannot remount %s as read-only", scratch_dir);
+	}
+
+	(void)sc_set_effective_identity(old);
+
+        // Do the bind mounts
+	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
+		if (strcmp(mnt->path, "home") == 0 || strcmp(mnt->path, "proc") == 0) {
+			continue;
+		}
+		sc_must_snprintf(origin_dir, sizeof origin_dir, "%s/%s",
+				 config->rootfs_dir, mnt->path);
+		sc_must_snprintf(target_dir, sizeof target_dir, "%s/%s",
+				 scratch_dir, mnt->path);
+		sc_do_mount(origin_dir, target_dir, NULL, MS_REC | MS_BIND, NULL);
+		sc_do_mount("none", target_dir, NULL, MS_REC | MS_SLAVE, NULL);
+	}
+}
+
 /**
  * Bootstrap mount namespace.
  *
@@ -226,6 +342,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	if (mkdtemp(scratch_dir) == NULL) {
 		die("cannot create temporary directory for the root file system");
 	}
+	debug("REBUILDING NAMESPACE");
 	// NOTE: at this stage we just called unshare(CLONE_NEWNS). We are in a new
 	// mount namespace and have a private list of mounts.
 	debug("scratch directory for constructing namespace: %s", scratch_dir);
@@ -251,8 +368,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 	// filesystem of a core system (aka all-snap) or the core snap on a classic
 	// system. In the former case we need recursive bind mounts to accurately
 	// replicate the state of the root filesystem into the scratch directory.
-	sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND,
-		    NULL);
+	//sc_do_mount(config->rootfs_dir, scratch_dir, NULL, MS_REC | MS_BIND, NULL);
+
+	// Alternative to mounting base
+	sc_hack_root_homedir(config, scratch_dir);
+
 	// Make the scratch directory recursively slave. Nothing done there will be
 	// shared with the initial mount namespace. This effectively detaches us,
 	// in one way, from the original namespace and coupled with pivot_root
