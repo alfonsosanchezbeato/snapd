@@ -183,55 +183,30 @@ struct sc_mount_config {
 	const char *base_snap_name;
 };
 
+struct sc_base_dir {
+	const char *path;
+	// Some dirs do not need to be mounted as we mount parts of main
+	// rootfs there (like home, dev...)
+	bool do_mount;
+};
+
 struct sc_symlink {
 	const char *linkpath;
 	const char *target;
 };
 
-// Root folders for core20 base
-const struct sc_mount base_mnts[] = {
-	{ "boot" },
-	{ "dev" },
-	{ "etc" },
-	{ "home" },
-	{ "host" },
-	{ "media" },
-	{ "meta" },
-	{ "mnt" },
-	{ "opt" },
-	{ "proc" },
-	{ "root" },
-	{ "run" },
-	{ "snap" },
-	{ "srv" },
-	{ "sys" },
-	{ "tmp" },
-	{ "usr" },
-	{ "var" },
-	{ "writable" },
-	{}
-};
-
-const struct sc_symlink base_symlnks[] = {
-	{ .linkpath = "bin", .target = "usr/bin" },
-	{ .linkpath = "lib", .target = "usr/lib" },
-	{ .linkpath = "lib32", .target = "usr/lib32" },
-	{ .linkpath = "lib64", .target = "usr/lib64" },
-	{ .linkpath = "libx32", .target = "usr/libx32" },
-	{ .linkpath = "sbin", .target = "usr/sbin" },
-	{}
-};
-
-static void sc_create_base_dirs(const char *scratch_dir)
+static void sc_create_base_dirs(const char *scratch_dir,
+				const struct sc_base_dir *base_mnts,
+				const struct sc_symlink *base_symlnks)
 {
 	const char * const homedir = "myhomedir";
 	char full_path[PATH_MAX];
 
-        // Create folders/links as 0:0
+	// Create folders/links as 0:0
 	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
 
-        // Create directories used as hooks to bind mount base
-	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
+	// Create directories used as hooks to bind mount base
+	for (const struct sc_base_dir * mnt = base_mnts; mnt->path != NULL; mnt++) {
 		sc_must_snprintf(full_path, sizeof full_path, "%s/%s",
 				 scratch_dir, mnt->path);
 		if (mkdir(full_path, 0755) < 0 && errno != EEXIST) {
@@ -261,10 +236,42 @@ static void sc_create_base_dirs(const char *scratch_dir)
 static void sc_hack_root_homedir(const struct sc_mount_config *config,
 	const char *scratch_dir)
 {
+	// Root folders and symbolic links for core20 base
+	static const struct sc_base_dir base_mnts[] = {
+		{ .path="boot", .do_mount=true },
+		{ .path="dev", .do_mount=false },
+		{ .path="etc", .do_mount=true },
+		{ .path="home", .do_mount=false },
+		{ .path="host", .do_mount=false },
+		{ .path="media", .do_mount=false },
+		{ .path="meta", .do_mount=true },
+		{ .path="mnt", .do_mount=false },
+		{ .path="opt", .do_mount=true },
+		{ .path="proc", .do_mount=false },
+		{ .path="root", .do_mount=false },
+		{ .path="run", .do_mount=false },
+		{ .path="snap", .do_mount=false },
+		{ .path="srv", .do_mount=true },
+		{ .path="sys", .do_mount=false },
+		{ .path="tmp", .do_mount=false },
+		{ .path="usr", .do_mount=true },
+		{ .path="var", .do_mount=true },
+		{ .path="writable", .do_mount=true },
+		{}
+	};
+	static const struct sc_symlink base_symlnks[] = {
+		{ .linkpath = "bin", .target = "usr/bin" },
+		{ .linkpath = "lib", .target = "usr/lib" },
+		{ .linkpath = "lib32", .target = "usr/lib32" },
+		{ .linkpath = "lib64", .target = "usr/lib64" },
+		{ .linkpath = "libx32", .target = "usr/libx32" },
+		{ .linkpath = "sbin", .target = "usr/sbin" },
+		{}
+	};
 	char origin_dir[PATH_MAX];
 	char target_dir[PATH_MAX];
 
-        // Create tmpfs as base
+	// Create tmpfs as base
 	debug("mounting tmpfs at %s", scratch_dir);
 	if (mount("none", scratch_dir, "tmpfs", 0, NULL) != 0) {
 		die("cannot mount tmpfs at %s", scratch_dir);
@@ -283,7 +290,7 @@ static void sc_hack_root_homedir(const struct sc_mount_config *config,
 	}
 
 	// Create dirs used as hooks for mounting base dirs
-	sc_create_base_dirs(scratch_dir);
+	sc_create_base_dirs(scratch_dir, base_mnts, base_symlnks);
 
 	// and remount ro
 	debug("remounting tmpfs as read-only %s", scratch_dir);
@@ -291,18 +298,9 @@ static void sc_hack_root_homedir(const struct sc_mount_config *config,
 		die("cannot remount %s as read-only", scratch_dir);
 	}
 
-        // Do the bind mounts
-	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
-		if (strcmp(mnt->path, "home") == 0 ||
-		    strcmp(mnt->path, "proc") == 0 ||
-		    strcmp(mnt->path, "snap") == 0 ||
-		    strcmp(mnt->path, "root") == 0 ||
-		    strcmp(mnt->path, "host") == 0 ||
-		    strcmp(mnt->path, "media") == 0 ||
-		    strcmp(mnt->path, "mnt") == 0 ||
-		    strcmp(mnt->path, "run") == 0 ||
-		    strcmp(mnt->path, "sys") == 0 ||
-		    strcmp(mnt->path, "tmp") == 0) {
+	// Do the bind mounts
+	for (const struct sc_base_dir * mnt = base_mnts; mnt->path != NULL; mnt++) {
+		if (mnt->do_mount == false) {
 			continue;
 		}
 		sc_must_snprintf(origin_dir, sizeof origin_dir, "%s/%s",
