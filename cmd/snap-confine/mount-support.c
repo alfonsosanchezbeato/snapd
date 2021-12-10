@@ -310,6 +310,12 @@ static void sc_hack_root_homedir(const struct sc_mount_config *config,
 		sc_do_mount(origin_dir, target_dir, NULL, MS_REC | MS_BIND, NULL);
 		sc_do_mount("none", target_dir, NULL, MS_REC | MS_SLAVE, NULL);
 	}
+
+	// XXX mount /etc in myhomedir
+	sc_must_snprintf(target_dir, sizeof target_dir, "%s/%s",
+			 scratch_dir, "myhomedir");
+	sc_do_mount("/etc", target_dir, NULL, MS_REC | MS_BIND, NULL);
+	sc_do_mount("none", target_dir, NULL, MS_REC | MS_SLAVE, NULL);
 }
 
 /**
