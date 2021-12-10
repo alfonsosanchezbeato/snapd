@@ -287,7 +287,16 @@ static void sc_hack_root_homedir(const struct sc_mount_config *config,
 
         // Do the bind mounts
 	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
-		if (strcmp(mnt->path, "home") == 0 || strcmp(mnt->path, "proc") == 0) {
+		if (strcmp(mnt->path, "home") == 0 ||
+		    strcmp(mnt->path, "proc") == 0 ||
+		    strcmp(mnt->path, "snap") == 0 ||
+		    strcmp(mnt->path, "root") == 0 ||
+		    strcmp(mnt->path, "host") == 0 ||
+		    strcmp(mnt->path, "media") == 0 ||
+		    strcmp(mnt->path, "mnt") == 0 ||
+		    strcmp(mnt->path, "run") == 0 ||
+		    strcmp(mnt->path, "sys") == 0 ||
+		    strcmp(mnt->path, "tmp") == 0) {
 			continue;
 		}
 		sc_must_snprintf(origin_dir, sizeof origin_dir, "%s/%s",
