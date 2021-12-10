@@ -227,6 +227,9 @@ static void sc_create_base_dirs(const char *scratch_dir)
 	const char * const homedir = "myhomedir";
 	char full_path[PATH_MAX];
 
+        // Create folders/links as 0:0
+	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+
         // Create directories used as hooks to bind mount base
 	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
 		sc_must_snprintf(full_path, sizeof full_path, "%s/%s",
@@ -251,6 +254,8 @@ static void sc_create_base_dirs(const char *scratch_dir)
 			    full_path, syml->target, errno);
 		}
 	}
+
+	(void)sc_set_effective_identity(old);
 }
 
 static void sc_hack_root_homedir(const struct sc_mount_config *config,
@@ -259,31 +264,32 @@ static void sc_hack_root_homedir(const struct sc_mount_config *config,
 	char origin_dir[PATH_MAX];
 	char target_dir[PATH_MAX];
 
-	// Create folders as 0:0 so we can load seccomp rules
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-
         // Create tmpfs as base
 	debug("mounting tmpfs at %s", scratch_dir);
 	if (mount("none", scratch_dir, "tmpfs", 0, NULL) != 0) {
 		die("cannot mount tmpfs at %s", scratch_dir);
 	};
+	// Adjust ownership to 0:0 and set adequate permissions for our /
+	if (chown(scratch_dir, 0, 0) < 0) {
+		die("cannot change ownership of %s", scratch_dir);
+	}
+	// NOTE if calling chmod after setting egid=0, this call is
+	// silently changed to a chmod syscall setting mode=0. This
+	// seems to be a glibc bug, as calling directly the syscall
+	// with mode=0755 works just fine. Anyway, we do not need to
+	// set egid=0 here.
+	if (chmod(scratch_dir, 0755) < 0) {
+		die("cannot change mode of %s", scratch_dir);
+	}
 
 	// Create dirs used as hooks for mounting base dirs
 	sc_create_base_dirs(scratch_dir);
 
-	// Adjust ownership to 0:0, and remount ro
-	if (chown(scratch_dir, 0, 0) < 0) {
-		die("cannot change ownership of %s", scratch_dir);
-	}
-	if (chmod(scratch_dir, 0755 < 0)) {
-		die("cannot change mode of %s", scratch_dir);
-	}
+	// and remount ro
 	debug("remounting tmpfs as read-only %s", scratch_dir);
 	if (mount(NULL, scratch_dir, NULL, MS_REMOUNT | MS_RDONLY, NULL) != 0) {
 		die("cannot remount %s as read-only", scratch_dir);
 	}
-
-	(void)sc_set_effective_identity(old);
 
         // Do the bind mounts
 	for (const struct sc_mount * mnt = base_mnts; mnt->path != NULL; mnt++) {
