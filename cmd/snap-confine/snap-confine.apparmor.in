@@ -140,6 +140,12 @@
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin r,
 
+    # For mounting base dir by dir (write dirs and mount on them)
+    /tmp/snap.rootfs_** rw,
+    mount options=(remount ro) -> /tmp/snap.rootfs_*/,
+    mount options=(rw rbind) /snap/core**/ -> /tmp/snap.rootfs_**/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_**/,
+
     # LP: #1668659 and parallel instaces of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
     mount options=(rw rshared) -> /snap/,
@@ -267,7 +273,8 @@
     # Explicitly deny creating the old_root directory in case it is
     # inadvertently added somewhere else. While this doesn't resolve
     # LP: #1791711, it provides some hardening.
-    audit deny /tmp/snap.rootfs_*/{var/,var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
+    # For dir on dir mounts, we do need write permissions in /var though
+    audit deny /tmp/snap.rootfs_*/{var/lib/,var/lib/snapd/,var/lib/snapd/hostfs/} w,
 
     # cleanup
     umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
