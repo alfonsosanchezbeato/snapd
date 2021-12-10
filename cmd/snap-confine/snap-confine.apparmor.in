@@ -145,6 +145,8 @@
     mount options=(remount ro) -> /tmp/snap.rootfs_*/,
     mount options=(rw rbind) /snap/core**/ -> /tmp/snap.rootfs_**/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_**/,
+    # Allow mounting dirs from /
+    mount options=(rw rbind) /*/ -> /tmp/snap.rootfs_**/,
 
     # LP: #1668659 and parallel instaces of classic snaps
     mount options=(rw rbind) /snap/ -> /snap/,
