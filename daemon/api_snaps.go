@@ -495,6 +495,8 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
+	logger.Noticef("XXXX snapOpMany")
+	logger.Debugf("XXXX snapOpMany")
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -520,6 +522,10 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if user != nil {
 		inst.userID = user.ID
+	}
+
+	if inst.Transactional {
+		logger.Noticef("XXXX it is transactional")
 	}
 
 	op := inst.dispatchForMany()

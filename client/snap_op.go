@@ -28,6 +28,8 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 type SnapOptions struct {
@@ -208,6 +210,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 		Users:         options.Users,
 		Transactional: options.Transactional,
 	}
+	logger.Debugf("XXXX doMultiSnapActionFull transactional: %t", options.Transactional)
 
 	data, err := json.Marshal(&action)
 	if err != nil {

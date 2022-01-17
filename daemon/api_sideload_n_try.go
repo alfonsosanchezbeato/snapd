@@ -125,6 +125,7 @@ type sideloadFlags struct {
 }
 
 func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *auth.UserState) Response {
+	logger.Noticef("XXXX sideloadOrTrySnap")
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -164,6 +165,7 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 		dangerousOK:   isTrue(form, "dangerous"),
 		transactional: isTrue(form, "transactional"),
 	}
+	logger.Noticef("XXXX sideloadOrTrySnap tran %t", sideloadFlags.transactional)
 
 	snapFiles, errRsp := form.GetSnapFiles()
 	if errRsp != nil {

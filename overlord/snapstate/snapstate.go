@@ -1215,8 +1215,10 @@ func InstallMany(st *state.State, names []string, userID int, transactional bool
 	}
 
 	var transLane int
+	logger.Debugf("MULTIINSTALL")
 	if transactional {
 		transLane = st.NewLane()
+		logger.Debugf("TRANSACTIONAL INSTALL")
 	}
 	tasksets := make([]*state.TaskSet, 0, len(installs))
 	for _, sar := range installs {
@@ -1493,6 +1495,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	var transLane int
 	if transactional {
 		transLane = st.NewLane()
+		logger.Debugf("TRANSACTIONAL UPDATE")
 	}
 	for _, update := range updates {
 		snapsup, snapst, err := update.(readyUpdateInfo).SnapSetupForUpdate(st, params, userID, globalFlags)
@@ -2960,6 +2963,7 @@ func RemoveMany(st *state.State, names []string, transactional bool) ([]string, 
 	var transLane int
 	if transactional {
 		transLane = st.NewLane()
+		logger.Debugf("TRANSACTIONAL UPDATE")
 	}
 	for _, name := range names {
 		ts, snapshotSize, err := removeTasks(st, name, snap.R(0), nil)
