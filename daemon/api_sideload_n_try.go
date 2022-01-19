@@ -219,7 +219,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, sideInfos, tempPaths, userID, &flags.Flags, &snapstate.ManyFlags{})
 	if err != nil {
 		return nil, errToResponse(err, tempPaths, InternalError, "cannot install snap files: %v")
 	}
