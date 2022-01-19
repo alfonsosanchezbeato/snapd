@@ -221,6 +221,15 @@ type InsufficientSpaceError struct {
 	Message string
 }
 
+// ManyFlags is used in some *Many() functions to pass around flags
+// specific to actions that affect multiple snaps simultaneously.
+type ManyFlags struct {
+	// Transaction determines wheter the action will be applied to
+	// all snaps or fully reverted, or if will be applied
+	// separately to each snap.
+	Transaction bool
+}
+
 func (e *InsufficientSpaceError) Error() string {
 	if e.Message != "" {
 		return e.Message
@@ -1098,7 +1107,8 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
+// TODO implement support for ManyFlags.Transaction
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags, manyFlags *ManyFlags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1168,7 +1178,8 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
-func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+// TODO implement support for ManyFlags.Transaction
+func InstallMany(st *state.State, names []string, userID int, manyFlags *ManyFlags) ([]string, []*state.TaskSet, error) {
 	// need to have a model set before trying to talk the store
 	deviceCtx, err := DevicePastSeeding(st, nil)
 	if err != nil {
@@ -1269,7 +1280,8 @@ var ValidateRefreshes func(st *state.State, refreshes []*snap.Info, ignoreValida
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
-func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags) ([]string, []*state.TaskSet, error) {
+// TODO implement support for ManyFlags.Transaction
+func UpdateMany(ctx context.Context, st *state.State, names []string, userID int, flags *Flags, manyFlags *ManyFlags) ([]string, []*state.TaskSet, error) {
 	return updateManyFiltered(ctx, st, names, userID, nil, flags, "")
 }
 
@@ -2109,7 +2121,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 	if !gateAutoRefreshHook {
 		// old-style refresh (gate-auto-refresh-hook feature disabled)
-		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true}, &ManyFlags{Transaction: false})
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
