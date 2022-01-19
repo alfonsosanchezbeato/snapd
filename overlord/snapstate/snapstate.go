@@ -224,7 +224,7 @@ type InsufficientSpaceError struct {
 // ManyFlags is used in some *Many() functions to pass around flags
 // specific to actions that affect multiple snaps simultaneously.
 type ManyFlags struct {
-	// Transaction determines wheter the action will be applied to
+	// Transaction determines whether the action will be applied to
 	// all snaps or fully reverted, or if will be applied
 	// separately to each snap.
 	Transaction bool
