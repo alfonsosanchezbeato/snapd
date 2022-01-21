@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +17,9 @@
  *
  */
 
-package assets
+package bootloader
 
-//go:generate go run $GOINVOKEFLAGS ./genasset/main.go -name grub.cfg -in ./data/grub.cfg -out ./grub_cfg_asset.go
-//go:generate go run $GOINVOKEFLAGS ./genasset/main.go -arch amd64 -name grub-recovery.cfg -in ./data/grub-recovery.cfg -out ./grub_recovery_cfg_asset_amd64.go
-//go:generate go run $GOINVOKEFLAGS ./genasset/main.go -arch arm64 -name grub-recovery.cfg -in ./data/grub-recovery.cfg -out ./grub_recovery_cfg_asset_arm64.go
+const (
+	shimBinary = "bootaa64.efi"
+	grubBinary = "grubaa64.efi"
+)

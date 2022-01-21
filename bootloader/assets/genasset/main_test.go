@@ -83,7 +83,7 @@ func (s *generateAssetsTestSuite) TestSimpleAsset(c *C) {
 	err := ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nwith chars\n"), 0644)
 	c.Assert(err, IsNil)
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
+	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"), "")
 	c.Assert(err, IsNil)
 	data, err := ioutil.ReadFile(filepath.Join(d, "out"))
 	c.Assert(err, IsNil)
@@ -132,7 +132,7 @@ func (s *generateAssetsTestSuite) TestGoFmtClean(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nuneven chars\n"), 0644)
 	c.Assert(err, IsNil)
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"))
+	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "out"), "")
 	c.Assert(err, IsNil)
 
 	cmd := exec.Command("gofmt", "-l", "-d", filepath.Join(d, "out"))
@@ -143,14 +143,14 @@ func (s *generateAssetsTestSuite) TestGoFmtClean(c *C) {
 
 func (s *generateAssetsTestSuite) TestRunErrors(c *C) {
 	d := c.MkDir()
-	err := generate.Run("asset-name", filepath.Join(d, "missing"), filepath.Join(d, "out"))
+	err := generate.Run("asset-name", filepath.Join(d, "missing"), filepath.Join(d, "out"), "")
 	c.Assert(err, ErrorMatches, "cannot open input file: open .*/missing: no such file or directory")
 
 	err = ioutil.WriteFile(filepath.Join(d, "in"), []byte("this is a\n"+
 		"multiline asset \"'``\nuneven chars\n"), 0644)
 	c.Assert(err, IsNil)
 
-	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "does-not-exist", "out"))
+	err = generate.Run("asset-name", filepath.Join(d, "in"), filepath.Join(d, "does-not-exist", "out"), "")
 	c.Assert(err, ErrorMatches, `cannot open output file: open .*/does-not-exist/out\..*: no such file or directory`)
 
 }

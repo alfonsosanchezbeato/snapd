@@ -65,6 +65,9 @@ func init() {
 var inFile = flag.String("in", "", "asset input file")
 var outFile = flag.String("out", "", "asset output file")
 var assetName = flag.String("name", "", "asset name")
+
+// targetArch is optional
+var targetArch = flag.String("arch", "amd64", "architecture")
 var assetTemplate = template.Must(template.New("asset").Parse(assetTemplateText))
 
 // formatLines generates a list of strings, each carrying a line containing hex
@@ -93,7 +96,7 @@ func formatLines(data []byte) []string {
 	return lines
 }
 
-func run(assetName, inputFile, outputFile string) error {
+func run(assetName, inputFile, outputFile, targetArch string) error {
 	inf, err := os.Open(inputFile)
 	if err != nil {
 		return fmt.Errorf("cannot open input file: %v", err)
@@ -104,6 +107,17 @@ func run(assetName, inputFile, outputFile string) error {
 	if _, err := io.Copy(&inData, inf); err != nil {
 		return fmt.Errorf("cannot copy input data: %v", err)
 	}
+
+	type GrubCfgData struct {
+		GrubBinary string
+	}
+	archToGrubCfg := map[string]GrubCfgData{
+		"amd64": {GrubBinary: "grubx64.efi"},
+		"arm64": {GrubBinary: "grubaa64.efi"},
+	}
+	grubCfgTmp := template.Must(template.New("cfg").Parse(inData.String()))
+	var grubCfg bytes.Buffer
+	grubCfgTmp.Execute(&grubCfg, archToGrubCfg[targetArch])
 
 	outf, err := osutil.NewAtomicFile(outputFile, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
@@ -121,7 +135,7 @@ func run(assetName, inputFile, outputFile string) error {
 		InputFileName: inputFile,
 		// dealing with precise formatting in template is annoying thus
 		// we use a preformatted lines carrying asset data
-		AssetDataLines: formatLines(inData.Bytes()),
+		AssetDataLines: formatLines(grubCfg.Bytes()),
 		AssetName:      assetName,
 		Year:           strconv.Itoa(time.Now().Year()),
 	}
@@ -150,7 +164,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := run(*assetName, *inFile, *outFile); err != nil {
+	if err := run(*assetName, *inFile, *outFile, *targetArch); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

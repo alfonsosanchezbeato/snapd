@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
+	"text/template"
 
 	. "gopkg.in/check.v1"
 
@@ -123,6 +124,12 @@ func (s *grubAssetsTestSuite) TestGrubAssetsWereRegenerated(c *C) {
 		c.Assert(assetData, NotNil)
 		data, err := ioutil.ReadFile(tc.file)
 		c.Assert(err, IsNil)
-		c.Check(assetData, DeepEquals, data, Commentf("asset %q has not been updated", tc.asset))
+
+		grubCfgTmp := template.Must(template.New("cfg").Parse(string(data)))
+		var grubCfg bytes.Buffer
+		grubCfgTmp.Execute(&grubCfg, struct{ GrubBinary string }{
+			GrubBinary: "grubx64.efi"})
+
+		c.Check(assetData, DeepEquals, grubCfg.Bytes(), Commentf("asset %q has not been updated", tc.asset))
 	}
 }

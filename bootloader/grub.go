@@ -449,14 +449,14 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 var (
 	grubRecoveryModeTrustedAssets = []string{
 		// recovery mode shim EFI binary
-		"EFI/boot/bootx64.efi",
+		"EFI/boot/" + shimBinary,
 		// recovery mode grub EFI binary
-		"EFI/boot/grubx64.efi",
+		"EFI/boot/" + grubBinary,
 	}
 
 	grubRunModeTrustedAssets = []string{
 		// run mode grub EFI binary
-		"EFI/boot/grubx64.efi",
+		"EFI/boot/" + grubBinary,
 	}
 )
 
