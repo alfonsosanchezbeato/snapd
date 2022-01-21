@@ -19,6 +19,10 @@
 
 package assets
 
+// The definition of the grub recovery file depends on the
+// architecture because grub binaries have different names depending
+// on that.
+
 //go:generate go run $GOINVOKEFLAGS ./genasset/main.go -name grub.cfg -in ./data/grub.cfg -out ./grub_cfg_asset.go
 //go:generate go run $GOINVOKEFLAGS ./genasset/main.go -arch amd64 -name grub-recovery.cfg -in ./data/grub-recovery.cfg -out ./grub_recovery_cfg_asset_amd64.go
 //go:generate go run $GOINVOKEFLAGS ./genasset/main.go -arch arm64 -name grub-recovery.cfg -in ./data/grub-recovery.cfg -out ./grub_recovery_cfg_asset_arm64.go

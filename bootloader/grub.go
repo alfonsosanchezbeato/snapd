@@ -447,6 +447,9 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 }
 
 var (
+	// Names of binaries depend on the target arch and are defined
+	// at grub_constants.go and grub_constants_{arch}.go
+
 	grubRecoveryModeTrustedAssets = []string{
 		// recovery mode shim EFI binary
 		"EFI/boot/" + shimBinary,
