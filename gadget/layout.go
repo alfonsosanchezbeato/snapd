@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/logger"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -209,6 +210,7 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constraints LayoutConstraints) (*LaidOutVolume, error) {
 	var err error
 
+	logger.Noticef("LayoutVolume")
 	var kernelInfo *kernel.Info
 	if !constraints.SkipResolveContent {
 		// TODO:UC20: check and error if kernelRootDir == "" here
@@ -279,6 +281,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 }
 
 func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
+	logger.Noticef("resolveVolumeContent")
 	if !ps.HasFilesystem() {
 		// structures without a file system are not resolved here
 		return nil, nil

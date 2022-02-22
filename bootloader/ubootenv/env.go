@@ -31,6 +31,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 // FIXME: add config option for that so that the user can select if
@@ -296,4 +298,10 @@ func (env *Env) Import(r io.Reader) error {
 	}
 
 	return scanner.Err()
+}
+
+func (env *Env) PrintAll() {
+	for k, v := range env.data {
+		logger.Noticef("%s=%s", k, v)
+	}
 }

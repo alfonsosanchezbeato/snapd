@@ -84,6 +84,14 @@ func newPiboot(rootdir string, blOpts *Options) Bootloader {
 	}
 	p.setDefaults()
 	p.processBlOpts(blOpts)
+
+	logger.Noticef("newPiboot: origroot rootdir basedir %q %q %q",
+		rootdir, p.rootdir, p.basedir)
+	if blOpts != nil {
+		logger.Noticef("newPiboot: Options %t %s %t",
+			blOpts.PrepareImageTime, blOpts.Role, blOpts.NoSlashBoot)
+	}
+
 	return p
 }
 
@@ -104,6 +112,7 @@ func (p *piboot) envFile() string {
 
 // piboot enabled if env file exists
 func (p *piboot) Present() (bool, error) {
+	logger.Noticef("Checking for %s", p.envFile())
 	return osutil.FileExists(p.envFile()), nil
 }
 
@@ -125,12 +134,16 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 		return err
 	}
 
+	logger.Noticef("SetBootVars current vals:")
+	env.PrintAll()
+
 	// Set when we change a boot env variable, to know if we need to save the env
 	dirtyEnv := false
 	// Flag to know if we need to write piboot's config.txt or tryboot.txt
 	reconfigBootloader := false
 	for k, v := range values {
 		// already set to the right value, nothing to do
+		logger.Noticef("Setting %s=%s", k, v)
 		if env.Get(k) == v {
 			continue
 		}
@@ -153,6 +166,8 @@ func (p *piboot) SetBootVars(values map[string]string) error {
 			}
 		}
 	}
+	logger.Noticef("SetBootVars:")
+	env.PrintAll()
 
 	if dirtyEnv {
 		if err := env.Save(); err != nil {
@@ -175,15 +190,22 @@ func (p *piboot) SetBootVarsFromInitramfs(values map[string]string) error {
 		return err
 	}
 
+	logger.Noticef("SetBootVarsFromInitramfs current vals:")
+	env.PrintAll()
+
 	dirtyEnv := false
 	for k, v := range values {
 		// already set to the right value, nothing to do
+		logger.Noticef("Setting %s=%s", k, v)
 		if env.Get(k) == v {
 			continue
 		}
 		env.Set(k, v)
 		dirtyEnv = true
 	}
+
+	logger.Noticef("SetBootVarsFromInitramfs:")
+	env.PrintAll()
 
 	if dirtyEnv {
 		if err := env.Save(); err != nil {
@@ -217,7 +239,7 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 		dstDir = filepath.Join(p.rootdir, prefix)
 	}
 
-	logger.Debugf("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
+	logger.Noticef("configure piboot %s with prefix %q, cfgDir %q, dstDir %q",
 		cfgFile, prefix, cfgDir, dstDir)
 
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
@@ -278,7 +300,7 @@ func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) e
 	}
 	cmdline += "\n"
 
-	logger.Debugf("writing kernel command line to %s", outFile)
+	logger.Noticef("writing kernel command line to %s", outFile)
 
 	return osutil.AtomicWriteFile(outFile, []byte(cmdline), 0644, 0)
 }
@@ -289,6 +311,7 @@ func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) e
 func (p *piboot) applyConfig(env *ubootenv.Env,
 	configFile, prefix, cfgDir, dstDir string) error {
 
+	logger.Noticef("applyConfig")
 	cmdlineFile := filepath.Join(dstDir, "cmdline.txt")
 	refCmdlineFile := filepath.Join(cfgDir, "cmdline.txt")
 	currentConfigFile := filepath.Join(cfgDir, "config.txt")
@@ -305,6 +328,7 @@ func (p *piboot) applyConfig(env *ubootenv.Env,
 }
 
 func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
+	logger.Noticef("GetBootVars:")
 	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
 	if err != nil {
 		return nil, err
@@ -313,12 +337,19 @@ func (p *piboot) GetBootVars(names ...string) (map[string]string, error) {
 	out := make(map[string]string, len(names))
 	for _, name := range names {
 		out[name] = env.Get(name)
+		logger.Noticef("%s=%s", name, out[name])
 	}
 
 	return out, nil
 }
 
 func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
+	logger.Noticef("InstallBootConfig: rootdir basedir %q %q", p.rootdir, p.basedir)
+	if blOpts != nil {
+		logger.Noticef("InstallBootConfig: Options %t %s %t",
+			blOpts.PrepareImageTime, blOpts.Role, blOpts.NoSlashBoot)
+	}
+
 	// We create an empty env file
 	err := os.MkdirAll(filepath.Dir(p.envFile()), 0755)
 	if err != nil {
@@ -337,6 +368,7 @@ func (p *piboot) InstallBootConfig(gadgetDir string, blOpts *Options) error {
 func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) error {
 	assets := []string{"kernel.img", "initrd.img", "dtbs/*"}
 	if err := extractKernelAssetsToBootDir(dstDir, snapf, assets); err != nil {
+		logger.Noticef("layoutKernelAssetsToDir cannot extract files")
 		return err
 	}
 
@@ -349,6 +381,7 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 	overlaysDir := filepath.Join(dstDir, "dtbs/overlays/")
 	newOvDir := filepath.Join(dstDir, "overlays/")
 	if err := os.Rename(overlaysDir, newOvDir); err != nil {
+		logger.Noticef("layoutKernelAssetsToDir 3")
 		if !os.IsExist(err) {
 			return err
 		}
@@ -358,6 +391,7 @@ func (p *piboot) layoutKernelAssetsToDir(snapf snap.Container, dstDir string) er
 	// https://www.raspberrypi.com/documentation/computers/config_txt.html#os_prefix
 	readmeOverlays, err := os.Create(filepath.Join(dstDir, "overlays", "README"))
 	if err != nil {
+		logger.Noticef("readmeOverlays %s", err)
 		return err
 	}
 	readmeOverlays.Close()
@@ -368,7 +402,7 @@ func (p *piboot) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) err
 	// Rootdir will point to ubuntu-boot, but we need to put things in ubuntu-seed
 	dstDir := filepath.Join(ubuntuSeedDir, pibootPartFolder, s.Filename())
 
-	logger.Debugf("ExtractKernelAssets to %s", dstDir)
+	logger.Noticef("ExtractKernelAssets to %s (rootdir %s)", dstDir, p.rootdir)
 
 	return p.layoutKernelAssetsToDir(snapf, dstDir)
 }
@@ -381,12 +415,14 @@ func (p *piboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pl
 
 	recoveryKernelAssetsDir :=
 		filepath.Join(p.rootdir, recoverySystemDir, "kernel")
-	logger.Debugf("ExtractRecoveryKernelAssets to %s", recoveryKernelAssetsDir)
+	logger.Noticef("ExtractRecoveryKernelAssets to %s (%s)",
+		recoveryKernelAssetsDir, recoverySystemDir)
 
 	return p.layoutKernelAssetsToDir(snapf, recoveryKernelAssetsDir)
 }
 
 func (p *piboot) RemoveKernelAssets(s snap.PlaceInfo) error {
+	logger.Noticef("RemoveKernelAssets")
 	return removeKernelAssetsFromBootDir(
 		filepath.Join(ubuntuSeedDir, pibootPartFolder), s)
 }

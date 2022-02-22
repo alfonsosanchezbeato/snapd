@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -300,6 +301,7 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
 func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+	logger.Noticef("MakeRunnableSystem")
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make non-uc20 system runnable")
 	}
