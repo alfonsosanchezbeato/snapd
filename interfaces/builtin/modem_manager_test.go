@@ -200,7 +200,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	dbusSpec := &dbus.Specification{}
 	err = dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
 	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), HasLen, 1)
+	c.Assert(dbusSpec.SecurityTags(), HasLen, 0)
 
 	dbusSpec = &dbus.Specification{}
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slotInfo)
@@ -232,19 +232,6 @@ func (s *ModemManagerInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seccompSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mm"})
 	c.Check(seccompSpec.SnippetForTag("snap.modem-manager.mm"), testutil.Contains, "listen\n")
-}
-
-func (s *ModemManagerInterfaceSuite) TestConnectedPlugDBus(c *C) {
-	plugSnap := snaptest.MockInfo(c, modemmgrMockPlugSnapInfoYaml, nil)
-	plug := interfaces.NewConnectedPlug(plugSnap.Plugs["modem-manager"], nil, nil)
-
-	dbusSpec := &dbus.Specification{}
-	err := dbusSpec.AddConnectedPlug(s.iface, plug, s.slot)
-	c.Assert(err, IsNil)
-	c.Assert(dbusSpec.SecurityTags(), DeepEquals, []string{"snap.modem-manager.mmcli"})
-	snippet := dbusSpec.SnippetForTag("snap.modem-manager.mmcli")
-	c.Assert(snippet, testutil.Contains, "deny own=\"org.freedesktop.ModemManager1\"")
-	c.Assert(snippet, testutil.Contains, "deny send_destination=\"org.freedesktop.ModemManager1\"")
 }
 
 func (s *ModemManagerInterfaceSuite) TestInterfaces(c *C) {
