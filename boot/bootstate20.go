@@ -306,6 +306,7 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 }
 
 func (ks20 *bootState20Kernel) setNext(isUndo bool, next snap.PlaceInfo) (rbi RebootInfo, u bootStateUpdate, err error) {
+	logger.Noticef("isUndo %t next is %q", isUndo, next.Filename())
 	u20, rebootRequired, err := genericSetNext(ks20, next)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err

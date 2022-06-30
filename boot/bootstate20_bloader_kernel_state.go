@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -178,6 +179,9 @@ func (bks *extractedRunKernelImageBootloaderKernelState) setNextKernel(sn snap.P
 }
 
 func (bks *extractedRunKernelImageBootloaderKernelState) setKernel(sn snap.PlaceInfo) error {
+	logger.Noticef("current kernel changed from %q to %q",
+		bks.currentKernel.Filename(), sn.Filename())
+
 	if sn.Filename() != bks.currentKernel.Filename() {
 		err := bks.ebl.EnableKernel(sn)
 		if err != nil {

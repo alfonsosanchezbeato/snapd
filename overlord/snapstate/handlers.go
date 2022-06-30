@@ -1120,6 +1120,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	logger.Noticef("undoUnlinkCurrentSnap starting")
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
@@ -2042,6 +2043,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	logger.Noticef("starting undoLinkSnap")
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
@@ -2659,6 +2661,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	logger.Noticef("undoUnlinkSnap starting")
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
