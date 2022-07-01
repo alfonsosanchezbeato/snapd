@@ -472,13 +472,19 @@ func (bs20 *bootState20Base) setNext(isUndo bool, next snap.PlaceInfo) (rbi Rebo
 	nextStatus := DefaultStatus
 	rbi.RebootRequired = rebootRequired
 	if rbi.RebootRequired {
-		// TODO if we need to reboot and we are not undoing, we set the try status
-		nextStatus = TryStatus
-		// only update the try base if we are actually in try status
-		u20.writeModeenv.TryBase = next.Filename()
-		// a 'try' base is handled by snap-bootstrap, hence we are not
-		// interested in the bootloader's opinion (no need for
-		// rbi.RebootBootloader, so it is not filled).
+		if isUndo {
+			// we must make sure we boot with the kernel we revert to
+			u20.writeModeenv.Base = next.Filename()
+			u20.writeModeenv.TryBase = ""
+		} else {
+			// if we need to reboot and we are not undoing, we set the try status
+			// and set appropriately the base we want to try
+			nextStatus = TryStatus
+			u20.writeModeenv.TryBase = next.Filename()
+			// a 'try' base is handled by snap-bootstrap, hence we are not
+			// interested in the bootloader's opinion (no need for
+			// rbi.RebootBootloader, so it is not filled).
+		}
 	}
 
 	// always update the base status
