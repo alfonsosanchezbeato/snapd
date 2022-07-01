@@ -49,5 +49,6 @@ execute: |
   echo "Check that change finished with failure and that the old snap is being used"
   tests.nested exec "snap info pc-kernel | MATCH 'installed:.*\(x1\)'"
   tests.nested exec "snap changes | MATCH \"^$chg_id.*Error\""
+  # shellcheck disable=SC2016
   tests.nested exec 'test $(readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi) = pc-kernel_x1.snap/kernel.efi'
   tests.nested exec 'cat /run/mnt/ubuntu-boot/EFI/ubuntu/grubenv | MATCH "^kernel_status=$"'
