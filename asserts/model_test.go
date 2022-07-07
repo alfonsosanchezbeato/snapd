@@ -88,6 +88,59 @@ const (
 		"\n\n" +
 		"AXNpZw=="
 
+	classicModelWithSnapsExample = `type: model
+authority-id: brand-id1
+series: 16
+brand-id: brand-id1
+model: baz-3000
+display-name: Baz 3000
+architecture: amd64
+system-user-authority: *
+base: core20
+classic: true
+store: brand-store
+snaps:
+  -
+    name: baz-linux
+    id: bazlinuxidididididididididididid
+    type: kernel
+    default-channel: 20
+  -
+    name: brand-gadget
+    id: brandgadgetdidididididididididid
+    type: gadget
+  -
+    name: other-base
+    id: otherbasedididididididididididid
+    type: base
+    modes:
+      - run
+    presence: required
+  -
+    name: nm
+    id: nmididididididididididididididid
+    modes:
+      - ephemeral
+      - run
+    default-channel: 1.0
+  -
+    name: myapp
+    id: myappdididididididididididididid
+    type: app
+    default-channel: 2.0
+  -
+    name: myappopt
+    id: myappoptidididididididididididid
+    type: app
+    presence: optional
+OTHERgrade: secured
+storage-safety: encrypted
+` + "TSLINE" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+
 	core20ModelExample = `type: model
 authority-id: brand-id1
 series: 16
@@ -595,8 +648,6 @@ func (mods *modelSuite) TestClassicDecodeInvalid(c *C) {
 		{"classic: true\n", "classic: foo\n", `"classic" header must be 'true' or 'false'`},
 		{"architecture: amd64\n", "architecture:\n  - foo\n", `"architecture" header must be a string`},
 		{"gadget: brand-gadget\n", "gadget:\n  - foo\n", `"gadget" header must be a string`},
-		{"gadget: brand-gadget\n", "kernel: brand-kernel\n", `cannot specify a kernel with a classic model`},
-		{"gadget: brand-gadget\n", "base: some-base\n", `cannot specify a base with a classic model`},
 		{"gadget: brand-gadget\n", "gadget:\n  - xyz\n", `"gadget" header must be a string`},
 	}
 
@@ -623,7 +674,21 @@ func (mods *modelSuite) TestClassicDecodeGadgetAndArchOptional(c *C) {
 }
 
 func (mods *modelSuite) TestCore20DecodeOK(c *C) {
-	encoded := strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1)
+	tt := []struct {
+		modelRaw  string
+		isClassic bool
+	}{
+		{modelRaw: core20ModelExample, isClassic: false},
+		{modelRaw: classicModelWithSnapsExample, isClassic: true},
+	}
+
+	for _, t := range tt {
+		mods.testWithSnapsDecodeOK(c, t.modelRaw, t.isClassic)
+	}
+}
+
+func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic bool) {
+	encoded := strings.Replace(modelRaw, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "OTHER", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -636,6 +701,7 @@ func (mods *modelSuite) TestCore20DecodeOK(c *C) {
 	c.Check(model.Model(), Equals, "baz-3000")
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
+	c.Check(model.Classic(), Equals, isClassic)
 	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:           "brand-gadget",
 		SnapID:         "brandgadgetdidididididididididid",
@@ -900,7 +966,6 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"base: core20\n", "", `"base" header is mandatory`},
 		{"base: core20\n", "base: alt-base\n", `cannot specify not well-known base "alt-base" without a corresponding "snaps" header entry`},
-		{"OTHER", "classic: true\n", `cannot use extended snaps header for a classic model \(yet\)`},
 		{snapsStanza, "snaps: snap\n", `"snaps" header must be a list of maps`},
 		{snapsStanza, "snaps:\n  - snap\n", `"snaps" header must be a list of maps`},
 		{"name: myapp\n", "other: 1\n", `"name" of snap is mandatory`},

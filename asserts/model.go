@@ -657,10 +657,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// Core 20 extended snaps header
 	extendedSnaps, extended := assert.headers["snaps"]
 	if extended {
-		if classic {
-			return nil, fmt.Errorf("cannot use extended snaps header for a classic model (yet)")
-		}
-
 		for _, conflicting := range extendedSnapsConflicting {
 			if _, ok := assert.headers[conflicting]; ok {
 				return nil, fmt.Errorf("cannot specify separate %q header once using the extended snaps header", conflicting)
@@ -672,15 +668,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		}
 		if _, ok := assert.headers["storage-safety"]; ok {
 			return nil, fmt.Errorf("cannot specify storage-safety for model without the extended snaps header")
-		}
-	}
-
-	if classic {
-		if _, ok := assert.headers["kernel"]; ok {
-			return nil, fmt.Errorf("cannot specify a kernel with a classic model")
-		}
-		if _, ok := assert.headers["base"]; ok {
-			return nil, fmt.Errorf("cannot specify a base with a classic model")
 		}
 	}
 
