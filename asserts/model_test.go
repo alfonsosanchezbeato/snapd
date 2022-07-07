@@ -78,6 +78,7 @@ const (
 		"model: baz-3000\n" +
 		"display-name: Baz 3000\n" +
 		"classic: true\n" +
+		"distribution: ubuntu\n" +
 		"architecture: amd64\n" +
 		"gadget: brand-gadget\n" +
 		"store: brand-store\n" +
@@ -98,6 +99,7 @@ architecture: amd64
 system-user-authority: *
 base: core20
 classic: true
+distribution: ubuntu
 store: brand-store
 snaps:
   -
@@ -590,6 +592,7 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	c.Check(model.Model(), Equals, "baz-3000")
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Classic(), Equals, true)
+	c.Check(model.Distribution(), Equals, "ubuntu")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:     "brand-gadget",
@@ -662,11 +665,13 @@ func (mods *modelSuite) TestClassicDecodeGadgetAndArchOptional(c *C) {
 	encoded := strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1)
 	encoded = strings.Replace(encoded, "gadget: brand-gadget\n", "", 1)
 	encoded = strings.Replace(encoded, "architecture: amd64\n", "", 1)
+	encoded = strings.Replace(encoded, "distribution: ubuntu\n", "", 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	model := a.(*asserts.Model)
 	c.Check(model.Classic(), Equals, true)
+	c.Check(model.Distribution(), Equals, "")
 	c.Check(model.Architecture(), Equals, "")
 	c.Check(model.GadgetSnap(), IsNil)
 	c.Check(model.Gadget(), Equals, "")
@@ -702,6 +707,11 @@ func (mods *modelSuite) testWithSnapsDecodeOK(c *C, modelRaw string, isClassic b
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Classic(), Equals, isClassic)
+	if isClassic {
+		c.Check(model.Distribution(), Equals, "ubuntu")
+	} else {
+		c.Check(model.Distribution(), Equals, "")
+	}
 	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:           "brand-gadget",
 		SnapID:         "brandgadgetdidididididididididid",
@@ -997,6 +1007,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
 		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be encrypted\|prefer-encrypted\|prefer-unencrypted, not "foo"`},
 		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `secured grade model must not have storage-safety overridden, only "encrypted" is valid`},
+		{"OTHER", "distribution: ubuntu\n", `cannot specify distribution for core systems`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)

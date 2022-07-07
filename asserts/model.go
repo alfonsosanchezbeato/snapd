@@ -386,6 +386,8 @@ func (mg ModelGrade) Code() uint32 {
 type Model struct {
 	assertionBase
 	classic bool
+	// distribution is the linux distro
+	distribution string
 
 	baseSnap   *ModelSnap
 	gadgetSnap *ModelSnap
@@ -434,6 +436,11 @@ func (mod *Model) Series() string {
 // Classic returns whether the model is a classic system.
 func (mod *Model) Classic() bool {
 	return mod.classic
+}
+
+// Distribution returns the linux distro specified in the model
+func (mod *Model) Distribution() string {
+	return mod.distribution
 }
 
 // Architecture returns the architecture the model is based on.
@@ -709,6 +716,15 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	// distribution is optional and only for classic
+	distro, err := checkOptionalString(assert.headers, "distribution")
+	if err != nil {
+		return nil, err
+	}
+	if !classic && distro != "" {
+		return nil, fmt.Errorf("cannot specify distribution for core systems")
+	}
+
 	var modSnaps *modelSnaps
 	grade := ModelGradeUnset
 	storageSafety := StorageSafetyUnset
@@ -829,6 +845,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	return &Model{
 		assertionBase:              assert,
 		classic:                    classic,
+		distribution:               distro,
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
