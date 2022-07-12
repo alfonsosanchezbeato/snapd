@@ -78,7 +78,6 @@ const (
 		"model: baz-3000\n" +
 		"display-name: Baz 3000\n" +
 		"classic: true\n" +
-		"distribution: ubuntu\n" +
 		"architecture: amd64\n" +
 		"gadget: brand-gadget\n" +
 		"store: brand-store\n" +
@@ -592,7 +591,7 @@ func (mods *modelSuite) TestClassicDecodeOK(c *C) {
 	c.Check(model.Model(), Equals, "baz-3000")
 	c.Check(model.DisplayName(), Equals, "Baz 3000")
 	c.Check(model.Classic(), Equals, true)
-	c.Check(model.Distribution(), Equals, "ubuntu")
+	c.Check(model.Distribution(), Equals, "")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.GadgetSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:     "brand-gadget",
@@ -1007,7 +1006,7 @@ func (mods *modelSuite) TestCore20DecodeInvalid(c *C) {
 		{"grade: secured\n", "grade: foo\n", `grade for model must be secured|signed|dangerous`},
 		{"storage-safety: encrypted\n", "storage-safety: foo\n", `storage-safety for model must be encrypted\|prefer-encrypted\|prefer-unencrypted, not "foo"`},
 		{"storage-safety: encrypted\n", "storage-safety: prefer-unencrypted\n", `secured grade model must not have storage-safety overridden, only "encrypted" is valid`},
-		{"OTHER", "distribution: ubuntu\n", `cannot specify distribution for core systems`},
+		{"OTHER", "distribution: ubuntu\n", `cannot specify distribution for model unless it is classic and has an extended snaps header`},
 	}
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)

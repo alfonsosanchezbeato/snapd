@@ -386,8 +386,6 @@ func (mg ModelGrade) Code() uint32 {
 type Model struct {
 	assertionBase
 	classic bool
-	// distribution is the linux distro
-	distribution string
 
 	baseSnap   *ModelSnap
 	gadgetSnap *ModelSnap
@@ -440,7 +438,7 @@ func (mod *Model) Classic() bool {
 
 // Distribution returns the linux distro specified in the model
 func (mod *Model) Distribution() string {
-	return mod.distribution
+	return mod.HeaderString("distribution")
 }
 
 // Architecture returns the architecture the model is based on.
@@ -640,9 +638,11 @@ func checkOptionalSystemUserAuthority(headers map[string]interface{}, brandID st
 
 var (
 	modelMandatory           = []string{"architecture", "gadget", "kernel"}
-	extendedCoreMandatory    = []string{"architecture", "base"}
+	extendedMandatory        = []string{"architecture", "base"}
 	extendedSnapsConflicting = []string{"gadget", "kernel", "required-snaps"}
 	classicModelOptional     = []string{"architecture", "gadget"}
+
+	distributionRegex = regexp.MustCompile(`^[a-z0-9._-]*$`)
 )
 
 func assembleModel(assert assertionBase) (Assertion, error) {
@@ -681,7 +681,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	checker := checkNotEmptyString
 	toCheck := modelMandatory
 	if extended {
-		toCheck = extendedCoreMandatory
+		toCheck = extendedMandatory
 	} else if classic {
 		checker = checkOptionalString
 		toCheck = classicModelOptional
@@ -691,6 +691,22 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 		if _, err := checker(assert.headers, h); err != nil {
 			return nil, err
 		}
+	}
+
+	// distribution mandatory for classic with extended snaps, not
+	// allowed otherwise.
+	if extended && classic {
+		var distro string
+		if distro, err = checkNotEmptyString(assert.headers, "distribution"); err != nil {
+			return nil, err
+		}
+		// Make sure the string conforms to spec in
+		// https://www.freedesktop.org/software/systemd/man/os-release.html#ID=
+		if !distributionRegex.MatchString(distro) {
+			return nil, fmt.Errorf("bad format for distribution according to os-release spec")
+		}
+	} else if _, ok := assert.headers["distribution"]; ok {
+		return nil, fmt.Errorf("cannot specify distribution for model unless it is classic and has an extended snaps header")
 	}
 
 	// base, if provided, must be a valid snap name too
@@ -714,15 +730,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// display-name is optional but must be a string
 	if _, err = checkOptionalString(assert.headers, "display-name"); err != nil {
 		return nil, err
-	}
-
-	// distribution is optional and only for classic
-	distro, err := checkOptionalString(assert.headers, "distribution")
-	if err != nil {
-		return nil, err
-	}
-	if !classic && distro != "" {
-		return nil, fmt.Errorf("cannot specify distribution for core systems")
 	}
 
 	var modSnaps *modelSnaps
@@ -845,7 +852,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	return &Model{
 		assertionBase:              assert,
 		classic:                    classic,
-		distribution:               distro,
 		baseSnap:                   modSnaps.base,
 		gadgetSnap:                 modSnaps.gadget,
 		kernelSnap:                 modSnaps.kernel,
