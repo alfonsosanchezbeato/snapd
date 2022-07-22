@@ -30,6 +30,14 @@ var (
 	// during the initramfs.
 	InitramfsRunMntDir string
 
+	// InitramfsSysroot is the directory where we will construct the rootfs we
+	// will switch root into.
+	InitramfsSysroot string
+
+	// InitramfsSysrootWritable is the directory inside sysroot where we will
+	// mount the writable partition.
+	InitramfsSysrootWritable string
+
 	// InitramfsDataDir is the location of system-data role partition
 	// (typically a partition labeled "ubuntu-data") during the initramfs.
 	InitramfsDataDir string
@@ -91,6 +99,8 @@ var (
 
 func setInitramfsDirVars(rootdir string) {
 	InitramfsRunMntDir = filepath.Join(rootdir, "run/mnt")
+	InitramfsSysroot = filepath.Join(rootdir, "sysroot")
+	InitramfsSysrootWritable = filepath.Join(InitramfsSysroot, "writable")
 	InitramfsDataDir = filepath.Join(InitramfsRunMntDir, "data")
 	InitramfsHostUbuntuDataDir = filepath.Join(InitramfsRunMntDir, "host", "ubuntu-data")
 	InitramfsHostWritableDir = filepath.Join(InitramfsHostUbuntuDataDir, "system-data")
