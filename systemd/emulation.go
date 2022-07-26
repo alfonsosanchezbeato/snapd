@@ -63,6 +63,11 @@ func (s *emulation) EnableNoReload(services []string) error {
 	return err
 }
 
+func (s *emulation) EnableAndStartNoBlock(services []string) error {
+	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "--no-block", "--now", "enable"}, services...)...)
+	return err
+}
+
 func (s *emulation) DisableNoReload(services []string) error {
 	_, err := systemctlCmd(append([]string{"--root", s.rootDir, "disable"}, services...)...)
 	return err

@@ -335,6 +335,8 @@ type Systemd interface {
 	DaemonReexec() error
 	// EnableNoReload the given services, do not reload systemd.
 	EnableNoReload(services []string) error
+	// EnableAndStartNoBlock the given services.
+	EnableAndStartNoBlock(services []string) error
 	// DisableNoReload the given services, do not reload system.
 	DisableNoReload(services []string) error
 	// Start the given service or services.
@@ -570,6 +572,20 @@ func (s *systemd) EnableNoReload(serviceNames []string) error {
 		args = append(args, "--no-reload")
 	}
 	args = append(args, "enable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
+	return err
+}
+
+func (s *systemd) EnableAndStartNoBlock(serviceNames []string) error {
+	if 0 == len(serviceNames) {
+		return nil
+	}
+	var args []string
+	if s.rootDir != "" {
+		args = append(args, "--root", s.rootDir)
+	}
+	args = append(args, "--no-block", "--now", "enable")
 	args = append(args, serviceNames...)
 	_, err := s.systemctl(args...)
 	return err
