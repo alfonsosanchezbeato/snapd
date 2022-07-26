@@ -307,6 +307,13 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(main.MockOsutilSetTime(func(time.Time) error {
 		return nil
 	}))
+
+	// prevent calls to real systemctl. Tests that want to inspect systemctl calls
+	// can call MockSystemctl again and retrieve the arguments from there.
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 // static test cases for time test variants shared across the different modes
@@ -561,6 +568,30 @@ func (s *initramfsMountsSuite) makeRunSnapSystemdMount(typ snap.Type, sn snap.Pl
 	return mnt
 }
 
+func (s *initramfsMountsSuite) makeSysrootSystemdMount() systemdMount {
+	return systemdMount{
+		filepath.Join(boot.InitramfsRunMntDir, "base"),
+		boot.InitramfsSysroot,
+		&main.SystemdMountOptions{
+			Bind:      true,
+			Ephemeral: true,
+		},
+		nil,
+	}
+}
+
+func (s *initramfsMountsSuite) makeSysrootWritableSystemdMount() systemdMount {
+	return systemdMount{
+		filepath.Join(boot.InitramfsRunMntDir, "data"),
+		boot.InitramfsSysrootWritable,
+		&main.SystemdMountOptions{
+			Bind:      true,
+			Ephemeral: true,
+		},
+		nil,
+	}
+}
+
 func (s *initramfsMountsSuite) mockSystemdMountSequence(c *C, mounts []systemdMount, comment CommentInterface) (restore func()) {
 	n := 0
 	if comment == nil {
@@ -607,6 +638,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappy(c *C) {
 			tmpfsMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -665,6 +698,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 				tmpfsMountOpts,
 				nil,
 			},
+			s.makeSysrootSystemdMount(),
+			s.makeSysrootWritableSystemdMount(),
 		}, nil)
 		defer restore()
 
@@ -728,6 +763,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 			s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+			s.makeSysrootSystemdMount(),
+			s.makeSysrootWritableSystemdMount(),
 		}, nil)
 		defer restore()
 
@@ -805,6 +842,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 				tmpfsMountOpts,
 				nil,
 			},
+			s.makeSysrootSystemdMount(),
+			s.makeSysrootWritableSystemdMount(),
 		}, nil)
 		cleanups = append(cleanups, restore)
 
@@ -850,17 +889,19 @@ defaults:
 			tmpfsMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
 	// we will call out to systemctl in the initramfs, but only using --root
 	// which doesn't talk to systemd, just manipulates files around
 	var sysctlArgs [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
 		sysctlArgs = append(sysctlArgs, args)
 		return nil, nil
 	})
-	defer systemctlRestorer()
+	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
@@ -884,7 +925,9 @@ grade=signed
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{
+		{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"},
+		{"--no-block", "--now", "enable", "populate-writable.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartitionUUIDHappy(c *C) {
@@ -910,6 +953,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootedKernelPartiti
 			tmpfsMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -948,6 +993,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -996,6 +1043,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoGadgetMount(c *C
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -1077,6 +1126,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			if isFirstBoot {
 				mnts = append(mnts, s.makeSeedSnapSystemdMount(snap.TypeSnapd))
 			}
+			mnts = append(mnts, s.makeSysrootSystemdMount(),
+				s.makeSysrootWritableSystemdMount())
 
 			restore = s.mockSystemdMountSequence(c, mnts, nil)
 			cleanups = append(cleanups, restore)
@@ -1147,6 +1198,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -1280,6 +1333,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeHappyRealSystemdMou
 			c.Assert(where, Equals, gadgetMnt)
 		case 11, 12:
 			c.Assert(where, Equals, boot.InitramfsDataDir)
+		case 13, 14:
+			c.Assert(where, Equals, boot.InitramfsSysroot)
+		case 15, 16:
+			c.Assert(where, Equals, boot.InitramfsSysrootWritable)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
@@ -1334,7 +1391,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 12)
+	c.Assert(n, Equals, 16)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1392,6 +1449,22 @@ Wants=%[1]s
 			"--fsck=no",
 			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			boot.InitramfsSysroot,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			boot.InitramfsDataDir,
+			boot.InitramfsSysrootWritable,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 }
@@ -1443,6 +1516,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeNoSaveHappyRealSyst
 			c.Assert(where, Equals, boot.InitramfsUbuntuBootDir)
 		case 15, 16:
 			c.Assert(where, Equals, boot.InitramfsHostUbuntuDataDir)
+		case 17, 18:
+			c.Assert(where, Equals, boot.InitramfsSysroot)
+		case 19, 20:
+			c.Assert(where, Equals, boot.InitramfsSysrootWritable)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
@@ -1515,7 +1592,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 14 total IsMounted calls
-	c.Assert(n, Equals, 16)
+	c.Assert(n, Equals, 20)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1591,6 +1668,22 @@ Wants=%[1]s
 			"--fsck=no",
 			"--options=nosuid,private",
 			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			boot.InitramfsSysroot,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			boot.InitramfsDataDir,
+			boot.InitramfsSysrootWritable,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 
@@ -1682,6 +1775,8 @@ Wants=%[1]s
 		boot.InitramfsUbuntuBootDir,
 		boot.InitramfsHostUbuntuDataDir,
 		boot.InitramfsUbuntuSaveDir,
+		boot.InitramfsSysroot,
+		boot.InitramfsSysrootWritable,
 	})
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1766,6 +1861,22 @@ Wants=%[1]s
 			"--fsck=no",
 			"--options=private",
 			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			boot.InitramfsSysroot,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			boot.InitramfsDataDir,
+			boot.InitramfsSysrootWritable,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 
@@ -1817,6 +1928,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			c.Assert(where, Equals, gadgetMnt)
 		case 11, 12:
 			c.Assert(where, Equals, kernelMnt)
+		case 13, 14:
+			c.Assert(where, Equals, boot.InitramfsSysroot)
+		case 15, 16:
+			c.Assert(where, Equals, boot.InitramfsSysrootWritable)
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
 			return false, fmt.Errorf("unexpected IsMounted check on %s", where)
@@ -1872,7 +1987,7 @@ Wants=%[1]s
 	}
 
 	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 12)
+	c.Assert(n, Equals, 16)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1929,6 +2044,22 @@ Wants=%[1]s
 			"--fsck=no",
 			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			boot.InitramfsSysroot,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			boot.InitramfsDataDir,
+			boot.InitramfsSysrootWritable,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 }
@@ -2008,6 +2139,8 @@ Wants=%[1]s
 		baseMnt,
 		gadgetMnt,
 		kernelMnt,
+		boot.InitramfsSysroot,
+		boot.InitramfsSysrootWritable,
 	})
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -2073,6 +2206,22 @@ Wants=%[1]s
 			"--fsck=no",
 			"--options=ro,private",
 			"--property=Before=initrd-fs.target",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			boot.InitramfsSysroot,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			boot.InitramfsDataDir,
+			boot.InitramfsSysrootWritable,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 }
@@ -2099,6 +2248,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
 		// RecoverySystem set makes us mount the snapd snap here
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -2157,6 +2308,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -2222,6 +2375,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -2600,6 +2755,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2620,6 +2777,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			kernelStatus:    boot.TryingStatus,
@@ -2642,6 +2801,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2670,6 +2831,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel:    s.kernel,
@@ -2702,6 +2865,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2722,6 +2887,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2742,6 +2909,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					s.makeSysrootSystemdMount(),
+					s.makeSysrootWritableSystemdMount(),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2938,6 +3107,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeUpdateBootloaderVars(
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeGadget, s.gadget),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, *finalKernel),
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3142,6 +3313,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3231,6 +3404,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 				mountOpts,
 				nil,
 			},
+			s.makeSysrootSystemdMount(),
+			s.makeSysrootWritableSystemdMount(),
 		}, nil)
 		cleanups = append(cleanups, restore)
 
@@ -3315,6 +3490,8 @@ defaults:
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3341,7 +3518,9 @@ defaults:
 	c.Assert(exists, Equals, true)
 
 	// systemctl was called the way we expect
-	c.Assert(sysctlArgs, DeepEquals, [][]string{{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"}})
+	c.Assert(sysctlArgs, DeepEquals, [][]string{
+		{"--root", filepath.Join(boot.InitramfsWritableDir, "_writable_defaults"), "mask", "rsyslog.service"},
+		{"--no-block", "--now", "enable", "populate-writable.service"}})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPartitionUUID(c *C) {
@@ -3400,6 +3579,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyBootedKernelPa
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3520,6 +3701,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3679,6 +3862,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -3857,6 +4042,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedSa
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -4022,6 +4209,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -4185,6 +4374,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -4353,6 +4544,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -4543,6 +4736,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataU
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -4734,6 +4929,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 			needsNoSuidDiskMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5003,6 +5200,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnen
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5143,6 +5342,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedAb
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5343,6 +5544,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedDegradedDa
 			needsFsckDiskMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5524,6 +5727,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedMismatched
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5736,6 +5941,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeEncryptedAttackerFS
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -5815,6 +6022,10 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallRecoverModeMeasure(c *C
 		mockDiskMapping[disks.Mountpoint{Mountpoint: boot.InitramfsUbuntuSaveDir}] = disk
 	}
 
+	// sysroot mounts are always last
+	modeMnts = append(modeMnts, s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount())
+
 	restore := disks.MockMountPointDisksToPartitionMapping(mockDiskMapping)
 	defer restore()
 
@@ -5882,7 +6093,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeMeasure(c *C) {
 	s.testInitramfsMountsInstallRecoverModeMeasure(c, "recover")
 }
 
-func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool) (err error) {
+func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, triedSystem bool, sysrootMounted bool) (err error) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover  snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -5896,7 +6107,7 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 		},
 	)
 	defer restore()
-	restore = s.mockSystemdMountSequence(c, []systemdMount{
+	mnts := []systemdMount{
 		ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
@@ -5926,7 +6137,12 @@ func (s *initramfsMountsSuite) runInitramfsMountsUnencryptedTryRecovery(c *C, tr
 			mountOpts,
 			nil,
 		},
-	}, nil)
+	}
+	if sysrootMounted {
+		mnts = append(mnts, s.makeSysrootSystemdMount(),
+			s.makeSysrootWritableSystemdMount())
+	}
+	restore = s.mockSystemdMountSequence(c, mnts, nil)
 	defer restore()
 
 	if triedSystem {
@@ -5961,7 +6177,8 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryHappy(c *C, happySt
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
 	const triedSystem = true
-	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
+	const sysrootMounted = false
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem, sysrootMounted)
 	// due to hackery with replacing reboot, we expect a non nil error that
 	// actually indicates a success
 	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
@@ -6106,7 +6323,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryDifferentSystem(c *
 	c.Assert(ioutil.WriteFile(mockedState, []byte(mockStateContent), 0640), IsNil)
 
 	const triedSystem = false
-	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
+	const sysrootMounted = true
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem, sysrootMounted)
 	c.Assert(err, IsNil)
 
 	// modeenv is written as we will seed the recovery system
@@ -6370,7 +6588,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	defer restore()
 
 	const triedSystem = true
-	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem)
+	const sysrootMounted = false
+	err := s.runInitramfsMountsUnencryptedTryRecovery(c, triedSystem, sysrootMounted)
 	c.Assert(err, ErrorMatches, `finalize try recovery system did not reboot, last error: <nil>`)
 
 	modeEnv := filepath.Join(boot.InitramfsRunMntDir, "data/system-data/var/lib/snapd/modeenv")
@@ -6561,7 +6780,16 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
+	defer restore()
+
+	var sysctlArgs [][]string
+	restore = systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
+		sysctlArgs = append(sysctlArgs, args)
+		return nil, nil
+	})
 	defer restore()
 
 	// ensure that we check that access to sealed keys were locked
@@ -6579,6 +6807,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyEncrypted
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+
+	// systemctl was called the way we expect
+	c.Assert(sysctlArgs, DeepEquals, [][]string{{
+		"--no-block", "--now", "enable", "populate-writable.service"}})
 
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
@@ -6670,6 +6902,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			mountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -6750,6 +6984,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeHappyUnencrypt
 			tmpfsMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -6851,6 +7087,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyUnlockE
 			tmpfsMountOpts,
 			nil,
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
@@ -6962,6 +7200,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsFactoryResetModeUnhappyMountEn
 			mountOpts,
 			fmt.Errorf("mount failed"),
 		},
+		s.makeSysrootSystemdMount(),
+		s.makeSysrootWritableSystemdMount(),
 	}, nil)
 	defer restore()
 
