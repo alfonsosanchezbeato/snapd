@@ -22,8 +22,6 @@
 package secboot
 
 import (
-	"io"
-
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
@@ -89,7 +87,7 @@ func MockSbAddSnapModelProfile(f func(profile *sb_tpm2.PCRProtectionProfile, par
 	}
 }
 
-func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error)) (restore func()) {
+func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb.AuxiliaryKey, error)) (restore func()) {
 	old := sbSealKeyToTPMMultiple
 	sbSealKeyToTPMMultiple = f
 	return func() {
@@ -97,7 +95,11 @@ func MockSbSealKeyToTPMMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.
 	}
 }
 
-func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb_tpm2.PolicyAuthKey, pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
+func MockSbUpdateKeyPCRProtectionPolicyMultiple(
+	f func(tpm *sb_tpm2.Connection,
+		keys []*sb_tpm2.SealedKeyObject,
+		authKey sb.AuxiliaryKey,
+		pcrProfile *sb_tpm2.PCRProtectionProfile) error) (restore func()) {
 	old := sbUpdateKeyPCRProtectionPolicyMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple = f
 	return func() {
@@ -105,7 +107,7 @@ func MockSbUpdateKeyPCRProtectionPolicyMultiple(f func(tpm *sb_tpm2.Connection, 
 	}
 }
 
-func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error) (restore func()) {
+func MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(f func(sko *sb_tpm2.SealedKeyObject, tpm *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error) (restore func()) {
 	old := sbSealedKeyObjectRevokeOldPCRProtectionPolicies
 	sbSealedKeyObjectRevokeOldPCRProtectionPolicies = f
 	return func() {
@@ -121,8 +123,11 @@ func MockSbBlockPCRProtectionPolicies(f func(tpm *sb_tpm2.Connection, pcrs []int
 	}
 }
 
-func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath string,
-	keyReader io.Reader, options *sb.ActivateVolumeOptions) error) (restore func()) {
+func MockSbActivateVolumeWithRecoveryKey(
+	f func(volumeName,
+		sourceDevicePath string,
+		keyReader sb.AuthRequestor,
+		options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithRecoveryKey = f
 	return func() {
@@ -130,8 +135,11 @@ func MockSbActivateVolumeWithRecoveryKey(f func(volumeName, sourceDevicePath str
 	}
 }
 
-func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key []byte,
-	options *sb.ActivateVolumeOptions) error) (restore func()) {
+func MockSbActivateVolumeWithKey(
+	f func(volumeName,
+		sourceDevicePath string,
+		key []byte,
+		options *sb.ActivateVolumeOptions) error) (restore func()) {
 	old := sbActivateVolumeWithKey
 	sbActivateVolumeWithKey = f
 	return func() {
@@ -139,7 +147,13 @@ func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key
 	}
 }
 
-func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, key *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error)) (restore func()) {
+func MockSbActivateVolumeWithKeyData(
+	f func(volumeName,
+		sourceDevicePath string,
+		key *sb.KeyData,
+		authReq sb.AuthRequestor,
+		kdf sb.KDF,
+		options *sb.ActivateVolumeOptions) error) (restore func()) {
 	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
 	sbActivateVolumeWithKeyData = f
 	return func() {

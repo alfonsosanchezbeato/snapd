@@ -28,7 +28,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -483,7 +482,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		expectedID, err := kd.UniqueID()
 		c.Assert(err, IsNil)
 
-		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 			c.Assert(volumeName, Equals, "name-"+randomUUID)
 			c.Assert(sourceDevicePath, Equals, devicePath)
 			c.Assert(keyData, NotNil)
@@ -505,20 +504,22 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 				})
 			}
 			if !tc.activated && tc.activateErr == nil {
-				return nil, errors.New("activation error")
+				return errors.New("activation error")
 			}
-			return nil, tc.activateErr
+			return tc.activateErr
 		})
 		defer restore()
 
-		restore = secboot.MockSbActivateVolumeWithRecoveryKey(func(name, device string, keyReader io.Reader,
-			options *sb.ActivateVolumeOptions) error {
-			if !tc.rkAllow {
-				c.Fatalf("unexpected attempt to activate with recovery key")
-				return fmt.Errorf("unexpected call")
-			}
-			return tc.rkErr
-		})
+		restore = secboot.MockSbActivateVolumeWithRecoveryKey(
+			func(name, device string,
+				authReq sb.AuthRequestor,
+				options *sb.ActivateVolumeOptions) error {
+				if !tc.rkAllow {
+					c.Fatalf("unexpected attempt to activate with recovery key")
+					return fmt.Errorf("unexpected call")
+				}
+				return tc.rkErr
+			})
 		defer restore()
 
 		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
@@ -929,13 +930,16 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock sealing
 		sealCalls := 0
-		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb_tpm2.PolicyAuthKey, error) {
+		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb_tpm2.Connection, kr []*sb_tpm2.SealKeyRequest, params *sb_tpm2.KeyCreationParams) (sb.AuxiliaryKey, error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(kr, DeepEquals, []*sb_tpm2.SealKeyRequest{{Key: myKey, Path: "keyfile"}, {Key: myKey2, Path: "keyfile2"}})
+			c.Assert(kr, DeepEquals,
+				[]*sb_tpm2.SealKeyRequest{
+					{Key: sb.DiskUnlockKey(myKey), Path: "keyfile"},
+					{Key: sb.DiskUnlockKey(myKey2), Path: "keyfile2"}})
 			c.Assert(params.AuthKey, Equals, myAuthKey)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
-			return sb_tpm2.PolicyAuthKey{}, tc.sealErr
+			return sb.AuxiliaryKey{}, tc.sealErr
 		})
 		defer restore()
 
@@ -1108,22 +1112,22 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock PCR protection policy update
 		resealCalls := 0
-		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb_tpm2.PolicyAuthKey, profile *sb_tpm2.PCRProtectionProfile) error {
+		restore = secboot.MockSbUpdateKeyPCRProtectionPolicyMultiple(func(t *sb_tpm2.Connection, keys []*sb_tpm2.SealedKeyObject, authKey sb.AuxiliaryKey, profile *sb_tpm2.PCRProtectionProfile) error {
 			resealCalls++
 			c.Assert(t, Equals, tpm)
 			c.Assert(keys, DeepEquals, mockSealedKeyObjects)
-			c.Assert(authKey, DeepEquals, sb_tpm2.PolicyAuthKey(mockTPMPolicyAuthKey))
+			c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
 			c.Assert(profile, Equals, pcrProfile)
 			return tc.resealErr
 		})
 		defer restore()
 		// mock PCR protection policy revoke
 		revokeCalls := 0
-		restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb_tpm2.PolicyAuthKey) error {
+		restore = secboot.MockSbSealedKeyObjectRevokeOldPCRProtectionPolicies(func(sko *sb_tpm2.SealedKeyObject, t *sb_tpm2.Connection, authKey sb.AuxiliaryKey) error {
 			revokeCalls++
 			c.Assert(sko, Equals, mockSealedKeyObjects[0])
 			c.Assert(t, Equals, tpm)
-			c.Assert(authKey, DeepEquals, sb_tpm2.PolicyAuthKey(mockTPMPolicyAuthKey))
+			c.Assert(authKey, DeepEquals, sb.AuxiliaryKey(mockTPMPolicyAuthKey))
 			return tc.revokeErr
 		})
 		defer restore()
@@ -1283,15 +1287,15 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	defaultDevice := "name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		c.Fatal("should not get this far")
-		return nil, nil
+		return nil
 	})
 	defer restore()
 
@@ -1571,7 +1575,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	expectedKey := makeMockDiskKey()
 	expectedAuxKey := makeMockAuxKey()
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		activated++
 		c.Check(options.RecoveryKeyTries, Equals, 0)
 		// XXX: this is what the real
@@ -1580,8 +1584,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
 		c.Check([]byte(auxKey), DeepEquals, expectedAuxKey[:])
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
-		return modChecker, nil
+		return nil
 	})
 	defer restore()
 
@@ -1630,10 +1633,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		activated++
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: false}
-		return modChecker, nil
+		return nil
 	})
 	defer restore()
 
@@ -1685,10 +1687,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		activated++
-		modChecker := &mockSnapModelChecker{mockError: errors.New("model checker error")}
-		return modChecker, nil
+		return nil
 	})
 	defer restore()
 
@@ -1738,14 +1739,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		activated++
 		c.Check(options.RecoveryKeyTries, Equals, 3)
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
 		_, _, err := keyData.RecoverKeys()
 		c.Assert(err, NotNil)
-		return nil, sb.ErrRecoveryKeyUsed
+		return sb.ErrRecoveryKeyUsed
 	})
 	defer restore()
 
@@ -1798,7 +1799,7 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		activated++
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
@@ -1810,8 +1811,7 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey,
 		ok, err := keyData.IsSnapModelAuthorized(auxKey, authModel)
 		c.Assert(err, IsNil)
 		c.Check(ok, Equals, true)
-		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
-		return modChecker, nil
+		return nil
 	})
 	defer restore()
 
@@ -1922,15 +1922,15 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 		},
 	}
 
-	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, authReq sb.AuthRequestor, kdf sb.KDF, options *sb.ActivateVolumeOptions) error {
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		c.Fatal("should not get this far")
-		return nil, nil
+		return nil
 	})
 	defer restore()
 
