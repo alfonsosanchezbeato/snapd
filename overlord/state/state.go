@@ -425,6 +425,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		if readyTime.IsZero() {
 			if spawnTime.Before(pruneLimit) && len(chg.Tasks()) == 0 {
 				chg.Abort()
+				logger.Noticef("pruning change ID %s", chg.ID())
 				delete(s.changes, chg.ID())
 			} else if spawnTime.Before(abortLimit) {
 				chg.AbortUnreadyLanes()
@@ -435,8 +436,10 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		if readyTime.Before(pruneLimit) || readyChangesCount > maxReadyChanges {
 			s.writing()
 			for _, t := range chg.Tasks() {
+				logger.Noticef("pruning task ID %s", t.ID())
 				delete(s.tasks, t.ID())
 			}
+			logger.Noticef("pruning change ID %s (after tasks)", chg.ID())
 			delete(s.changes, chg.ID())
 			readyChangesCount--
 		}
@@ -446,6 +449,7 @@ func (s *State) Prune(startOfOperation time.Time, pruneWait, abortWait time.Dura
 		// TODO: this could be done more aggressively
 		if t.Change() == nil && t.SpawnTime().Before(pruneLimit) {
 			s.writing()
+			logger.Noticef("pruning task ID %s (final)", tid)
 			delete(s.tasks, tid)
 		}
 	}

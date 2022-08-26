@@ -2005,6 +2005,7 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 		},
 		Type: "kernel",
 	})
+	s.state.NewChange("sample", "...").AddTask(t)
 
 	// now we simulate that the new kernel is getting undone
 	err := s.snapmgr.MaybeUndoRemodelBootChanges(t)
