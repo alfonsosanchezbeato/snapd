@@ -46,9 +46,9 @@ execute: |
   tests.nested exec "snap connections bluez" | MATCH 'uhid  *bluez:uhid  *:uhid'
 
   if [ "$VERSION" -eq 16 ]; then
-      snapd_snap=$(tests.nested exec find /var/lib/snapd/seed/snaps/ -name 'core_*.snap')
+      snapd_snap=$(tests.nested exec find /var/lib/snapd/snaps/ -name 'core_*.snap')
   else
-      snapd_snap=$(tests.nested exec find /var/lib/snapd/seed/snaps/ -name 'snapd_*.snap')
+      snapd_snap=$(tests.nested exec find /var/lib/snapd/snaps/ -name 'snapd_*.snap')
   fi
 
   chg_id=$(tests.nested exec "sudo snap install \
