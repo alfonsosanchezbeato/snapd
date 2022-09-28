@@ -1319,9 +1319,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: systemLabel,
 
 		Recovery: true,
-
-		// XXX: rename to something more neutral like "TargetDir" ?
-		InstallHostWritableDir: filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"),
 	}
 
 	// install the bootloader configuration from the gadget
