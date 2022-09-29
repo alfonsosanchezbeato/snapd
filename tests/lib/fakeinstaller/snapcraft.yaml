@@ -9,8 +9,8 @@ base: core22
 
 apps:
   muinstaller:
-    # XXX: make this a daemon
-    command: bin/muinstaller
+    command: bin/muinstaller "classic" "auto" "$SNAP"/bin/mk-classic-rootfs.sh
+    daemon: simple
 
 # TODO: add spread test that builds the muinstaller from snapd to ensure
 #       we don't accidentally break it
@@ -21,4 +21,4 @@ parts:
     build-snaps: [go/1.13/stable]
     override-build: |
       snapcraftctl build
-      cp mk-classic-rootfs.sh $SNAPCRAFT_PART_INSTALL/bin
+      cp -a mk-classic-rootfs.sh $SNAPCRAFT_PART_INSTALL/bin

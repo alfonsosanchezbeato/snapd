@@ -282,25 +282,6 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 }
 
 func run(seedLabel, rootfsCreator, bootDevice string) error {
-	if bootDevice == "auto" {
-		devices, err := emptyFixedBlockDevices()
-		if err != nil {
-			return err
-		}
-		switch len(devices) {
-		case 0:
-			return fmt.Errorf("cannot use automatic mode, no empty disk found")
-		case 1:
-			// found exactly one target
-			bootDevice = devices[0]
-		default:
-			return fmt.Errorf("cannot use automatic mode, multiple empty disks found: %v", devices)
-		}
-	}
-
-	os.Setenv("SNAPD_DEBUG", "1")
-	logger.SimpleSetup()
-
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -339,16 +320,42 @@ func run(seedLabel, rootfsCreator, bootDevice string) error {
 	return nil
 }
 
+func waitForDevice() string {
+	for {
+		devices, err := emptyFixedBlockDevices()
+		if err != nil {
+			logger.Noticef("cannot list devices: %v", err)
+		}
+		switch len(devices) {
+		case 0:
+			logger.Noticef("cannot use automatic mode, no empty disk found")
+		case 1:
+			// found exactly one target
+			return devices[0]
+		default:
+			logger.Noticef("cannot use automatic mode, multiple empty disks found: %v", devices)
+		}
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func main() {
 	if len(os.Args) != 4 {
 		// xxx: allow installing real UC without a classic-rootfs later
 		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
 		os.Exit(1)
 	}
+	os.Setenv("SNAPD_DEBUG", "1")
+	logger.SimpleSetup()
 
 	seedLabel := os.Args[1]
 	rootfsCreator := os.Args[2]
 	bootDevice := os.Args[3]
+
+	// this will wait forever for a suitable fixed
+	if bootDevice == "auto" {
+		bootDevice = waitForDevice()
+	}
 
 	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
