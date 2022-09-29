@@ -436,7 +436,7 @@ nested_download_image() {
     local IMAGE_URL=$1
     local IMAGE_NAME=$2
 
-    curl -L -o "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
+    curl -C - -L -o "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "$IMAGE_URL"
 
     if [[ "$IMAGE_URL" == *.img.xz ]]; then
         mv "${NESTED_IMAGES_DIR}/${IMAGE_NAME}" "${NESTED_IMAGES_DIR}/${IMAGE_NAME}.xz"
@@ -985,6 +985,7 @@ nested_start_core_vm_unit() {
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
     PARAM_RTC="${NESTED_PARAM_RTC:-}"
+    PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
@@ -1121,7 +1122,8 @@ nested_start_core_vm_unit() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
-        ${PARAM_CD} " "${PARAM_REEXEC_ON_FAILURE}"
+        ${PARAM_CD}  \
+        ${PARAM_EXTRA} " "${PARAM_REEXEC_ON_FAILURE}"
 
     # wait for the $NESTED_VM service to appear active
     wait_for_service "$NESTED_VM"
