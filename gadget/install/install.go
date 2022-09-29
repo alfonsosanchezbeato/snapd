@@ -38,6 +38,9 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+// So we can mock it
+var osReadlink = os.Readlink
+
 // diskWithSystemSeed will locate a disk that has the partition corresponding
 // to a structure with SystemSeed role of the specified gadget volume and return
 // the device node.
@@ -412,7 +415,7 @@ func laidOutStructureForDiskStructure(laidVols map[string]*gadget.LaidOutVolume,
 // sysfsPathForBlockDevice returns the sysfs path for a block device.
 func sysfsPathForBlockDevice(device string) (string, error) {
 	syfsLink := filepath.Join("/sys/class/block", filepath.Base(device))
-	partPath, err := os.Readlink(syfsLink)
+	partPath, err := osReadlink(syfsLink)
 	if err != nil {
 		return "", fmt.Errorf("cannot read link %q: %v", syfsLink, err)
 	}

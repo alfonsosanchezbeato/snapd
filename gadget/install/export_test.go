@@ -38,6 +38,7 @@ var (
 	EnsureNodesExist        = ensureNodesExist
 
 	CreatedDuringInstall = createdDuringInstall
+	OsReadLink           = osReadlink
 )
 
 func MockSysMount(f func(source, target, fstype string, flags uintptr, data string) error) (restore func()) {
@@ -69,5 +70,13 @@ func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Si
 	mkfsImpl = f
 	return func() {
 		mkfsImpl = old
+	}
+}
+
+func MockOsReadLink(f func(name string) (string, error)) (restore func()) {
+	old := osReadlink
+	osReadlink = f
+	return func() {
+		osReadlink = old
 	}
 }
