@@ -22,9 +22,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
@@ -36,6 +39,58 @@ import (
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/osutil/mkfs"
 )
+
+// emptyFixedBlockDevices finds any non-removalble physical disk that has
+// no partitions. It will exclude loop devices.
+func emptyFixedBlockDevices() (devices []string, err error) {
+	// eg. /sys/block/sda/removable
+	removable, err := filepath.Glob(filepath.Join(dirs.GlobalRootDir, "/sys/block/*/removable"))
+	if err != nil {
+		return nil, err
+	}
+	for _, removableAttr := range removable {
+		val, err := ioutil.ReadFile(removableAttr)
+		if err != nil || string(val) != "0\n" {
+			// removable, ignore
+			continue
+		}
+		// let's see if it has partitions
+		dev := filepath.Base(filepath.Dir(removableAttr))
+		if strings.HasPrefix(dev, "loop") {
+			// is loop device, ignore
+			continue
+		}
+		pattern := fmt.Sprintf(filepath.Join(dirs.GlobalRootDir, "/sys/block/%s/%s*/partition"), dev, dev)
+		// eg. /sys/block/sda/sda1/partition
+		partitionAttrs, _ := filepath.Glob(pattern)
+		if len(partitionAttrs) != 0 {
+			// has partitions, ignore
+			continue
+		}
+		devNode := fmt.Sprintf("/dev/%s", dev)
+		output, err := exec.Command("blkid", devNode).CombinedOutput()
+		if err == nil {
+			// found something like fs,raid,crypto etc, ignore
+			continue
+		}
+		// extract exit code (if possible)
+		e, err1 := osutil.ExitCode(err)
+		if err1 != nil {
+			// some non-exit code error, show to the user
+			return nil, osutil.OutputErr(output, err1)
+		}
+		// exit-code 2 means that blkid cannot determine device
+		// content so most likely an empty device
+		if e != 2 {
+			// some other error from blkid, show to the user
+			return nil, osutil.OutputErr(output, err)
+		}
+
+		devices = append(devices, devNode)
+	}
+	sort.Strings(devices)
+	return devices, nil
+}
 
 func firstVol(volumes map[string]*gadget.Volume) *gadget.Volume {
 	for _, vol := range volumes {
@@ -226,11 +281,23 @@ func createSeedOnTarget(bootDevice, seedLabel string) error {
 	return nil
 }
 
-func run(seedLabel, bootDevice, rootfsCreator string) error {
-	if len(os.Args) != 4 {
-		// xxx: allow installing real UC without a classic-rootfs later
-		return fmt.Errorf("need seed-label, target-device and classic-rootfs as argument\n")
+func run(seedLabel, rootfsCreator, bootDevice string) error {
+	if bootDevice == "auto" {
+		devices, err := emptyFixedBlockDevices()
+		if err != nil {
+			return err
+		}
+		switch len(devices) {
+		case 0:
+			return fmt.Errorf("cannot use automatic mode, no empty disk found")
+		case 1:
+			// found exactly one target
+			bootDevice = devices[0]
+		default:
+			return fmt.Errorf("cannot use automatic mode, multiple empty disks found: %v", devices)
+		}
 	}
+
 	os.Setenv("SNAPD_DEBUG", "1")
 	logger.SimpleSetup()
 
@@ -273,11 +340,17 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 }
 
 func main() {
-	seedLabel := os.Args[1]
-	bootDevice := os.Args[2]
-	rootfsCreator := os.Args[3]
+	if len(os.Args) != 4 {
+		// xxx: allow installing real UC without a classic-rootfs later
+		fmt.Fprintf(os.Stderr, "need seed-label, target-device and classic-rootfs as argument\n")
+		os.Exit(1)
+	}
 
-	if err := run(seedLabel, bootDevice, rootfsCreator); err != nil {
+	seedLabel := os.Args[1]
+	rootfsCreator := os.Args[2]
+	bootDevice := os.Args[3]
+
+	if err := run(seedLabel, rootfsCreator, bootDevice); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

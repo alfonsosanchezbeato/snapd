@@ -105,7 +105,7 @@ execute: |
   # TODO: fakeinstaller should work on a empty disk too
   echo "label: gpt" | sfdisk "$loop_device"
   # and "install" the current seed to the fake disk
-  ./fakeinstaller "$LABEL" "$loop_device" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh
+  ./fakeinstaller "$LABEL" "$TESTSLIB"/fakeinstaller/mk-classic-rootfs.sh "$loop_device"
   # validate that the fake installer created the expected partitions
   fdisk -x "$loop_device" > fdisk_output
   MATCH "${loop_device}p1 .* BIOS Boot"   < fdisk_output
