@@ -1296,6 +1296,7 @@ nested_start_classic_vm() {
     PARAM_CPU=""
     PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
+    # TODO: can this be removed? we create a "pristine" copy above?
     PARAM_SNAPSHOT="-snapshot"
     PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
 

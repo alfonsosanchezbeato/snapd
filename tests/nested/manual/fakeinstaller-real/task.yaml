@@ -41,22 +41,14 @@ execute: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
 
   # install the snapd deb from spread so we are using the same version to 
   # validate the seed as well as call preseed, etc. 
   dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
-  # create a VM and mount a cloud image
-  tests.nested build-image classic
-
-  # start it so that cloud-init creates ssh keys and user
-  nested_start_core_vm
-  
-  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
-  # classic systems with modeenv right now (which is something we may need
-  # to fix to work from the classic installer).
-  # For now pretend we have a modeenv
-  remote.exec 'echo "mode=run" > /var/lib/snapd/modeenv'
 
   echo Expose the needed assertions through the fakestore
   cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
@@ -64,10 +56,6 @@ execute: |
   cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts" 
   export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB"/nested.sh
   version="$(nested_get_version)"
   # get an updated kernel
   snap download --basename=pc-kernel --channel="$version/edge" pc-kernel
@@ -90,13 +78,11 @@ execute: |
   NEW_LABEL=classic
   mv ./classic-seed/system-seed/systems/"$LABEL" ./classic-seed/system-seed/systems/"$NEW_LABEL"
   LABEL="$NEW_LABEL"
-  remote.push ./classic-seed/system-seed/ /var/lib/snapd/install-seed
-  # done with the classic vmm
-  nested_shutdown
-  
+
   # we don't need the fakestore anymore
   teardown_fake_store "$STORE_DIR"
-  
+
+
   # build the fake-installer snap
   snap install snapcraft --candidate --classic
   snap install lxd --candidate
@@ -116,33 +102,57 @@ execute: |
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img
-  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio"
+  # TODO: XXX: fakeinstaller should work on a empty disk too, it errors
+  # right now with "device with name "/dev/vdc" is not a physical disk
+  echo "label: gpt" | sfdisk "fake-disk.img"
+
+  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
   export NESTED_PARAM_EXTRA
+
+  # create a VM and mount a cloud image
+  tests.nested build-image classic
+
+  # TODO: nested classic images do not support secure boot today so this
+  #       will not work to test the secure boot installer. Two options:
+  #       1. fix nested_start_classic_vm to honor secboot
+  #       2. boot classic to create user/ssh keys, shutdown down, convert
+  #          disk from qcow2->raw and rename from classic->core and use
+  #          nested_start_core_vm (like below)
+  #
+  # start it so that cloud-init creates ssh keys and user
+  nested_start_classic_vm
+
+  # push our snap down
+  # TODO: this abuses /var/lib/snapd to store the deb so that mk-initramfs-classic
+  # can pick it up. the real installer will also need a very recent snapd
+  # in it's on disk-image to supprot seeding
+  remote.push "$SPREAD_PATH"/../snapd_*.deb '~/'
+  remote.exec "sudo mv ~/snapd_*.deb /var/lib/snapd/"
+  remote.exec "sudo apt install -y /var/lib/snapd/snapd_*.deb"
+
+  # push our seed down
+  # TODO: merge with classic /var/lib/snapd/seed eventually
+  # XXX: port scp -r to remote.push
+  #remote.push ./classic-seed/system-seed/ '~/'
+  sshpass -p ubuntu scp -r -P 8022 -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ./classic-seed/system-seed/ user1@localhost:~/install-seed
+  remote.exec "sudo mv /home/user1/install-seed /var/lib/snapd/"
+
+  # XXX: the code in DeviceManager.SystemAndGadgetInfo() will only work on
+  # classic systems with modeenv right now (which is something we may need
+  # to fix to work from the classic installer).
+  # For now pretend we have a modeenv
+  remote.exec 'echo "mode=run" | sudo tee -a /var/lib/snapd/modeenv'
+  remote.exec 'sudo systemctl restart snapd'
   
-  # HACK: rename to "core" image because we need to boot with OVMF
-  # we really should fix this so that classic and core VMs are more similar
-  IMAGE_NAME_CLASSIC="$(nested_get_image_name classic)"
-  IMAGE_NAME_CORE="$(nested_get_image_name core)"
-  mv "$NESTED_IMAGES_DIR/$IMAGE_NAME_CLASSIC" "$NESTED_IMAGES_DIR/$IMAGE_NAME_CORE"
-  # the classic image is qcow2 but the nested_vm needs raw
-  qemu-img convert -f qcow2 -O raw "$NESTED_IMAGES_DIR/$IMAGE_NAME_CORE" "$NESTED_IMAGES_DIR/$IMAGE_NAME_CORE".raw
-  mv "$NESTED_IMAGES_DIR/$IMAGE_NAME_CORE".raw "$NESTED_IMAGES_DIR/$IMAGE_NAME_CORE"
-
-  # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
-  #       from running, we already have a user so this is not needed
-  touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
-  nested_start_core_vm
-
   # bind mount new seed
-  remote.exec "mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
-  
+  remote.exec "sudo mount -o bind /var/lib/snapd/install-seed /var/lib/snapd/seed"
   # push the fakeinstaller
-  remote.push "$FAKEINSTALLER_SNAP"
-  remote.exec "snap install --dangerous ./muinstaller_1.0.snap"
+  remote.push "$FAKEINSTALLER_SNAP" '~/'
+  remote.exec "sudo snap install --classic --dangerous ~/$(basename $FAKEINSTALLER_SNAP)"
 
   # TODO: use retry
   while true; do
-    if nested.exec "snap logs muinstaller" | MATCH "install done"; then
+    if remote.exec "sudo snap logs muinstaller" | MATCH "install done"; then
         break
     fi
     sleep 5
@@ -150,12 +160,20 @@ execute: |
 
   # boot into the just installed drive
   nested_shutdown
-  mv ./fake-disk.img "$IMAGE_NAME_CORE"
-  unset NESTED_PARAM_EXTRA  
+  sync
+
+  # HACK: rename to "core" image because we need to boot with OVMF
+  # we really should fix this so that classic and core VMs are more similar
+  IMAGE_NAME="$(nested_get_image_name core)"
+  mv fake-disk.img "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+  unset NESTED_PARAM_EXTRA
+
+  # TODO: this prevents "nested_prepare_ssh" inside nested_start_core_vm
+  #       from running, we already have a user so this is not needed
+  touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
   nested_start_core_vm
 
   # things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   remote.exec "snap list" | MATCH pc-kernel
-  
