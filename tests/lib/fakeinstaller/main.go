@@ -68,22 +68,14 @@ func emptyFixedBlockDevices() (devices []string, err error) {
 			continue
 		}
 		devNode := fmt.Sprintf("/dev/%s", dev)
-		output, err := exec.Command("blkid", devNode).CombinedOutput()
-		if err == nil {
-			// found something like fs,raid,crypto etc, ignore
-			continue
-		}
-		// extract exit code (if possible)
-		e, err1 := osutil.ExitCode(err)
-		if err1 != nil {
-			// some non-exit code error, show to the user
-			return nil, osutil.OutputErr(output, err1)
-		}
-		// exit-code 2 means that blkid cannot determine device
-		// content so most likely an empty device
-		if e != 2 {
-			// some other error from blkid, show to the user
+		output, err := exec.Command("lsblk", "--output", "fstype", "--json", devNode).CombinedOutput()
+		if err != nil {
 			return nil, osutil.OutputErr(output, err)
+		}
+		// TODO: parser proper json
+		if !strings.Contains(string(output), "null") {
+			// found a filesystem, ignore
+			continue
 		}
 
 		devices = append(devices, devNode)
