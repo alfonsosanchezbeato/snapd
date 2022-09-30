@@ -11,6 +11,8 @@ apps:
   muinstaller:
     command: bin/muinstaller classic $SNAP/bin/mk-classic-rootfs.sh auto
     daemon: simple
+  cli:
+    command: bin/muinstaller
 
 # TODO: add spread test that builds the muinstaller from snapd to ensure
 #       we don't accidentally break it
