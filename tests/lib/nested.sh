@@ -1297,6 +1297,17 @@ nested_start_classic_vm() {
     PARAM_CD="${NESTED_PARAM_CD:-}"
     PARAM_RANDOM="-object rng-random,id=rng0,filename=/dev/urandom -device virtio-rng-pci,rng=rng0"
     PARAM_SNAPSHOT="-snapshot"
+    PARAM_EXTRA="${NESTED_PARAM_EXTRA:-}"
+
+    # XXX: duplicated from nested core vm
+    # Set kvm attribute
+    local ATTR_KVM
+    ATTR_KVM=""
+    if nested_is_kvm_enabled; then
+        ATTR_KVM=",accel=kvm"
+        # CPU can be defined just when kvm is enabled
+        PARAM_CPU="-cpu host"
+    fi
 
     local PARAM_MACHINE PARAM_IMAGE PARAM_SEED PARAM_SERIAL PARAM_BIOS PARAM_TPM
     if [ "$SPREAD_BACKEND" = "google-nested" ]; then
@@ -1357,6 +1368,7 @@ nested_start_classic_vm() {
         ${PARAM_SERIAL} \
         ${PARAM_MONITOR} \
         ${PARAM_USB} \
+        ${PARAM_EXTRA} \
         ${PARAM_CD} "
 
     nested_wait_for_ssh
