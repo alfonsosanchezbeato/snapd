@@ -13,10 +13,7 @@ set -e
 create_classic_rootfs() {
     set -x
     local DESTDIR="$1"
-    local BASETAR="$2"
 
-    # Copy base filesystem
-    sudo tar -C "$DESTDIR" -xf "$BASETAR"
 
     # Create basic devices to be able to install packages
     [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
@@ -82,8 +79,13 @@ if [ ! -d "$DST" ]; then
     exit 1
 fi
 
-# get the base
-wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04-base-amd64.tar.gz
+# extract the base
+if [ -f /cdrom/casper/base.squashfs ]; then
+    sudo unsquashfs -d "$DESTDIR" /cdrom/casper/base.squashfs
+else
+    wget -c http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.1-base-amd64.tar.gz -O ubuntu-base.tar.gz
+    sudo tar -C "$DESTDIR" -xf "$BASETAR"
+fi
 
-# create minitmal rootfs
-create_classic_rootfs "$DST" "ubuntu-base-22.04-base-amd64.tar.gz"
+# create minimal rootfs
+create_classic_rootfs "$DST"
