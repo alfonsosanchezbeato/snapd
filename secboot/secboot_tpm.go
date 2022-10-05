@@ -172,6 +172,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 		if err != nil {
 			return err
 		}
+		logger.Noticef("Measuring model now")
 		return sbMeasureSnapModelToTPM(tpm, initramfsPCR, model)
 	}
 
@@ -234,6 +235,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 	// if we don't have a tpm, and we allow using a recovery key, do that
 	// directly
 	if !tpmDeviceAvailable && opts.AllowRecoveryKey {
+		logger.Noticef("TPM not available, but we allow using a recovery key")
 		if err := UnlockEncryptedVolumeWithRecoveryKey(mapperName, sourceDevice); err != nil {
 			return res, err
 		}
@@ -244,6 +246,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
+	logger.Noticef("Trying to unlock partition")
 	method, err := unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
@@ -275,6 +278,7 @@ func unlockEncryptedPartitionWithSealedKey(mapperName, sourceDevice, keyfile str
 		return NotUnlocked, fmt.Errorf("cannot read key data: %v", err)
 	}
 	options := activateVolOpts(allowRecovery)
+	logger.Noticef("ActivateVolumeOptions are:", options)
 	// ignoring model checker as it doesn't work with tpm "legacy" platform key data
 	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
 	if err == sb.ErrRecoveryKeyUsed {
@@ -519,6 +523,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRP
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
 			}
+			logger.Noticef("adding model profile %s. Classic: %t", mp.Model.Model(), mp.Model.Classic())
 			if err := sbAddSnapModelProfile(modelProfile, &snapModelParams); err != nil {
 				return nil, fmt.Errorf("cannot add snap model profile: %v", err)
 			}

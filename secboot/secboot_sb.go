@@ -107,8 +107,10 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	if fdeHasRevealKey() {
+		logger.Noticef("fdeHasRevealKey is true")
 		return unlockVolumeUsingSealedKeyFDERevealKey(sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
 	} else {
+		logger.Noticef("fdeHasRevealKey is false")
 		return unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
 	}
 }

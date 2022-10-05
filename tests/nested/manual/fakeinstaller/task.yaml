@@ -163,3 +163,4 @@ execute: |
   #remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   #remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   #remote.exec "snap list" | MATCH pc-kernel
+  exit 1

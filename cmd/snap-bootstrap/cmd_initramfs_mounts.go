@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -1591,6 +1592,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	if err != nil {
 		return err
 	}
+
+	out, err := exec.Command("/dump", "-v", "--hexdump", "--with-systemd-efi-stub=12").CombinedOutput()
+	if err == nil {
+		logger.Noticef("Output of dump:\n%s", out)
+	} else {
+		logger.Noticef("Error running dump: %v", err)
+	}
+
 	// XXX: I wonder if secbootMeasureSnapModelWhenPossible()
 	// should return the model so that we don't need to run
 	// mst.UnverifiedBootModel() again
@@ -1651,6 +1660,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	// and we continue booting only for expected models
 
 	// 3.1. mount Data
+	logger.Noticef("looking for key in %s", boot.InitramfsBootEncryptionKeyDir)
 	runModeKey := device.DataSealedKeyUnder(boot.InitramfsBootEncryptionKeyDir)
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,

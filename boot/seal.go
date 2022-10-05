@@ -216,6 +216,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
+	logger.Debugf("recovery boot chains: %v", recoveryBootChains)
 
 	// build the run mode boot chains
 	bl, err := bootloader.Find(InitramfsUbuntuBootDir, &bootloader.Options{
@@ -232,6 +233,7 @@ func sealKeyToModeenvUsingSecboot(key, saveKey keys.EncryptionKey, model *assert
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
+	logger.Debugf("run boot chains: %v", runModeBootChains)
 
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
 
@@ -736,6 +738,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 			if err != nil {
 				return err
 			}
+			logger.Debugf("runModeBootChain is: %v", runModeBootChain)
 
 			// get asset chains
 			assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)

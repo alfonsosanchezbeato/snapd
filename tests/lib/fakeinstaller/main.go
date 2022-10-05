@@ -283,6 +283,10 @@ func run(seedLabel, bootDevice, rootfsCreator string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("details:", details)
+	for id, vol := range details.Volumes {
+		fmt.Printf("vol: %q %q\n", id, vol.Name)
+	}
 	// TODO: grow the data-partition based on disk size
 	laidoutStructs, err := createPartitions(bootDevice, details.Volumes)
 	if err != nil {
