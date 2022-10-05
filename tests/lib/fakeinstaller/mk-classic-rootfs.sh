@@ -14,7 +14,7 @@ create_classic_rootfs() {
     set -x
     local DESTDIR="$1"
 
-
+    mkdir -p "$DESTDIR"/dev
     # Create basic devices to be able to install packages
     [ -e "$DESTDIR"/dev/null ] || sudo mknod -m 666 "$DESTDIR"/dev/null c 1 3
     [ -e "$DESTDIR"/dev/zero ] || sudo mknod -m 666 "$DESTDIR"/dev/zero c 1 5
