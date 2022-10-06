@@ -353,5 +353,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("install done, please reboot")
+	msg := "install done, please remove installation media and reboot"
+	fmt.Println(msg)
+	exec.Command("wall", msg).Run()
 }
