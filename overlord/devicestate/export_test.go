@@ -366,6 +366,38 @@ func MockInstallFactoryReset(f func(model gadget.Model, gadgetRoot, kernelRoot, 
 	return restore
 }
 
+func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error)) (restore func()) {
+	old := installWriteContent
+	installWriteContent = f
+	return func() {
+		installWriteContent = old
+	}
+}
+
+func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error)) (restore func()) {
+	old := installMountVolumes
+	installMountVolumes = f
+	return func() {
+		installMountVolumes = old
+	}
+}
+
+func MockInstallEncryptPartitions(f func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error)) (restore func()) {
+	old := installEncryptPartitions
+	installEncryptPartitions = f
+	return func() {
+		installEncryptPartitions = old
+	}
+}
+
+func MockInstallSaveStorageTraits(f func(model gadget.Model, allLaidOutVols map[string]*gadget.LaidOutVolume, encryptSetupData *install.EncryptionSetupData) error) (restore func()) {
+	old := installSaveStorageTraits
+	installSaveStorageTraits = f
+	return func() {
+		installSaveStorageTraits = old
+	}
+}
+
 func MockSecbootStageEncryptionKeyChange(f func(node string, key keys.EncryptionKey) error) (restore func()) {
 	restore = testutil.Backup(&secbootStageEncryptionKeyChange)
 	secbootStageEncryptionKeyChange = f
