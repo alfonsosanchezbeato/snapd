@@ -151,7 +151,6 @@ func MockGadgetPartitionedDisk(gadgetRoot string) (*gadget.Info, map[string]*gad
 	model := boottest.MakeMockClassicWithModesModel()
 
 	// Create gadget with all files
-	//gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	err := MakeMockGadget(gadgetRoot, SingleVolumeClassicWithModesGadgetYaml)
 	if err != nil {
 		return nil, nil, nil, nil, err
