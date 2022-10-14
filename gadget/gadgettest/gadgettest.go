@@ -146,12 +146,12 @@ func MakeMockGadget(gadgetRoot, gadgetContent string) error {
 	return nil
 }
 
-func MockGadgetPartitionedDisk(gadgetRoot string) (*gadget.Info, map[string]*gadget.LaidOutVolume, *asserts.Model, func(), error) {
+func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (*gadget.Info, map[string]*gadget.LaidOutVolume, *asserts.Model, func(), error) {
 	// TODO test for UC systems too
 	model := boottest.MakeMockClassicWithModesModel()
 
 	// Create gadget with all files
-	err := MakeMockGadget(gadgetRoot, SingleVolumeClassicWithModesGadgetYaml)
+	err := MakeMockGadget(gadgetRoot, gadgetYaml)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

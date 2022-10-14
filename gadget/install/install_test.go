@@ -1037,7 +1037,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, allLaidOutVols, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetRoot)
+	ginfo, allLaidOutVols, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
 	defer restore()
 
@@ -1119,7 +1119,7 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetRoot)
+	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
 	defer restore()
 
@@ -1172,7 +1172,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	defer restore()
 
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
-	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetRoot)
+	ginfo, _, model, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgettest.SingleVolumeClassicWithModesGadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
 	defer restore()
 
