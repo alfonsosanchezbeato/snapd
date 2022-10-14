@@ -92,9 +92,11 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 		hasModes = hasGrade(model)
 		isClassicWithModes = classicOrUndetermined(model) && hasModes
 	} else {
-		// if system-seed role is mentioned assume the uc20
-		// consistency rules
-		hasModes = roles[SystemSeed] != nil
+		// We cannot validate further without information from the model,
+		// for the moment we are fine and we will do further checks on
+		// image build / gadget installation.
+		// TODO this is open for discussion, proposed as a draft for the moment
+		return nil
 	}
 
 	for name, v := range vols {
