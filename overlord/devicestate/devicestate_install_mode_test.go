@@ -528,14 +528,16 @@ func (s *deviceMgrInstallModeSuite) TestInstallRestoresPreseedArtifactError(c *C
 type fakeSeed struct {
 	modeSnaps      []*seed.Snap
 	essentialSnaps []*seed.Snap
+	model          *asserts.Model
 }
 
 func (fakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
+	fmt.Println("fake LoadAssertions")
 	return nil
 }
 
-func (fakeSeed) Model() *asserts.Model {
-	return nil
+func (fs fakeSeed) Model() *asserts.Model {
+	return fs.model
 }
 
 func (fakeSeed) Brand() (*asserts.Account, error) {
