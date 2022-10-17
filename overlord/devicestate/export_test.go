@@ -523,3 +523,15 @@ func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, asser
 	createAllKnownSystemUsers = createAllUsers
 	return restore
 }
+
+func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func()) {
+	encSetup := &install.EncryptionSetupData{}
+	key := encryptionSetupDataKey{label}
+	st.Cache(key, encSetup)
+	return func() { st.Cache(key, nil) }
+}
+
+func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
+	key := encryptionSetupDataKey{label}
+	st.Cache(key, nil)
+}

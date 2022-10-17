@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
@@ -59,7 +60,7 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 	restore := devicestate.MockSystemForPreseeding(func() (string, error) {
 		return "fake system label", nil
 	})
-	defer restore()
+	s.AddCleanup(restore)
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 	s.SeedDir = dirs.SnapSeedDir
@@ -127,35 +128,32 @@ func (s *deviceMgrInstallAPISuite) setupSystemSeed(c *C, sysLabel, gadgetYaml st
 	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
-	encrypted := false
-	isClassic := true
+type finishStepOpts struct {
+	encrypted bool
+	isClassic bool
+}
 
-	// TODO UC case when supported
-	restore := release.MockOnClassic(isClassic)
-	defer restore()
-
+func (s *deviceMgrInstallAPISuite) mockLabel(c *C, label string, isClassic bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
 	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
 	c.Assert(err, IsNil)
-	defer restore()
+	s.AddCleanup(restore)
 
-	// now create a system with snaps/assertions
+	// now create a label with snaps/assertions
 	s.SetupAssertSigning("canonical")
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
-	label := "classic"
 	model := s.setupSystemSeed(c, label, gadgetYaml, isClassic)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
 	// (TODO: needs to be in sync with setupSystemSeed, fix that)
-	kernelSnapPath := filepath.Join(s.SeedDir, "snaps", "pc-kernel_1.snap")
+	kernelSnapPath = filepath.Join(s.SeedDir, "snaps", "pc-kernel_1.snap")
 	baseSnapPath := filepath.Join(s.SeedDir, "snaps", "core22_1.snap")
-	gadgetSnapPath := filepath.Join(s.SeedDir, "snaps", "pc_1.snap")
+	gadgetSnapPath = filepath.Join(s.SeedDir, "snaps", "pc_1.snap")
 	restore = devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
 		return &fakeSeed{
 			essentialSnaps: []*seed.Snap{
@@ -178,15 +176,28 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 			model: model,
 		}, nil
 	})
-	defer restore()
+	s.AddCleanup(restore)
 
 	// Mock calls to systemd-mount, which is used to mount snaps from the system label
-	cmd := testutil.MockCommand(c, "systemd-mount", "")
-	defer cmd.Restore()
+	mountCmd = testutil.MockCommand(c, "systemd-mount", "")
+	s.AddCleanup(func() { mountCmd.Restore() })
+
+	return gadgetSnapPath, kernelSnapPath, ginfo, mountCmd
+}
+
+// TODO encryption case for the finish step is not tested yet, it needs more mocking
+func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
+	// TODO UC case when supported
+	restore := release.MockOnClassic(opts.isClassic)
+	s.AddCleanup(restore)
+
+	// Mock label
+	label := "classic"
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockLabel(c, label, opts.isClassic)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
-	err = os.MkdirAll(gadgetDir, 0755)
+	err := os.MkdirAll(gadgetDir, 0755)
 	c.Assert(err, IsNil)
 	err = unpackSnap(filepath.Join(s.SeedDir, "snaps/pc_1.snap"), gadgetDir)
 	c.Assert(err, IsNil)
@@ -195,14 +206,14 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 	writeContentCalls := 0
 	restore = devicestate.MockInstallWriteContent(func(onVolumes map[string]*gadget.Volume, allLaidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData, observer gadget.ContentObserver, perfTimings timings.Measurer) ([]*gadget.OnDiskVolume, error) {
 		writeContentCalls++
-		if encrypted {
+		if opts.encrypted {
 			c.Check(encSetupData, NotNil)
 		} else {
 			c.Check(encSetupData, IsNil)
 		}
 		return nil, nil
 	})
-	defer restore()
+	s.AddCleanup(restore)
 
 	// Note that ESP must be mounted in the same place as a seed partition
 	// so MarkRecoveryCapableSystem is happy when searching for a bootloader.
@@ -225,10 +236,18 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 		return nil
 	})
 
+	// Insert encryption data when enabled
+	if opts.encrypted {
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label)
+		s.AddCleanup(restore)
+	}
+
+	// Create change
 	chg := s.state.NewChange("install-step-finish", "finish setup of run system")
 	finishTask := s.state.NewTask("install-finish", "install API finish step")
 	finishTask.Set("system-label", label)
 	finishTask.Set("on-volumes", ginfo.Volumes)
+
 	chg.AddTask(finishTask)
 
 	// now let the change run - some checks will happen in the mocked functions
@@ -238,12 +257,12 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 	s.settle(c)
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	c.Check(chg.Err(), IsNil)
-	s.state.Unlock()
 
-	// Check now
+	// Checks now
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
-	c.Check(cmd.Calls(), DeepEquals, [][]string{
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", gadgetSnapPath, gadgetDir},
 		{"systemd-mount", kernelSnapPath, kernelDir},
 		{"systemd-mount", "--umount", gadgetDir},
@@ -270,4 +289,145 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
 		_, err := ioutil.ReadFile(f)
 		c.Check(err, IsNil)
 	}
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallFinishNoEncryptionHappy(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{encrypted: false, isClassic: true})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
+	// Mock partitioned disk, but there will be no label in the system
+	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Create change
+	label := "classic"
+	chg := s.state.NewChange("install-step-finish", "finish setup of run system")
+	finishTask := s.state.NewTask("install-finish", "install API finish step")
+	finishTask.Set("system-label", label)
+	finishTask.Set("on-volumes", ginfo.Volumes)
+
+	chg.AddTask(finishTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
+}
+
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C) {
+	// Mock label
+	label := "classic"
+	isClassic := true
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockLabel(c, label, isClassic)
+
+	// Simulate system with TPM
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+	s.AddCleanup(restore)
+
+	// Mock encryption of partitions
+	encrytpPartCalls := 0
+	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+		encrytpPartCalls++
+		return &install.EncryptionSetupData{}, nil
+	})
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Create change
+	chg := s.state.NewChange("install-step-setup-storage-encryption",
+		"Setup storage encryption")
+	encryptTask := s.state.NewTask("install-setup-storage-encryption",
+		"install API set-up encryption step")
+	encryptTask.Set("system-label", label)
+	encryptTask.Set("on-volumes", ginfo.Volumes)
+	chg.AddTask(encryptTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	// Make sure that if anything was stored in cache it is removed after test is run
+	s.AddCleanup(func() {
+		s.state.Lock()
+		defer s.state.Unlock()
+		devicestate.CleanUpEncryptionSetupDataInCache(s.state, label)
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), IsNil)
+	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
+	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
+	c.Check(mountCmd.Calls(), DeepEquals, [][]string{
+		{"systemd-mount", gadgetSnapPath, gadgetDir},
+		{"systemd-mount", kernelSnapPath, kernelDir},
+		{"systemd-mount", "--umount", gadgetDir},
+		{"systemd-mount", "--umount", kernelDir},
+	})
+	c.Check(encrytpPartCalls, Equals, 1)
+	// Check that some data has been stored in the change
+	apiData := make(map[string]interface{})
+	c.Check(chg.Get("api-data", &apiData), IsNil)
+	_, ok := apiData["encrypted-devices"]
+	c.Check(ok, Equals, true)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
+	s.testInstallSetupStorageEncryption(c)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
+	// Mock partitioned disk, but there will be no label in the system
+	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
+	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
+	ginfo, _, _, restore, err := gadgettest.MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot)
+	c.Assert(err, IsNil)
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Create change
+	label := "classic"
+	chg := s.state.NewChange("install-step-setup-storage-encryption",
+		"Setup storage encryption")
+	encryptTask := s.state.NewTask("install-setup-storage-encryption",
+		"install API set-up encryption step")
+	encryptTask.Set("system-label", label)
+	encryptTask.Set("on-volumes", ginfo.Volumes)
+	chg.AddTask(encryptTask)
+
+	// now let the change run - some checks will happen in the mocked functions
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Checks now
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:
+- install API set-up encryption step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
