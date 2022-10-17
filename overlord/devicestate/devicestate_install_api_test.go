@@ -146,7 +146,11 @@ func (s *deviceMgrInstallAPISuite) mockLabel(c *C, label string, isClassic bool)
 	s.Brands.Register("my-brand", brandPrivKey, map[string]interface{}{
 		"verification": "verified",
 	})
-	model := s.setupSystemSeed(c, label, gadgetYaml, isClassic)
+	// TODO This should be "gadgetYaml" instead of SingleVolumeUC20GadgetYaml,
+	// but we have to do it this way as otherwise snap pack will complain
+	// while validating, as it does not have information about the model at
+	// that time. When that is fixed this must change to gadgetYaml.
+	model := s.setupSystemSeed(c, label, gadgettest.SingleVolumeUC20GadgetYaml, isClassic)
 	c.Check(model, NotNil)
 
 	// Create fake seed that will return information from the label we created
@@ -226,6 +230,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		mountVolsCalls++
 		return espDir, func() error { return nil }, nil
 	})
+	s.AddCleanup(restore)
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -235,6 +240,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		saveStorageTraitsCalls++
 		return nil
 	})
+	s.AddCleanup(restore)
 
 	// Insert encryption data when enabled
 	if opts.encrypted {
