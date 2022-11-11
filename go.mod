@@ -5,19 +5,23 @@ go 1.13
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
+replace github.com/snapcore/secboot => github.com/alfonsosanchezbeato/secboot v0.0.0-20221111115436-3ff197c43d51
+
+replace github.com/canonical/tcglog-parser => github.com/alfonsosanchezbeato/tcglog-parser v0.0.0-20221111131005-633638f30fe3
+
 require (
 	github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
-	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
+	github.com/canonical/go-tpm2 v0.1.0
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
-	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
+	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
-	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
+	github.com/gorilla/mux v1.8.0
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
 	github.com/jessevdk/go-flags v1.5.1-0.20210607101731-3927b71304df
 	github.com/juju/ratelimit v1.0.1
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
-	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb
+	github.com/mvo5/goconfigparser v0.0.0-20201015074339-50f22f44deb5
 	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
