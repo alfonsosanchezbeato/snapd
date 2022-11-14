@@ -146,21 +146,21 @@ func MakeMockGadget(gadgetRoot, gadgetContent string) error {
 	return nil
 }
 
-func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (*gadget.Info, map[string]*gadget.LaidOutVolume, *asserts.Model, func(), error) {
+func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Info, laidVols map[string]*gadget.LaidOutVolume, model *asserts.Model, restore func(), err error) {
 	// TODO test for UC systems too
-	model := boottest.MakeMockClassicWithModesModel()
+	model = boottest.MakeMockClassicWithModesModel()
 
 	// Create gadget with all files
-	err := MakeMockGadget(gadgetRoot, gadgetYaml)
+	err = MakeMockGadget(gadgetRoot, gadgetYaml)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
+	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	ginfo, err := gadget.ReadInfo(gadgetRoot, model)
+	ginfo, err = gadget.ReadInfo(gadgetRoot, model)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -205,7 +205,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (*gadget.Info, map
 		// this simulates a symlink in /sys/block which points to the above path
 		"/sys/block/vda": disk,
 	}
-	restore := disks.MockDevicePathToDiskMapping(diskMapping)
+	restore = disks.MockDevicePathToDiskMapping(diskMapping)
 
-	return ginfo, allLaidOutVols, model, restore, nil
+	return ginfo, laidVols, model, restore, nil
 }
