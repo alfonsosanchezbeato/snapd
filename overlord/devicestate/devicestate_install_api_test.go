@@ -21,7 +21,6 @@ package devicestate_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -71,9 +71,8 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 }
 
 func unpackSnap(snapBlob, targetDir string) error {
-	out, err := exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot unsquashfs: %v: %s", err, string(out))
+	if out, err := exec.Command("unsquashfs", "-d", targetDir, "-f", snapBlob).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot unsquashfs: %v", osutil.OutputErr(out, err))
 	}
 	return nil
 }
@@ -133,7 +132,7 @@ type finishStepOpts struct {
 	isClassic bool
 }
 
-func (s *deviceMgrInstallAPISuite) mockLabel(c *C, label string, isClassic bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
+func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, isClassic bool) (gadgetSnapPath, kernelSnapPath string, ginfo *gadget.Info, mountCmd *testutil.MockCmd) {
 	// Mock partitioned disk
 	gadgetYaml := gadgettest.SingleVolumeClassicWithModesGadgetYaml
 	gadgetRoot := filepath.Join(c.MkDir(), "gadget")
@@ -197,7 +196,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Mock label
 	label := "classic"
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockLabel(c, label, opts.isClassic)
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, opts.isClassic)
 
 	// Unpack gadget snap from seed where it would have been mounted
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
@@ -292,8 +291,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		filepath.Join(dirs.RunDir, "mnt/ubuntu-data/var/lib/snapd/snaps/pc-kernel_1.snap"),
 	}
 	for _, f := range expectedFiles {
-		_, err := ioutil.ReadFile(f)
-		c.Check(err, IsNil)
+		c.Check(f, testutil.FilePresent)
 	}
 }
 
@@ -335,20 +333,35 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTPM bool) {
 	// Mock label
 	label := "classic"
 	isClassic := true
-	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockLabel(c, label, isClassic)
+	gadgetSnapPath, kernelSnapPath, ginfo, mountCmd := s.mockSystemSeedWithLabel(c, label, isClassic)
 
 	// Simulate system with TPM
-	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
-	s.AddCleanup(restore)
+	if hasTPM {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
+		s.AddCleanup(restore)
+	}
 
 	// Mock encryption of partitions
 	encrytpPartCalls := 0
-	restore = devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
+	restore := devicestate.MockInstallEncryptPartitions(func(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*install.EncryptionSetupData, error) {
 		encrytpPartCalls++
+		c.Check(encryptionType, Equals, secboot.EncryptionTypeLUKS)
+		saveFound := false
+		dataFound := false
+		for _, strct := range onVolumes["pc"].Structure {
+			switch strct.Role {
+			case "system-save":
+				saveFound = true
+			case "system-data":
+				dataFound = true
+			}
+		}
+		c.Check(saveFound, Equals, true)
+		c.Check(dataFound, Equals, true)
 		return &install.EncryptionSetupData{}, nil
 	})
 	s.AddCleanup(restore)
@@ -382,6 +395,12 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C) {
 	defer s.state.Unlock()
 
 	// Checks now
+	if !hasTPM {
+		c.Check(chg.Err(), ErrorMatches, `.*
+.*encryption unavailable on this device: not encrypting device storage as checking TPM gave: not a supported EFI system.*`)
+		return
+	}
+
 	c.Check(chg.Err(), IsNil)
 	gadgetDir := filepath.Join(dirs.SnapRunDir, "snap-content/gadget")
 	kernelDir := filepath.Join(dirs.SnapRunDir, "snap-content/kernel")
@@ -397,10 +416,16 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C) {
 	c.Check(chg.Get("api-data", &apiData), IsNil)
 	_, ok := apiData["encrypted-devices"]
 	c.Check(ok, Equals, true)
+	// Check that state has been stored in the cache
+	c.Check(devicestate.CheckEncryptionSetupDataFromCache(s.state, label), IsNil)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionHappy(c *C) {
-	s.testInstallSetupStorageEncryption(c)
+	s.testInstallSetupStorageEncryption(c, true)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoCrypto(c *C) {
+	s.testInstallSetupStorageEncryption(c, false)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {

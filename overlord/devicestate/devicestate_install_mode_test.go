@@ -532,7 +532,6 @@ type fakeSeed struct {
 }
 
 func (fakeSeed) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Batch) error) error {
-	fmt.Println("fake LoadAssertions")
 	return nil
 }
 

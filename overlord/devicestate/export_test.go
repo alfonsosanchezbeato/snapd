@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os/user"
 	"time"
@@ -529,6 +530,17 @@ func MockEncryptionSetupDataInCache(st *state.State, label string) (restore func
 	key := encryptionSetupDataKey{label}
 	st.Cache(key, encSetup)
 	return func() { st.Cache(key, nil) }
+}
+
+func CheckEncryptionSetupDataFromCache(st *state.State, label string) error {
+	cached := st.Cached(encryptionSetupDataKey{label})
+	if cached == nil {
+		return fmt.Errorf("no EncryptionSetupData found in cache")
+	}
+	if _, ok := cached.(*install.EncryptionSetupData); !ok {
+		return fmt.Errorf("wrong data type under encryptionSetupDataKey")
+	}
+	return nil
 }
 
 func CleanUpEncryptionSetupDataInCache(st *state.State, label string) {
