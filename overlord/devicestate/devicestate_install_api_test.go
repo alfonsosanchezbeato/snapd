@@ -397,7 +397,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, hasTP
 	// Checks now
 	if !hasTPM {
 		c.Check(chg.Err(), ErrorMatches, `.*
-.*encryption unavailable on this device: not encrypting device storage as checking TPM gave: not a supported EFI system.*`)
+.*encryption unavailable on this device: not encrypting device storage as checking TPM gave: .*`)
 		return
 	}
 
