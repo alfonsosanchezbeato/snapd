@@ -30,7 +30,31 @@ import (
 
 // OnDiskStructure represents a gadget structure laid on a block device.
 type OnDiskStructure struct {
-	LaidOutStructure
+	// Name, when non empty, provides the name of the structure
+	Name string
+	// Label provides the filesystem label
+	Label string
+	// Type of the structure, which can be 2-hex digit MBR partition,
+	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
+	// partitioning schemes, or 'bare' when the structure is not considered
+	// a partition.
+	//
+	// For backwards compatibility type 'mbr' is also accepted, and the
+	// structure is treated as if it is of role 'mbr'.
+	Type string
+	// Role describes the role of given structure, can be one of 'mbr',
+	// 'system-data', 'system-boot', 'system-boot-image',
+	// 'system-boot-select' or 'system-recovery-select'. Structures of type
+	// 'mbr', must have a size of 446 bytes and must start at 0 offset.
+	// TODO should be removed after we include StorageStructure as part of
+	// LaidOutStructure.
+	Role string
+	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
+	// structures of type 'bare'
+	Filesystem string
+	// StartOffset defines the start offset of the structure within the
+	// enclosing volume
+	StartOffset quantity.Offset
 
 	// Node identifies the device node of the block device.
 	Node string
@@ -164,12 +188,14 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 	}
 
 	return OnDiskStructure{
-		LaidOutStructure: LaidOutStructure{
-			VolumeStructure: &volStruct,
-			StartOffset:     quantity.Offset(p.StartInBytes),
-		},
-		DiskIndex: int(p.DiskIndex),
-		Size:      quantity.Size(p.SizeInBytes),
-		Node:      p.KernelDeviceNode,
+		Name:        volStruct.Name,
+		Label:       volStruct.Label,
+		Type:        volStruct.Type,
+		Role:        volStruct.Role,
+		Filesystem:  volStruct.Filesystem,
+		StartOffset: quantity.Offset(p.StartInBytes),
+		DiskIndex:   int(p.DiskIndex),
+		Size:        quantity.Size(p.SizeInBytes),
+		Node:        p.KernelDeviceNode,
 	}, nil
 }

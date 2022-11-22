@@ -225,7 +225,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 
 	// Mock mounting of partitions
 	mountVolsCalls := 0
-	restore = devicestate.MockInstallMountVolumes(func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
+	restore = devicestate.MockInstallMountVolumes(func(onVolumes map[string]*gadget.Volume, laidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error) {
 		mountVolsCalls++
 		return espDir, func() error { return nil }, nil
 	})

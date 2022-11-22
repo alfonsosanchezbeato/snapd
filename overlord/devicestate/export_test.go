@@ -375,7 +375,7 @@ func MockInstallWriteContent(f func(onVolumes map[string]*gadget.Volume, allLaid
 	}
 }
 
-func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error)) (restore func()) {
+func MockInstallMountVolumes(f func(onVolumes map[string]*gadget.Volume, laidOutVols map[string]*gadget.LaidOutVolume, encSetupData *install.EncryptionSetupData) (espMntDir string, unmount func() error, err error)) (restore func()) {
 	old := installMountVolumes
 	installMountVolumes = f
 	return func() {

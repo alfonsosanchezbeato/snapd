@@ -82,27 +82,41 @@ func (s *contentTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
-	Node: "/dev/node2",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Recovery",
-			Size:       1258291200,
-			Type:       "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-			Role:       "system-seed",
-			Label:      "ubuntu-seed",
-			Filesystem: "vfat",
-			Content: []gadget.VolumeContent{
+func mockOnDiskStructureSystemSeed(gadgetRoot string) install.OnDiskAndLaidoutStructure {
+	return install.BuildOnDiskAndLaidoutStructure(
+		&gadget.OnDiskStructure{
+			Node:        "/dev/node2",
+			Name:        "Recovery",
+			Size:        1258291200,
+			Type:        "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			Role:        "system-seed",
+			Label:       "ubuntu-seed",
+			Filesystem:  "vfat",
+			DiskIndex:   2,
+			StartOffset: 2097152,
+		},
+		&gadget.LaidOutStructure{
+			VolumeStructure: &gadget.VolumeStructure{
+				Filesystem: "vfat",
+				Content: []gadget.VolumeContent{
+					{
+						UnresolvedSource: "grubx64.efi",
+						Target:           "EFI/boot/grubx64.efi",
+					},
+				},
+			},
+			YamlIndex: 1000, // to demonstrate we do not use the laid out index
+			ResolvedContent: []gadget.ResolvedContent{
 				{
-					UnresolvedSource: "grubx64.efi",
-					Target:           "EFI/boot/grubx64.efi",
+					VolumeContent: &gadget.VolumeContent{
+						UnresolvedSource: "grubx64.efi",
+						Target:           "EFI/boot/grubx64.efi",
+					},
+					ResolvedSource: filepath.Join(gadgetRoot, "grubx64.efi"),
 				},
 			},
 		},
-		StartOffset: 2097152,
-		YamlIndex:   1000, // to demonstrate we do not use the laid out index
-	},
-	DiskIndex: 2,
+	)
 }
 
 const gadgetContent = `volumes:
@@ -203,20 +217,11 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 		defer restore()
 
 		// copy existing mock
-		m := mockOnDiskStructureSystemSeed
-		m.ResolvedContent = []gadget.ResolvedContent{
-			{
-				VolumeContent: &gadget.VolumeContent{
-					UnresolvedSource: "grubx64.efi",
-					Target:           "EFI/boot/grubx64.efi",
-				},
-				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
-			},
-		}
+		m := mockOnDiskStructureSystemSeed(s.gadgetRoot)
 		obs := &mockWriteObserver{
 			c:              c,
 			observeErr:     tc.observeErr,
-			expectedStruct: &m.LaidOutStructure,
+			expectedStruct: install.LaidOutFromOnDiskAndLaidoutStructure(m),
 		}
 		err := install.WriteFilesystemContent(&m, "/dev/node2", obs)
 		if tc.err == "" {

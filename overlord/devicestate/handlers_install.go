@@ -1362,7 +1362,7 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Mount the partitions and find the system-seed{,-null} partition
-	seedMntDir, unmountParts, err := installMountVolumes(onVolumes, encryptSetupData)
+	seedMntDir, unmountParts, err := installMountVolumes(onVolumes, allLaidOutVols, encryptSetupData)
 	if err != nil {
 		return fmt.Errorf("cannot mount partitions for installation: %v", err)
 	}
