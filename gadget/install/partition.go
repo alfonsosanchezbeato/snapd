@@ -67,7 +67,8 @@ type CreateOptions struct {
 }
 
 // CreateMissingPartitions calls createMissingPartitions but returns only
-// OnDiskStructure, as it is mean to be used externally (i.e. by fakeinstaller).
+// OnDiskStructure, as it is meant to be used externally (i.e. by
+// fakeinstaller).
 func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
 	odlsStructures, err := createMissingPartitions(dl, pv, opts)
 	if err != nil {
@@ -164,7 +165,7 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
 	for _, p := range pv.LaidOutStructure {
-		// Make loop var per-iter as we store it in the results
+		// Make loop var per-iter as we store the pointer in the results
 		p := p
 		if !p.IsPartition() {
 			continue
@@ -313,46 +314,46 @@ func partitionsWithRolesAndContent(lv *gadget.LaidOutVolume, dl *gadget.OnDiskVo
 		}
 	}
 
-	var laidOutParts []onDiskAndLaidoutStructure
+	var odloStructures []onDiskAndLaidoutStructure
 	for _, part := range dl.Structure {
-		// Create per-iter var from loop variable as we store it in odls
+		// Create per-iter var from loop variable as we store the pointer in odls
 		part := part
 		gs := roleForOffset[part.StartOffset]
 		if gs == nil || gs.Role == "" || !strutil.ListContains(roles, gs.Role) {
 			continue
 		}
-		// now that we have a match, override the laid out structure
-		// such that the fields reflect what was declared in the gadget,
-		// the on-disk-structure already has the right size as read from
-		// the partition table
+		// now that we have a match, set the laid out structure such
+		// that the fields reflect what was declared in the gadget, the
+		// on-disk-structure already has the right size as read from the
+		// partition table
 		odls := onDiskAndLaidoutStructure{
 			onDisk:  &part,
 			laidOut: gs,
 		}
-		laidOutParts = append(laidOutParts, odls)
+		odloStructures = append(odloStructures, odls)
 	}
-	return laidOutParts
+	return odloStructures
 }
 
 // ensureNodeExists makes sure the device nodes for all device structures are
 // available and notified to udev, within a specified amount of time.
-func ensureNodesExistImpl(dss []onDiskAndLaidoutStructure, timeout time.Duration) error {
+func ensureNodesExistImpl(odloStructures []onDiskAndLaidoutStructure, timeout time.Duration) error {
 	t0 := time.Now()
-	for _, ds := range dss {
+	for _, odls := range odloStructures {
 		found := false
 		for time.Since(t0) < timeout {
-			if osutil.FileExists(ds.onDisk.Node) {
+			if osutil.FileExists(odls.onDisk.Node) {
 				found = true
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		if found {
-			if err := udevTrigger(ds.onDisk.Node); err != nil {
+			if err := udevTrigger(odls.onDisk.Node); err != nil {
 				return err
 			}
 		} else {
-			return fmt.Errorf("device %s not available", ds.onDisk.Node)
+			return fmt.Errorf("device %s not available", odls.onDisk.Node)
 		}
 	}
 	return nil
