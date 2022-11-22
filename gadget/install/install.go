@@ -61,10 +61,10 @@ func diskWithSystemSeed(lv *gadget.LaidOutVolume) (device string, err error) {
 	return "", fmt.Errorf("cannot find role system-seed in gadget")
 }
 
-func roleOrLabelOrName(part *gadget.OnDiskStructure) string {
+func roleOrLabelOrName(role string, part *gadget.OnDiskStructure) string {
 	switch {
-	case part.Role != "":
-		return part.Role
+	case role != "":
+		return role
 	case part.Label != "":
 		return part.Label
 	case part.Name != "":
@@ -98,24 +98,24 @@ func saveStorageTraits(mod gadget.Model, allLaidOutVols map[string]*gadget.LaidO
 
 func maybeEncryptPartition(odls *onDiskAndLaidoutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, perfTimings timings.Measurer) (fsParams *mkfsParams, encryptionKey keys.EncryptionKey, err error) {
 	mustEncrypt := (encryptionType != secboot.EncryptionTypeNone)
-	part := odls.onDisk
-	ls := odls.laidOut
-	partDisp := roleOrLabelOrName(part)
+	onDisk := odls.onDisk
+	laidOut := odls.laidOut
+	partDisp := roleOrLabelOrName(laidOut.Role, onDisk)
 	// fsParams.Device is the kernel device that carries the
 	// filesystem, which is either the raw /dev/<partition>, or
 	// the mapped LUKS device if the structure is encrypted (if
 	// the latter, it will be filled below in this function).
 	fsParams = &mkfsParams{
 		// Filesystem and label are as specified in the gadget
-		Type:  ls.Filesystem,
-		Label: ls.Label,
+		Type:  laidOut.Filesystem,
+		Label: laidOut.Label,
 		// Rest come from disk data
-		Device:     part.Node,
-		Size:       part.Size,
+		Device:     onDisk.Node,
+		Size:       onDisk.Size,
 		SectorSize: sectorSize,
 	}
 
-	if mustEncrypt && roleNeedsEncryption(ls.Role) {
+	if mustEncrypt && roleNeedsEncryption(laidOut.Role) {
 		timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", partDisp),
 			fmt.Sprintf("Create encryption key set for %s", partDisp),
 			func(timings.Measurer) {
@@ -127,14 +127,14 @@ func maybeEncryptPartition(odls *onDiskAndLaidoutStructure, encryptionType secbo
 		if err != nil {
 			return nil, nil, err
 		}
-		logger.Noticef("encrypting partition device %v", part.Node)
+		logger.Noticef("encrypting partition device %v", onDisk.Node)
 		var dataPart encryptedDevice
 		switch encryptionType {
 		case secboot.EncryptionTypeLUKS:
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", partDisp),
 				fmt.Sprintf("Create encryption device for %s", partDisp),
 				func(timings.Measurer) {
-					dataPart, err = newEncryptedDeviceLUKS(part, encryptionKey, ls.Label)
+					dataPart, err = newEncryptedDeviceLUKS(onDisk, encryptionKey, laidOut.Label)
 				})
 			if err != nil {
 				return nil, nil, err
@@ -144,7 +144,7 @@ func maybeEncryptPartition(odls *onDiskAndLaidoutStructure, encryptionType secbo
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device-setup-hook[%s]", partDisp),
 				fmt.Sprintf("Create encryption device for %s using device-setup-hook", partDisp),
 				func(timings.Measurer) {
-					dataPart, err = createEncryptedDeviceWithSetupHook(part, encryptionKey, ls.Name)
+					dataPart, err = createEncryptedDeviceWithSetupHook(onDisk, encryptionKey, laidOut.Name)
 				})
 			if err != nil {
 				return nil, nil, err
@@ -166,7 +166,7 @@ func maybeEncryptPartition(odls *onDiskAndLaidoutStructure, encryptionType secbo
 }
 
 func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, perfTimings timings.Measurer) error {
-	partDisp := roleOrLabelOrName(part)
+	partDisp := roleOrLabelOrName(fsParams.Label, part)
 
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", partDisp),
@@ -180,13 +180,13 @@ func createFilesystem(part *gadget.OnDiskStructure, fsParams *mkfsParams, perfTi
 	return nil
 }
 
-func writePartitionContent(part *onDiskAndLaidoutStructure, fsDevice string, observer gadget.ContentObserver, perfTimings timings.Measurer) error {
-	partDisp := roleOrLabelOrName(part.onDisk)
+func writePartitionContent(odls *onDiskAndLaidoutStructure, fsDevice string, observer gadget.ContentObserver, perfTimings timings.Measurer) error {
+	partDisp := roleOrLabelOrName(odls.laidOut.Role, odls.onDisk)
 	var err error
 	timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", partDisp),
 		fmt.Sprintf("Write content for %s", partDisp),
 		func(timings.Measurer) {
-			err = writeFilesystemContent(part, fsDevice, observer)
+			err = writeFilesystemContent(odls, fsDevice, observer)
 		})
 	if err != nil {
 		return err
@@ -197,7 +197,7 @@ func writePartitionContent(part *onDiskAndLaidoutStructure, fsDevice string, obs
 func installOnePartition(odls *onDiskAndLaidoutStructure, encryptionType secboot.EncryptionType, sectorSize quantity.Size, observer gadget.ContentObserver, perfTimings timings.Measurer) (fsDevice string, encryptionKey keys.EncryptionKey, err error) {
 	// 1. Encrypt
 	part := odls.onDisk
-	partDisp := roleOrLabelOrName(part)
+	partDisp := roleOrLabelOrName(odls.laidOut.Role, part)
 	fsParams, encryptionKey, err := maybeEncryptPartition(odls, encryptionType, sectorSize, perfTimings)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot encrypt partition %s: %v", partDisp, err)

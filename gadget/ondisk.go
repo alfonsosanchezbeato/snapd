@@ -42,13 +42,6 @@ type OnDiskStructure struct {
 	// For backwards compatibility type 'mbr' is also accepted, and the
 	// structure is treated as if it is of role 'mbr'.
 	Type string
-	// Role describes the role of given structure, can be one of 'mbr',
-	// 'system-data', 'system-boot', 'system-boot-image',
-	// 'system-boot-select' or 'system-recovery-select'. Structures of type
-	// 'mbr', must have a size of 446 bytes and must start at 0 offset.
-	// TODO should be removed after we include StorageStructure as part of
-	// LaidOutStructure.
-	Role string
 	// Filesystem used for the partition, 'vfat', 'ext4' or 'none' for
 	// structures of type 'bare'
 	Filesystem string
@@ -191,7 +184,6 @@ func OnDiskStructureFromPartition(p disks.Partition) (OnDiskStructure, error) {
 		Name:        volStruct.Name,
 		Label:       volStruct.Label,
 		Type:        volStruct.Type,
-		Role:        volStruct.Role,
 		Filesystem:  volStruct.Filesystem,
 		StartOffset: quantity.Offset(p.StartInBytes),
 		DiskIndex:   int(p.DiskIndex),

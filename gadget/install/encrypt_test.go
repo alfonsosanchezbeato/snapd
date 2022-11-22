@@ -49,7 +49,6 @@ type encryptSuite struct {
 var _ = Suite(&encryptSuite{})
 
 var mockDeviceStructure = gadget.OnDiskStructure{
-	Role:        gadget.SystemData,
 	Name:        "Test structure",
 	Label:       "some-label",
 	StartOffset: 0,
@@ -130,7 +129,6 @@ func (s *encryptSuite) TestNewEncryptedDeviceLUKS(c *C) {
 }
 
 var mockDeviceStructureForDeviceSetupHook = gadget.OnDiskStructure{
-	Role:        gadget.SystemData,
 	Name:        "ubuntu-data",
 	Label:       "ubuntu-data",
 	StartOffset: 0,
@@ -202,7 +200,6 @@ func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHook(c *C) {
 
 func (s *encryptSuite) TestCreateEncryptedDeviceWithSetupHookPartitionNameCheck(c *C) {
 	mockDeviceStructureBadName := gadget.OnDiskStructure{
-		Role:        gadget.SystemData,
 		Name:        "ubuntu-data",
 		Label:       "ubuntu-data",
 		StartOffset: 0,

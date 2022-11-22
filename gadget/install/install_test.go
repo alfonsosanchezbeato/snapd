@@ -168,7 +168,6 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Name:        "ubuntu-boot",
 					Label:       "ubuntu-boot",
 					Type:        "0C",
-					Role:        gadget.SystemBoot,
 					Filesystem:  "vfat",
 					StartOffset: (1 + 1200) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -194,7 +193,6 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Name:        "ubuntu-save",
 					Label:       "ubuntu-save",
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Role:        gadget.SystemSave,
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -220,7 +218,6 @@ func (s *installSuite) testInstall(c *C, opts installOpts) {
 					Name:        "ubuntu-data",
 					Label:       "ubuntu-data",
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Role:        gadget.SystemData,
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -673,7 +670,6 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Label:       "ubuntu-boot",
 					Size:        750 * quantity.SizeMiB,
 					Type:        "0C",
-					Role:        gadget.SystemBoot,
 					Filesystem:  "vfat",
 					StartOffset: (1 + 1200) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -698,7 +694,6 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Name:        "ubuntu-data",
 					Label:       "ubuntu-data",
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Role:        gadget.SystemData,
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -727,7 +722,6 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Name:        "ubuntu-save",
 					Label:       "ubuntu-save",
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Role:        gadget.SystemSave,
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0
@@ -754,7 +748,6 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 					Name:        "ubuntu-data",
 					Label:       "ubuntu-data",
 					Type:        "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-					Role:        gadget.SystemData,
 					Filesystem:  "ext4",
 					StartOffset: (1 + 1200 + 750 + 16) * quantity.OffsetMiB,
 					// note this is YamlIndex + 1, the YamlIndex starts at 0

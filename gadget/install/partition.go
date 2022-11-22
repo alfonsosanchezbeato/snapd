@@ -201,7 +201,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts 
 				Name:        p.Name,
 				Label:       p.Label,
 				Type:        p.Type,
-				Role:        p.Role,
 				Filesystem:  p.Filesystem,
 				StartOffset: p.StartOffset,
 				Node:        node,
