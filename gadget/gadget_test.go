@@ -791,6 +791,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Role:       "system-boot",
 						Label:      "system-boot",
 						Size:       mustParseGadgetSize(c, "128M"),
+						Offset:     asOffsetPtr(0x100000),
 						Filesystem: "vfat",
 						Type:       "0C",
 						Content: []gadget.VolumeContent{
@@ -808,6 +809,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Type:       "83",
 						Filesystem: "ext4",
 						Size:       mustParseGadgetSize(c, "380M"),
+						Offset:     asOffsetPtr((1 + 128) * 1024 * 1024),
 					},
 				},
 			},

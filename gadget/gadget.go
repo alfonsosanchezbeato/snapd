@@ -595,6 +595,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if v == nil {
 			return nil, fmt.Errorf("volume %q stanza is empty", name)
 		}
+		// make sure that all structure offsets have a value
+		fillStructureOffsets(v)
 		// set the VolumeName for the volume
 		v.Name = name
 		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
@@ -780,6 +782,33 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
+func fillStructureOffsets(vol *Volume) {
+	lc := LayoutConstraints{
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
+	}
+	end := quantity.Offset(0)
+	for i := range vol.Structure {
+		// The offset is implicitly defined, insert in structure now
+		vs := &vol.Structure[i]
+		if vol.Structure[i].Offset == nil {
+			structOffset := end
+			if (vs.Role != schemaMBR && vs.Type != schemaMBR) &&
+				end < lc.NonMBRStartOffset {
+				structOffset = lc.NonMBRStartOffset
+			}
+			fmt.Println("type, offset:", vs.Type, structOffset)
+			vs.Offset = &structOffset
+		}
+		end = *(vol.Structure[i].Offset) + quantity.Offset(vol.Structure[i].Size)
+	}
+}
+
+type byStructureOffset []VolumeStructure
+
+func (b byStructureOffset) Len() int           { return len(b) }
+func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
+func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
+
 func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
@@ -789,17 +818,16 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 	}
 
 	// named structures, for cross-referencing relative offset-write names
-	knownStructures := make(map[string]*LaidOutStructure, len(vol.Structure))
+	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
-	structures := make([]LaidOutStructure, len(vol.Structure))
+	structures := make([]VolumeStructure, len(vol.Structure))
 
 	if knownFsLabelsPerVolume != nil {
 		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
 	}
 
-	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
 	// same for system-boot-select and at least 2 system-boot-image roles?
@@ -807,25 +835,13 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 		if err := validateVolumeStructure(&s, vol); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
-		var start quantity.Offset
-		if s.Offset != nil {
-			start = *s.Offset
-		} else {
-			start = previousEnd
-		}
-		end := start + quantity.Offset(s.Size)
-		ps := LaidOutStructure{
-			VolumeStructure: &vol.Structure[idx],
-			StartOffset:     start,
-			YamlIndex:       idx,
-		}
-		structures[idx] = ps
+		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &ps
+			knownStructures[s.Name] = &structures[idx]
 		}
 		if s.Label != "" {
 			if seen := knownFsLabels[s.Label]; seen {
@@ -833,12 +849,10 @@ func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bo
 			}
 			knownFsLabels[s.Label] = true
 		}
-
-		previousEnd = end
 	}
 
 	// sort by starting offset
-	sort.Sort(byStartOffset(structures))
+	sort.Sort(byStructureOffset(structures))
 
 	return validateCrossVolumeStructure(structures, knownStructures)
 }
@@ -854,15 +868,15 @@ func isMBR(vs *VolumeStructure) bool {
 	return false
 }
 
-func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures map[string]*LaidOutStructure) error {
+func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures map[string]*VolumeStructure) error {
 	previousEnd := quantity.Offset(0)
 	// cross structure validation:
 	// - relative offsets that reference other structures by name
 	// - laid out structure overlap
 	// use structures laid out within the volume
 	for pidx, ps := range structures {
-		if isMBR(ps.VolumeStructure) {
-			if ps.StartOffset != 0 {
+		if isMBR(&ps) {
+			if *(ps.Offset) != 0 {
 				return fmt.Errorf(`structure %v has "mbr" role and must start at offset 0`, ps)
 			}
 		}
@@ -875,11 +889,11 @@ func validateCrossVolumeStructure(structures []LaidOutStructure, knownStructures
 			}
 		}
 
-		if ps.StartOffset < previousEnd {
+		if *(ps.Offset) < previousEnd {
 			previous := structures[pidx-1]
 			return fmt.Errorf("structure %v overlaps with the preceding structure %v", ps, previous)
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.Size)
+		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
