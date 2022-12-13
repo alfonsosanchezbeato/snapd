@@ -173,6 +173,7 @@ var mockOnDiskAndLaidoutStructureWritable = install.MockOnDiskAndLaidoutStructur
 		VolumeStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Writable",
+			Offset:     asOffsetPtr(1260388352),
 			Size:       1258291200,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-data",
@@ -206,6 +207,7 @@ var mockOnDiskAndLaidoutStructureSave = install.MockOnDiskAndLaidoutStructure(
 			VolumeName: "pc",
 			Name:       "Save",
 			Label:      "ubuntu-save",
+			Offset:     asOffsetPtr(1260388352),
 			Size:       128 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-save",
@@ -235,6 +237,7 @@ var mockOnDiskAndLaidoutStructureWritableAfterSave = install.MockOnDiskAndLaidou
 		VolumeStructure: &gadget.VolumeStructure{
 			VolumeName: "pc",
 			Name:       "Writable",
+			Offset:     asOffsetPtr(1394606080),
 			Size:       1200 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			Role:       "system-data",
