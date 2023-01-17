@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -458,7 +459,8 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir)
+	// XXX set the dynamic part
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir, "")
 	if err != nil {
 		return false, err
 	}
@@ -469,7 +471,7 @@ func updateManagedBootConfigForBootloader(dev snap.Device, mode, gadgetSnapOrDir
 // contributes to the kernel command line of the run system. Returns true when a
 // change in command line has been observed and a reboot is needed. The reboot,
 // if needed, should be requested at the the earliest possible occasion.
-func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir, cmdlineDyn string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on pre-UC20 devices")
@@ -487,8 +489,9 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 		}
 		return false, err
 	}
+
 	// gadget update can lead to a change of kernel command line
-	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir)
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir, cmdlineDyn)
 	if err != nil {
 		return false, err
 	}
@@ -497,10 +500,11 @@ func UpdateCommandLineForGadgetComponent(dev snap.Device, gadgetSnapOrDir string
 	}
 	// update the bootloader environment, maybe clearing the relevant
 	// variables
-	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir)
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir, cmdlineDyn)
 	if err != nil {
 		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 	}
+	logger.Debugf("boot vars we will update: %v", cmdlineVars)
 	if err := tbl.SetBootVars(cmdlineVars); err != nil {
 		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
 	}

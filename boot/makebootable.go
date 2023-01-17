@@ -298,7 +298,7 @@ func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir)
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir, "")
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -483,7 +483,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
 
-		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir, "")
 		if err != nil {
 			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
 		}

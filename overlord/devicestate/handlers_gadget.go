@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -210,11 +211,36 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
-func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
-	snapsup, err := snapstate.TaskSnapSetup(t)
-	if err != nil {
-		return false, err
+func buildDynamicKernelCommandLine(st *state.State) (string, error) {
+	var cmdlineDyn, cmdlineDanger string
+	tr := config.NewTransaction(st)
+	if err := tr.Get("core", "system.boot.cmdline-extra",
+		&cmdlineDyn); err != nil && !config.IsNoOption(err) {
+		return "", err
 	}
+
+	// TODO split properly and check values against the ones
+	// allowed by the gadget
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
+		if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
+			&cmdlineDanger); err != nil && !config.IsNoOption(err) {
+			return "", err
+		}
+		cmdlineDyn += " "
+		cmdlineDyn += cmdlineDanger
+	}
+	logger.Debugf("dynamic command line part is %q", cmdlineDyn)
+
+	return " " + cmdlineDyn, nil
+}
+
+func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
+	logger.Debugf("updating kernel command line")
 	devCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return false, err
@@ -224,22 +250,33 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		return false, nil
 	}
 	var gadgetData *gadget.GadgetData
-	if !isUndo {
-		// when updating, command line comes from the new gadget
+	if !useCurrentGadget {
+		// command line comes from the new gadget when updating
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		if err != nil {
+			return false, err
+		}
 		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
 		if err != nil {
 			return false, err
 		}
 	} else {
-		// but when undoing, we use the current gadget which should have
-		// been restored
+		// but when undoing or when the change comes from a
+		// system option (no setup task), we use the current
+		// gadget which should have been restored
 		currentGadgetData, err := currentGadgetInfo(st, devCtx)
 		if err != nil {
 			return false, err
 		}
 		gadgetData = currentGadgetData
 	}
-	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)
+
+	cmdlineDyn, err := buildDynamicKernelCommandLine(st)
+	if err != nil {
+		return false, err
+	}
+
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineDyn)
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
 	}
@@ -269,8 +306,15 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	const isUndo = false
-	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	var isDynamic bool
+	if err := t.Get("is-dynamic", &isDynamic); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	// We use the current gadget kernel command line if the change comes
+	// from setting a system option.
+	useCurrentGadget := isDynamic
+	updated, err := m.updateGadgetCommandLine(t, st, useCurrentGadget)
 	if err != nil {
 		return err
 	}
@@ -284,8 +328,12 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// snap carries an update to the gadget assets and a change in the
 	// kernel command line
 
-	// kernel command line was updated, request a reboot to make it effective
+	if isDynamic {
+		logger.Debugf("change is dynamic, we do not reboot")
+		return nil
+	}
 
+	// kernel command line was updated, request a reboot to make it effective
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
