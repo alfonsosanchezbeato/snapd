@@ -27,16 +27,18 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 const (
-	OptionBootCmdlineExtra          = "core.system.boot.cmdline-extra"
-	OptionBootDangerousCmdlineExtra = "core.system.boot.dangerous-cmdline-extra"
+	OptionBootCmdlineExtra          = "system.boot.cmdline-extra"
+	OptionBootDangerousCmdlineExtra = "system.boot.dangerous-cmdline-extra"
 )
 
 func init() {
-	supportedConfigurations[OptionBootCmdlineExtra] = true
-	supportedConfigurations[OptionBootDangerousCmdlineExtra] = true
+	supportedConfigurations["core."+OptionBootCmdlineExtra] = true
+	supportedConfigurations["core."+OptionBootDangerousCmdlineExtra] = true
 }
 
 func changedBootConfigs(c config.Conf) []string {
@@ -49,6 +51,23 @@ func changedBootConfigs(c config.Conf) []string {
 	return changed
 }
 
+func validateParamsAreAllowed(st *state.State, params []string) error {
+	st.Lock()
+	defer st.Unlock()
+	devCtx, err := devicestate.DeviceCtx(st, nil, nil)
+	if err != nil {
+		return err
+	}
+	gd, err := devicestate.CurrentGadgetInfo(st, devCtx)
+	if err != nil {
+		return err
+	}
+	logger.Debugf("gadget data read from %s", gd.RootDir)
+	// TODO use gadgetdata to check against allowed values
+
+	return nil
+}
+
 func validateCmdlineExtra(c config.Conf) error {
 	for _, opt := range changedBootConfigs(c) {
 		optWithoutSnap := strings.SplitN(opt, ".", 2)[1]
@@ -57,11 +76,16 @@ func validateCmdlineExtra(c config.Conf) error {
 			return err
 		}
 
-		// TODO check against allowed values from gadget too
 		logger.Debugf("validating %s=%q", opt, cmdExtra)
-		_, err = osutil.KernelCommandLineSplit(cmdExtra)
+		params, err := osutil.KernelCommandLineSplit(cmdExtra)
 		if err != nil {
 			return err
+		}
+		if optWithoutSnap == OptionBootCmdlineExtra {
+			// check against allowed values from gadget
+			if err := validateParamsAreAllowed(c.State(), params); err != nil {
+				return fmt.Errorf("while validating params: %v", err)
+			}
 		}
 	}
 
@@ -84,7 +108,7 @@ func handleCmdlineExtra(c config.Conf, opts *fsOnlyContext) error {
 	chg := st.NewChange("update-cmdline-extra", summary)
 	t := st.NewTask("update-gadget-cmdline",
 		"Updating command line due to change in system configuration")
-	t.Set("is-dynamic", true)
+	t.Set("system-option", true)
 	chg.AddTask(t)
 	st.EnsureBefore(0)
 

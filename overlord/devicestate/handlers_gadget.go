@@ -48,7 +48,8 @@ func makeRollbackDir(name string) (string, error) {
 	return rollbackDir, nil
 }
 
-func currentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
+// CurrentGadgetInfo returns the gadget data for the currently installed snap.
+func CurrentGadgetInfo(st *state.State, curDeviceCtx snapstate.DeviceContext) (*gadget.GadgetData, error) {
 	currentInfo, err := snapstate.GadgetInfo(st, curDeviceCtx)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
@@ -129,7 +130,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 		// now calculate the "update" data, it's the same gadget but
 		// argumented from a different kernel
-		updateData, err = currentGadgetInfo(t.State(), groundDeviceCtx)
+		updateData, err = CurrentGadgetInfo(t.State(), groundDeviceCtx)
 		if err != nil {
 			return err
 		}
@@ -137,7 +138,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
-	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
+	currentData, err := CurrentGadgetInfo(t.State(), groundDeviceCtx)
 	if err != nil {
 		return err
 	}
@@ -211,32 +212,34 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	return snapstate.FinishTaskWithRestart(t, state.DoneStatus, restart.RestartSystem, nil)
 }
 
-func buildDynamicKernelCommandLine(st *state.State) (string, error) {
-	var cmdlineDyn, cmdlineDanger string
+func buildOptionalKernelCommandLine(st *state.State) (string, error) {
+	var cmdlineOpt, cmdlineOptDanger string
 	tr := config.NewTransaction(st)
+	// Note that validation has already happened in configcore.
 	if err := tr.Get("core", "system.boot.cmdline-extra",
-		&cmdlineDyn); err != nil && !config.IsNoOption(err) {
+		&cmdlineOpt); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 
-	// TODO split properly and check values against the ones
-	// allowed by the gadget
-
-	deviceCtx, err := DeviceCtx(st, nil, nil)
-	if err != nil {
-		return "", err
-	}
-	if deviceCtx.Model().Grade() == asserts.ModelDangerous {
-		if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
-			&cmdlineDanger); err != nil && !config.IsNoOption(err) {
+	// Dangerous extra cmdline only considered for dangerous models and if
+	// the extra cmdline is not set.
+	if cmdlineOpt == "" {
+		deviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
 			return "", err
 		}
-		cmdlineDyn += " "
-		cmdlineDyn += cmdlineDanger
+		if deviceCtx.Model().Grade() == asserts.ModelDangerous &&
+			cmdlineOpt == "" {
+			if err := tr.Get("core", "system.boot.dangerous-cmdline-extra",
+				&cmdlineOptDanger); err != nil && !config.IsNoOption(err) {
+				return "", err
+			}
+			cmdlineOpt = cmdlineOptDanger
+		}
 	}
-	logger.Debugf("dynamic command line part is %q", cmdlineDyn)
+	logger.Debugf("optional command line part is %q", cmdlineOpt)
 
-	return " " + cmdlineDyn, nil
+	return " " + cmdlineOpt, nil
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
@@ -263,20 +266,20 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 	} else {
 		// but when undoing or when the change comes from a
 		// system option (no setup task), we use the current
-		// gadget which should have been restored
-		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		// gadget (should have been restored in the undo case)
+		currentGadgetData, err := CurrentGadgetInfo(st, devCtx)
 		if err != nil {
 			return false, err
 		}
 		gadgetData = currentGadgetData
 	}
 
-	cmdlineDyn, err := buildDynamicKernelCommandLine(st)
+	cmdlineOpt, err := buildOptionalKernelCommandLine(st)
 	if err != nil {
 		return false, err
 	}
 
-	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineDyn)
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir, cmdlineOpt)
 	if err != nil {
 		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
 	}
@@ -306,14 +309,16 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	var isDynamic bool
-	if err := t.Get("is-dynamic", &isDynamic); err != nil && !errors.Is(err, state.ErrNoState) {
+	// Find out if the update has been triggered by setting a system
+	// option that modifies the kernel command line.
+	var isSysOption bool
+	if err := t.Get("system-option", &isSysOption); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
 	// We use the current gadget kernel command line if the change comes
 	// from setting a system option.
-	useCurrentGadget := isDynamic
+	useCurrentGadget := isSysOption
 	updated, err := m.updateGadgetCommandLine(t, st, useCurrentGadget)
 	if err != nil {
 		return err
@@ -328,8 +333,8 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	// snap carries an update to the gadget assets and a change in the
 	// kernel command line
 
-	if isDynamic {
-		logger.Debugf("change is dynamic, we do not reboot")
+	if isSysOption {
+		logger.Debugf("change comes from system option, we do not reboot")
 		return nil
 	}
 
