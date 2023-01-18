@@ -239,7 +239,10 @@ func buildOptionalKernelCommandLine(st *state.State) (string, error) {
 	}
 	logger.Debugf("optional command line part is %q", cmdlineOpt)
 
-	return " " + cmdlineOpt, nil
+	if cmdlineOpt != "" {
+		cmdlineOpt = " " + cmdlineOpt
+	}
+	return cmdlineOpt, nil
 }
 
 func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, useCurrentGadget bool) (updated bool, err error) {
