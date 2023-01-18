@@ -21,26 +21,59 @@ package configcore
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
+const (
+	OptionBootCmdlineExtra          = "core.system.boot.cmdline-extra"
+	OptionBootDangerousCmdlineExtra = "core.system.boot.dangerous-cmdline-extra"
+)
+
 func init() {
-	supportedConfigurations["core.system.boot.cmdline-extra"] = true
-	supportedConfigurations["core.system.boot.dangerous-cmdline-extra"] = true
+	supportedConfigurations[OptionBootCmdlineExtra] = true
+	supportedConfigurations[OptionBootDangerousCmdlineExtra] = true
+}
+
+func changedBootConfigs(c config.Conf) []string {
+	changed := []string{}
+	for _, name := range c.Changes() {
+		if strings.HasPrefix(name, "core.system.boot.") {
+			changed = append(changed, name)
+		}
+	}
+	return changed
 }
 
 func validateCmdlineExtra(c config.Conf) error {
-	// TODO check against allowed values from gadget? Or do that in the task?
+	for _, opt := range changedBootConfigs(c) {
+		optWithoutSnap := strings.SplitN(opt, ".", 2)[1]
+		cmdExtra, err := coreCfg(c, optWithoutSnap)
+		if err != nil {
+			return err
+		}
+
+		// TODO check against allowed values from gadget too
+		logger.Debugf("validating %s=%q", opt, cmdExtra)
+		_, err = osutil.KernelCommandLineSplit(cmdExtra)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func handleCmdlineExtra(c config.Conf, opts *fsOnlyContext) error {
-	logger.Debugf("system.boot.* being handled")
-
-	// TODO Check if the options have changed? Can that be done here?
+	bootOpts := changedBootConfigs(c)
+	if len(bootOpts) == 0 {
+		return nil
+	}
+	logger.Debugf("handling %v", bootOpts)
 
 	st := c.State()
 	st.Lock()
