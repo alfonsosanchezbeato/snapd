@@ -169,7 +169,7 @@ func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadge
 		return err
 	}
 	// No task is associated to the transaction if it is an early config
-	rt := config.NewRunTransaction(config.NewTransaction(st), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(st), nil)
 	if configed {
 		if err := configcoreExportExperimentalFlags(rt); err != nil {
 			return fmt.Errorf("cannot export experimental config flags: %v", err)

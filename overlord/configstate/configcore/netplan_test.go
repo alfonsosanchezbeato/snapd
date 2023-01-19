@@ -304,7 +304,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
@@ -320,7 +320,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 	s.backend.ConfigApiSetErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
@@ -335,7 +335,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
@@ -350,7 +350,7 @@ func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
@@ -381,7 +381,7 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	s.backend.ConfigApiApplyRet = true
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
@@ -409,7 +409,7 @@ func (s *netplanSuite) TestNetplanApplyConfigFails(c *C) {
 	s.backend.ConfigApiApplyRet = false
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
@@ -430,7 +430,7 @@ func (s *netplanSuite) TestNetplanApplyConfigErr(c *C) {
 	s.backend.ConfigApiApplyErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 	rt.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
@@ -459,7 +459,7 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 	s.backend.ConfigApiCancelRet = true
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
@@ -490,7 +490,7 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFails(c *C) {
 	s.backend.ConfigApiCancelRet = false
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
@@ -516,7 +516,7 @@ func (s *netplanSuite) TestNetplanWriteConfigCancelFailsWithDbusErr(c *C) {
 	s.backend.ConfigApiCancelErr = dbus.MakeFailedError(fmt.Errorf("netplan failed with some error"))
 
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
 
@@ -545,7 +545,7 @@ network:
 	// we cannot use mockConf because we need the external config
 	// integration from the config.Transaction
 	s.state.Lock()
-	rt := config.NewRunTransaction(config.NewTransaction(s.state), nil)
+	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
 	s.state.Unlock()
 	rt.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
 

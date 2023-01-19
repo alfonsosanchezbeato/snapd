@@ -66,21 +66,21 @@ func init() {
 }
 
 type withStateHandler struct {
-	validateFunc func(config.Conf) error
-	handleFunc   func(config.Conf, *fsOnlyContext) error
+	validateFunc func(Conf) error
+	handleFunc   func(Conf, *fsOnlyContext) error
 	configFlags  flags
 }
 
-func (h *withStateHandler) validate(cfg config.ConfGetter) error {
-	conf := cfg.(config.Conf)
+func (h *withStateHandler) validate(cfg ConfGetter) error {
+	conf := cfg.(Conf)
 	if h.validateFunc != nil {
 		return h.validateFunc(conf)
 	}
 	return nil
 }
 
-func (h *withStateHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
-	conf := cfg.(config.Conf)
+func (h *withStateHandler) handle(dev sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
+	conf := cfg.(Conf)
 	if h.handleFunc != nil {
 		return h.handleFunc(conf, opts)
 	}
@@ -97,7 +97,7 @@ func (h *withStateHandler) flags() flags {
 
 // addWithStateHandler registers functions to validate and handle a subset of
 // system config options requiring to access and manipulate state.
-func addWithStateHandler(validate func(config.Conf) error, handle func(config.Conf, *fsOnlyContext) error, flags *flags) {
+func addWithStateHandler(validate func(Conf) error, handle func(Conf, *fsOnlyContext) error, flags *flags) {
 	if handle == nil && (flags == nil || !flags.validatedOnlyStateConfig) {
 		panic("cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
 	}
@@ -111,11 +111,11 @@ func addWithStateHandler(validate func(config.Conf) error, handle func(config.Co
 	handlers = append(handlers, h)
 }
 
-func Run(dev sysconfig.Device, cfg config.Conf) error {
+func Run(dev sysconfig.Device, cfg Conf) error {
 	return applyHandlers(dev, cfg, handlers)
 }
 
-func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandler) error {
+func applyHandlers(dev sysconfig.Device, cfg Conf, handlers []configHandler) error {
 	// check if the changes
 	for _, k := range cfg.Changes() {
 		switch {
@@ -149,7 +149,7 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 	return nil
 }
 
-func Early(dev sysconfig.Device, cfg config.Conf, values map[string]interface{}) error {
+func Early(dev sysconfig.Device, cfg Conf, values map[string]interface{}) error {
 	early, relevant := applyFilters(func(f flags) filterFunc {
 		return f.earlyConfigFilter
 	}, values)
