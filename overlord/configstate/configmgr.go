@@ -58,7 +58,8 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 			if err != nil {
 				return nil, nil, err
 			}
-			return dev, ContextTransaction(ctx), nil
+			rt := config.NewRunTransaction(ContextTransaction(ctx), task)
+			return dev, rt, nil
 		}()
 		if err != nil {
 			return err

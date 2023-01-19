@@ -45,6 +45,7 @@ type mockConf struct {
 	conf    map[string]interface{}
 	changes map[string]interface{}
 	err     error
+	task    *state.Task
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -94,6 +95,10 @@ func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) 
 		return err
 	}
 	return nil
+}
+
+func (cfg *mockConf) Task() *state.Task {
+	return cfg.task
 }
 
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {

@@ -291,6 +291,7 @@ type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
+	Task() *state.Task
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State

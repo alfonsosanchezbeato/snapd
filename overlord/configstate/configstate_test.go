@@ -270,6 +270,13 @@ func (wm *witnessManager) Ensure() error {
 }
 
 func (s *configcoreHijackSuite) TestHijack(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts := configstate.Configure(s.state, "core", map[string]interface{}{
+		"witness": true,
+	}, 0)
+
 	configcoreRan := false
 	witnessCfg := false
 	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
@@ -279,6 +286,8 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 		err := conf.Get("core", "witness", &witnessCfg)
 		c.Assert(err, IsNil)
 		configcoreRan = true
+		c.Assert(len(ts.Tasks()), Equals, 1)
+		c.Assert(conf.Task().ID(), Equals, ts.Tasks()[0].ID())
 		return nil
 	}
 	r := configstate.MockConfigcoreRun(witnessConfigcoreRun)
@@ -288,13 +297,6 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 		state: s.state,
 	}
 	s.o.AddManager(witnessMgr)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	ts := configstate.Configure(s.state, "core", map[string]interface{}{
-		"witness": true,
-	}, 0)
 
 	chg := s.state.NewChange("configure-core", "configure core")
 	chg.AddAll(ts)
@@ -455,6 +457,23 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)
 	c.Assert(err, ErrorMatches, "boom")
+}
+
+func (s *earlyConfigSuite) TestEarlyConfigNoHookTask(c *C) {
+	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg config.Conf, vals map[string]interface{}) error {
+		c.Assert(cfg.Task(), IsNil)
+		return nil
+	})()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		return nil, &gadget.Info{}, nil
+	}
+
+	err := configstate.EarlyConfig(s.state, preloadGadget)
+	c.Assert(err, IsNil)
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {
