@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -103,12 +102,14 @@ func handleCmdlineExtra(c config.Conf, opts *fsOnlyContext) error {
 	st.Lock()
 	defer st.Unlock()
 
-	// Create change to set the new kernel command line
-	summary := fmt.Sprintf(i18n.G("Appending parameters to kernel command line"))
-	chg := st.NewChange("update-cmdline-extra", summary)
+	// Add task to the hook change to set the new kernel command line
+	hookTask := c.Task()
+	chg := hookTask.Change()
 	t := st.NewTask("update-gadget-cmdline",
 		"Updating command line due to change in system configuration")
 	t.Set("system-option", true)
+	t.WaitFor(hookTask)
+
 	chg.AddTask(t)
 	st.EnsureBefore(0)
 
