@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sysconfig"
 )
@@ -63,6 +64,23 @@ func init() {
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
+}
+
+// RunTransaction holds a transaction with a task that is in charge of
+// appliying a change to the configuration. It is used in the context of
+// configcore.
+type RunTransaction struct {
+	*config.Transaction
+	task *state.Task
+}
+
+func (rt *RunTransaction) Task() *state.Task {
+	return rt.task
+}
+
+func NewRunTransaction(tr *config.Transaction, tk *state.Task) *RunTransaction {
+	runTransaction := &RunTransaction{Transaction: tr, task: tk}
+	return runTransaction
 }
 
 type withStateHandler struct {

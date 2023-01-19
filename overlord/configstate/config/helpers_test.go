@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -328,12 +327,12 @@ func (s *configHelpersSuite) TestPatch(c *C) {
 		"a.b2": map[string]interface{}{"c": "C"},
 	}
 
-	rt := configcore.NewRunTransaction(config.NewTransaction(s.state), nil)
-	err := config.Patch(rt, "some-snap", patch)
+	tr := config.NewTransaction(s.state)
+	err := config.Patch(tr, "some-snap", patch)
 	c.Assert(err, IsNil)
 
 	var a map[string]interface{}
-	err = rt.Get("some-snap", "a", &a)
+	err = tr.Get("some-snap", "a", &a)
 	c.Check(err, IsNil)
 
 	c.Check(a, DeepEquals, map[string]interface{}{

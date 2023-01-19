@@ -20,7 +20,6 @@
 package configcore
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -40,21 +39,4 @@ type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
-}
-
-// RunTransaction holds a transaction with a task that is in charge of
-// appliying a change to the configuration. It is used in the context of
-// configcore.
-type RunTransaction struct {
-	*config.Transaction
-	task *state.Task
-}
-
-func (rt *RunTransaction) Task() *state.Task {
-	return rt.task
-}
-
-func NewRunTransaction(tr *config.Transaction, tk *state.Task) *RunTransaction {
-	runTransaction := &RunTransaction{Transaction: tr, task: tk}
-	return runTransaction
 }

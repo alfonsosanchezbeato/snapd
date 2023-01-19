@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -74,8 +73,7 @@ func (h *configureHandler) Before() error {
 	h.context.Lock()
 	defer h.context.Unlock()
 
-	task, _ := h.context.Task()
-	rt := configcore.NewRunTransaction(ContextTransaction(h.context), task)
+	tr := ContextTransaction(h.context)
 
 	// Initialize the transaction if there's a patch provided in the
 	// context or useDefaults is set in which case gadget defaults are used.
@@ -117,7 +115,7 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	if err := config.Patch(rt, instanceName, patch); err != nil {
+	if err := config.Patch(tr, instanceName, patch); err != nil {
 		return err
 	}
 
