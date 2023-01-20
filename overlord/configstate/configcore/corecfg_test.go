@@ -124,6 +124,8 @@ func (cfg *mockConf) State() *state.State {
 	return cfg.state
 }
 
+func (cfg *mockConf) Commit() {}
+
 // configcoreSuite is the base for all the configcore tests
 type configcoreSuite struct {
 	testutil.BaseTest

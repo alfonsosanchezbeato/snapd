@@ -23,8 +23,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// Conf is an interface describing both state and transaction.
-type Conf interface {
+// RunTransaction is an interface describing both state and transaction.
+type RunTransaction interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
@@ -32,6 +32,7 @@ type Conf interface {
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
+	Commit()
 }
 
 // ConfGetter is an interface for reading of core config values.

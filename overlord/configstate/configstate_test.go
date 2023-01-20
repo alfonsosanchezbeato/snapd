@@ -280,7 +280,7 @@ func (s *configcoreHijackSuite) TestHijack(c *C) {
 
 	configcoreRan := false
 	witnessCfg := false
-	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf configcore.RunTransaction) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
@@ -445,7 +445,7 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
-	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, configcore.Conf, map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, configcore.RunTransaction, map[string]interface{}) error {
 		return fmt.Errorf("boom")
 	})()
 
@@ -461,7 +461,7 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigNoHookTask(c *C) {
-	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg configcore.Conf, vals map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(dev sysconfig.Device, cfg configcore.RunTransaction, vals map[string]interface{}) error {
 		c.Assert(cfg.Task(), IsNil)
 		return nil
 	})()

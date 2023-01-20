@@ -69,28 +69,28 @@ func init() {
 // RunTransaction holds a transaction with a task that is in charge of
 // appliying a change to the configuration. It is used in the context of
 // configcore.
-type RunTransaction struct {
+type runTransactionImpl struct {
 	*config.Transaction
 	task *state.Task
 }
 
-func (rt *RunTransaction) Task() *state.Task {
+func (rt *runTransactionImpl) Task() *state.Task {
 	return rt.task
 }
 
-func NewRunTransaction(tr *config.Transaction, tk *state.Task) *RunTransaction {
-	runTransaction := &RunTransaction{Transaction: tr, task: tk}
+func NewRunTransaction(tr *config.Transaction, tk *state.Task) RunTransaction {
+	runTransaction := &runTransactionImpl{Transaction: tr, task: tk}
 	return runTransaction
 }
 
 type withStateHandler struct {
-	validateFunc func(Conf) error
-	handleFunc   func(Conf, *fsOnlyContext) error
+	validateFunc func(RunTransaction) error
+	handleFunc   func(RunTransaction, *fsOnlyContext) error
 	configFlags  flags
 }
 
 func (h *withStateHandler) validate(cfg ConfGetter) error {
-	conf := cfg.(Conf)
+	conf := cfg.(RunTransaction)
 	if h.validateFunc != nil {
 		return h.validateFunc(conf)
 	}
@@ -98,7 +98,7 @@ func (h *withStateHandler) validate(cfg ConfGetter) error {
 }
 
 func (h *withStateHandler) handle(dev sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) error {
-	conf := cfg.(Conf)
+	conf := cfg.(RunTransaction)
 	if h.handleFunc != nil {
 		return h.handleFunc(conf, opts)
 	}
@@ -115,7 +115,7 @@ func (h *withStateHandler) flags() flags {
 
 // addWithStateHandler registers functions to validate and handle a subset of
 // system config options requiring to access and manipulate state.
-func addWithStateHandler(validate func(Conf) error, handle func(Conf, *fsOnlyContext) error, flags *flags) {
+func addWithStateHandler(validate func(RunTransaction) error, handle func(RunTransaction, *fsOnlyContext) error, flags *flags) {
 	if handle == nil && (flags == nil || !flags.validatedOnlyStateConfig) {
 		panic("cannot have nil handle with addWithStateHandler if validatedOnlyStateConfig flag is not set")
 	}
@@ -129,11 +129,11 @@ func addWithStateHandler(validate func(Conf) error, handle func(Conf, *fsOnlyCon
 	handlers = append(handlers, h)
 }
 
-func Run(dev sysconfig.Device, cfg Conf) error {
+func Run(dev sysconfig.Device, cfg RunTransaction) error {
 	return applyHandlers(dev, cfg, handlers)
 }
 
-func applyHandlers(dev sysconfig.Device, cfg Conf, handlers []configHandler) error {
+func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHandler) error {
 	// check if the changes
 	for _, k := range cfg.Changes() {
 		switch {
@@ -167,7 +167,7 @@ func applyHandlers(dev sysconfig.Device, cfg Conf, handlers []configHandler) err
 	return nil
 }
 
-func Early(dev sysconfig.Device, cfg Conf, values map[string]interface{}) error {
+func Early(dev sysconfig.Device, cfg RunTransaction, values map[string]interface{}) error {
 	early, relevant := applyFilters(func(f flags) filterFunc {
 		return f.earlyConfigFilter
 	}, values)
