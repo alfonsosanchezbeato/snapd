@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -311,7 +312,11 @@ func getGadgetDiskMapping(st *state.State) Response {
 		}
 	}
 
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, mod, encType)
+	seedDisk, err := install.FindDiskWithSeed(mod, gadgetDir)
+	if err != nil {
+		return InternalError("cannot find seed disk: %v", err)
+	}
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetDir, kernelDir, seedDisk, mod, encType)
 	if err != nil {
 		return InternalError("cannot get all disk volume device traits: cannot layout volumes: %v", err)
 	}

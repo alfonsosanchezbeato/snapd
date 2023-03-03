@@ -948,7 +948,7 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	timings.Run(perfTimings, "factory-reset", "Factory reset", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+		installedSystem, err = installFactoryReset(model, gadgetDir, kernelDir, bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot perform factory reset: %v", err)
@@ -1361,9 +1361,14 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if useEncryption {
 		encType = secboot.EncryptionTypeLUKS
 	}
+
+	seedDisk, err := install.FindDiskWithSeed(sys.Model, mntPtForType[snap.TypeGadget])
+	if err != nil {
+		return err
+	}
 	// TODO for partial gadgets we should also use the data from onVolumes instead of
 	// using only what comes from gadget.yaml.
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], sys.Model, encType)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(mntPtForType[snap.TypeGadget], mntPtForType[snap.TypeKernel], seedDisk, sys.Model, encType)
 	if err != nil {
 		return fmt.Errorf("on finish install: cannot layout volumes: %v", err)
 	}

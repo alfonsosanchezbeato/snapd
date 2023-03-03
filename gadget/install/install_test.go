@@ -518,7 +518,8 @@ func (s *installSuite) TestDeviceFromRoleHappy(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	device, err := install.DiskWithSystemSeed(lv.Volume)
+	gVols := map[string]*gadget.Volume{lv.Volume.Name: lv.Volume}
+	device, err := install.DiskWithSystemSeed(gVols)
 	c.Assert(err, IsNil)
 	c.Check(device, Equals, "/dev/fakedevice0")
 }
@@ -528,7 +529,8 @@ func (s *installSuite) TestDeviceFromRoleErrorNoMatchingSysfs(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockUC20GadgetYaml, uc20Mod)
 	c.Assert(err, IsNil)
 
-	_, err = install.DiskWithSystemSeed(lv.Volume)
+	gVols := map[string]*gadget.Volume{lv.Volume.Name: lv.Volume}
+	_, err = install.DiskWithSystemSeed(gVols)
 	c.Assert(err, ErrorMatches, `cannot find device for role system-seed: device not found`)
 }
 
@@ -537,7 +539,8 @@ func (s *installSuite) TestDeviceFromRoleErrorNoRole(c *C) {
 	lv, err := gadgettest.LayoutFromYaml(c.MkDir(), mockGadgetYaml, nil)
 	c.Assert(err, IsNil)
 
-	_, err = install.DiskWithSystemSeed(lv.Volume)
+	gVols := map[string]*gadget.Volume{lv.Volume.Name: lv.Volume}
+	_, err = install.DiskWithSystemSeed(gVols)
 	c.Assert(err, ErrorMatches, "cannot find role system-seed in gadget")
 }
 
@@ -720,7 +723,7 @@ func (s *installSuite) testFactoryReset(c *C, opts factoryResetOpts) {
 	if opts.encryption {
 		runOpts.EncryptionType = secboot.EncryptionTypeLUKS
 	}
-	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, "", "", runOpts, nil, timings.New(nil))
+	sys, err := install.FactoryReset(uc20Mod, gadgetRoot, "", runOpts, nil, timings.New(nil))
 	if opts.err != "" {
 		c.Check(sys, IsNil)
 		c.Check(err, ErrorMatches, opts.err)
@@ -804,7 +807,7 @@ func (s *installSuite) TestFactoryResetHappyWithoutDataAndBoot(c *C) {
 	s.testFactoryReset(c, factoryResetOpts{
 		disk:       gadgettest.ExpectedRaspiMockDiskInstallModeMapping,
 		gadgetYaml: gadgettest.RaspiSimplifiedYaml,
-		err:        "gadget and system-boot device /dev/mmcblk0 partition table not compatible: cannot find .*ubuntu-boot.*",
+		err:        "gadget and system-seed device partition table not compatible: cannot find .*ubuntu-boot.*",
 	})
 }
 
@@ -1001,6 +1004,17 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 	c.Check(onDiskVols, IsNil)
 }
 
+func (s *installSuite) setupMockUdevSymlinksClassic(c *C, devName string) {
+	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../"+devName,
+		filepath.Join(s.dir, "/dev/disk/by-partlabel/BIOS\\x20Boot"))
+	c.Assert(err, IsNil)
+}
+
 type encryptPartitionsOpts struct {
 	encryptType secboot.EncryptionType
 }
@@ -1010,6 +1024,19 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
 		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	s.setupMockUdevSymlinksClassic(c, "vda")
+
+	initialDisk := gadgettest.VMSystemVolumeDiskMapping
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/vda"): initialDisk,
+	}
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": initialDisk,
 	})
 	defer restore()
 
@@ -1063,6 +1090,19 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	restore := install.MockSysfsPathForBlockDevice(func(device string) (string, error) {
 		c.Assert(strings.HasPrefix(device, "/dev/vda"), Equals, true)
 		return filepath.Join(vdaSysPath, filepath.Base(device)), nil
+	})
+	defer restore()
+
+	s.setupMockUdevSymlinksClassic(c, "vda")
+
+	initialDisk := gadgettest.VMSystemVolumeDiskMapping
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/vda"): initialDisk,
+	}
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": initialDisk,
 	})
 	defer restore()
 

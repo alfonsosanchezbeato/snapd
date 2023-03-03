@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
@@ -55,6 +56,8 @@ import (
 type deviceMgrInstallAPISuite struct {
 	deviceMgrBaseSuite
 	*seedtest.TestingSeed20
+
+	dir string
 }
 
 var _ = Suite(&deviceMgrInstallAPISuite{})
@@ -77,6 +80,10 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
+
+	s.dir = c.MkDir()
+	dirs.SetRootDir(s.dir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func unpackSnap(snapBlob, targetDir string) error {
@@ -213,6 +220,17 @@ func (s *deviceMgrInstallAPISuite) mockSystemSeedWithLabel(c *C, label string, i
 	return gadgetSnapPath, kernelSnapPath, ginfo, mountCmd
 }
 
+func (s *deviceMgrInstallAPISuite) setupMockUdevSymlinks(c *C, devName string) {
+	err := os.MkdirAll(filepath.Join(s.dir, "/dev/disk/by-partlabel"), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(filepath.Join(s.dir, "/dev/"+devName), nil, 0644)
+	c.Assert(err, IsNil)
+	err = os.Symlink("../../"+devName,
+		filepath.Join(s.dir, "/dev/disk/by-partlabel/ubuntu-seed"))
+	c.Assert(err, IsNil)
+}
+
 // TODO encryption case for the finish step is not tested yet, it needs more mocking
 func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOpts) {
 	// TODO UC case when supported
@@ -223,6 +241,19 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	oldArch := arch.DpkgArchitecture()
 	defer arch.SetArchitecture(arch.ArchitectureType(oldArch))
 	arch.SetArchitecture("amd64")
+
+	// Mock some disk
+	s.setupMockUdevSymlinks(c, "vda")
+	initialDisk := gadgettest.VMSystemVolumeDiskMapping
+	m := map[string]*disks.MockDiskMapping{
+		filepath.Join(s.dir, "/dev/vda"): initialDisk,
+	}
+	restore = disks.MockPartitionDeviceNodeToDiskMapping(m)
+	defer restore()
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": initialDisk,
+	})
+	defer restore()
 
 	// Mock label
 	label := "classic"
