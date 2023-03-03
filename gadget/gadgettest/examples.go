@@ -822,6 +822,7 @@ volumes:
         content:
           - image: pc-boot.img
       - name: BIOS Boot
+        role: system-seed-null
         type: DA,21686148-6449-6E6F-744E-656564454649
         size: 1M
         offset: 1M

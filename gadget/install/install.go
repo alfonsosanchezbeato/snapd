@@ -38,27 +38,47 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-// diskWithSystemSeed will locate a disk that has the partition corresponding
-// to a structure with SystemSeed role of the specified gadget volume and return
-// the device node.
-func diskWithSystemSeed(gv *gadget.Volume) (device string, err error) {
-	for _, gs := range gv.Structure {
-		// XXX: this part of the finding maybe should be a
-		// method on gadget.*Volume
-		if gs.Role == gadget.SystemSeed {
-			device, err = gadget.FindDeviceForStructure(&gs)
-			if err != nil {
-				return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
-			}
+// diskWithSystemSeed will locate a disk that has the partition
+// corresponding to a structure with SystemSeed role of the specified
+// gadget volumes and return the device node.
+func diskWithSystemSeed(vols map[string]*gadget.Volume) (device string, err error) {
+	for _, v := range vols {
+		for _, gs := range v.Structure {
+			// XXX: this part of the finding maybe should be a
+			// method on gadget.*Volume
+			if gs.IsSeedRole() {
+				device, err = gadget.FindDeviceForStructure(&gs)
+				if err != nil {
+					return "", fmt.Errorf("cannot find device for role system-seed: %v", err)
+				}
 
-			disk, err := disks.DiskFromPartitionDeviceNode(device)
-			if err != nil {
-				return "", err
+				disk, err := disks.DiskFromPartitionDeviceNode(device)
+				if err != nil {
+					return "", err
+				}
+				return disk.KernelDeviceNode(), nil
 			}
-			return disk.KernelDeviceNode(), nil
 		}
 	}
 	return "", fmt.Errorf("cannot find role system-seed in gadget")
+}
+
+// FindDiskWithSeed will try to find the disk matching the seed
+// defined by a gadget (which is also validated against model).
+func FindDiskWithSeed(model gadget.Model, gadgetRoot string) (*gadget.OnDiskVolume, error) {
+	// rely on the basic validation from ReadInfo to ensure that the system-*
+	// roles are all on the same volume for example
+	gInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	bootDevice, err := diskWithSystemSeed(gInfo.Volumes)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
+	}
+
+	return gadget.OnDiskVolumeFromDevice(bootDevice)
 }
 
 func roleOrLabelOrName(role string, part *gadget.OnDiskStructure) string {
@@ -229,34 +249,37 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 		return "", nil, nil, 0, fmt.Errorf("cannot run install mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
+	var seedDisk *gadget.OnDiskVolume
+	if bootDevice == "" {
+		// auto-detect device if no device is forced
+		// device forcing is used for (spread) testing only
+		seedDisk, err = FindDiskWithSeed(model, gadgetRoot)
+		if err != nil {
+			return "", nil, nil, 0,
+				fmt.Errorf("cannot find boot disk: %v", err)
+		}
+	} else {
+		seedDisk, err = gadget.OnDiskVolumeFromDevice(bootDevice)
+		if err != nil {
+			return "", nil, nil, 0, fmt.Errorf("cannot get disk info for %q: %v",
+				bootDevice, err)
+		}
+	}
+
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, seedDisk, model, options.EncryptionType)
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 	// TODO: resolve content paths from gadget here
 
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
-		if err != nil {
-			return "", nil, nil, 0, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
-	}
-
-	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
-	if err != nil {
-		return "", nil, nil, 0, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
-	}
-
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
-	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, nil); err != nil {
+	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, seedDisk, nil); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(gadgetRoot, laidOutBootVol, diskLayout); err != nil {
+	if err := removeCreatedPartitions(gadgetRoot, laidOutBootVol, seedDisk); err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
@@ -273,14 +296,14 @@ func createPartitions(model gadget.Model, gadgetRoot, kernelRoot, bootDevice str
 		opts := &CreateOptions{
 			GadgetRootDir: gadgetRoot,
 		}
-		created, err = createMissingPartitions(diskLayout, laidOutBootVol, opts)
+		created, err = createMissingPartitions(seedDisk, laidOutBootVol, opts)
 	})
 	if err != nil {
 		return "", nil, nil, 0, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
 	bootVolGadgetName = laidOutBootVol.Name
-	bootVolSectorSize = diskLayout.SectorSize
+	bootVolSectorSize = seedDisk.SectorSize
 	return bootVolGadgetName, created, allLaidOutVols, bootVolSectorSize, nil
 }
 
@@ -621,11 +644,15 @@ func SaveStorageTraits(model gadget.Model, allLaidOutVols map[string]*gadget.Lai
 }
 
 func EncryptPartitions(onVolumes map[string]*gadget.Volume, encryptionType secboot.EncryptionType, model *asserts.Model, gadgetRoot, kernelRoot string, perfTimings timings.Measurer) (*EncryptionSetupData, error) {
+	seedDisk, err := FindDiskWithSeed(model, gadgetRoot)
+	if err != nil {
+		return nil, fmt.Errorf("when encrypting partitions: cannot find boot disk: %v", err)
+	}
 
 	// TODO for partial gadgets we should use the data from onVolumes instead of
 	// what using only what comes from gadget.yaml.
 	// we might not want to take onVolumes as such as input at that point
-	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, encryptionType)
+	_, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, seedDisk, model, encryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("when encrypting partitions: cannot layout volumes: %v", err)
 	}
@@ -693,7 +720,7 @@ func KeysForRole(setupData *EncryptionSetupData) map[string]keys.EncryptionKey {
 	return keyForRole
 }
 
-func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
+func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("performing factory reset on an installed system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	logger.Noticef("        encryption: %v", options.EncryptionType)
@@ -705,25 +732,16 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		return nil, fmt.Errorf("cannot run factory-reset mode on pre-UC20 system")
 	}
 
-	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, model, options.EncryptionType)
+	seedDisk, err := FindDiskWithSeed(model, gadgetRoot)
+	if err != nil {
+		return nil, fmt.Errorf("cannot find seed disk: %v", err)
+	}
+
+	laidOutBootVol, allLaidOutVols, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelRoot, seedDisk, model, options.EncryptionType)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
 	// TODO: resolve content paths from gadget here
-
-	// auto-detect device if no device is forced
-	// device forcing is used for (spread) testing only
-	if bootDevice == "" {
-		bootDevice, err = diskWithSystemSeed(laidOutBootVol.Volume)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
-		}
-	}
-
-	diskLayout, err := gadget.OnDiskVolumeFromDevice(bootDevice)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
-	}
 
 	layoutCompatOps := &gadget.EnsureVolumeCompatibilityOptions{
 		AssumeCreatablePartitionsCreated: true,
@@ -747,20 +765,20 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 	}
 	// factory reset is done on a system that was once installed, so this
 	// should be always successful unless the partition table has changed
-	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, diskLayout, layoutCompatOps); err != nil {
-		return nil, fmt.Errorf("gadget and system-boot device %v partition table not compatible: %v", bootDevice, err)
+	if err := gadget.EnsureVolumeCompatibility(laidOutBootVol.Volume, seedDisk, layoutCompatOps); err != nil {
+		return nil, fmt.Errorf("gadget and system-seed device partition table not compatible: %v", err)
 	}
 
 	var keyForRole map[string]keys.EncryptionKey
 	deviceForRole := map[string]string{}
 
-	savePart := partitionsWithRolesAndContent(laidOutBootVol, diskLayout, []string{gadget.SystemSave})
+	savePart := partitionsWithRolesAndContent(laidOutBootVol, seedDisk, []string{gadget.SystemSave})
 	hasSavePartition := len(savePart) != 0
 	if hasSavePartition {
 		deviceForRole[gadget.SystemSave] = savePart[0].Node
 	}
 	rolesToReset := []string{gadget.SystemBoot, gadget.SystemData}
-	partsToReset := partitionsWithRolesAndContent(laidOutBootVol, diskLayout, rolesToReset)
+	partsToReset := partitionsWithRolesAndContent(laidOutBootVol, seedDisk, rolesToReset)
 	for _, laidOut := range partsToReset {
 		logger.Noticef("resetting %v structure %v (size %v) role %v",
 			laidOut.Node, laidOut, laidOut.Size.IECString(), laidOut.Role())
@@ -770,7 +788,7 @@ func FactoryReset(model gadget.Model, gadgetRoot, kernelRoot, bootDevice string,
 		deviceForRole[laidOut.Role()] = laidOut.Node
 
 		fsDevice, encryptionKey, err := installOnePartition(&laidOut, options.EncryptionType,
-			diskLayout.SectorSize, observer, perfTimings)
+			seedDisk.SectorSize, observer, perfTimings)
 		if err != nil {
 			return nil, err
 		}

@@ -42,7 +42,7 @@ func LayoutMultiVolumeFromYaml(newDir, kernelDir, gadgetYaml string, model gadge
 		return nil, err
 	}
 
-	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, model, secboot.EncryptionTypeNone)
+	_, allVolumes, err := gadget.LaidOutVolumesFromGadget(gadgetRoot, kernelDir, nil, model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout volumes: %v", err)
 	}
@@ -172,7 +172,7 @@ func MockGadgetPartitionedDisk(gadgetYaml, gadgetRoot string) (ginfo *gadget.Inf
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", model, secboot.EncryptionTypeNone)
+	_, laidVols, err = gadget.LaidOutVolumesFromGadget(gadgetRoot, "", nil, model, secboot.EncryptionTypeNone)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

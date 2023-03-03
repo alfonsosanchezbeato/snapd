@@ -1269,7 +1269,10 @@ func IsCompatible(current, new *Info) error {
 // flashed and managed separately at image build/flash time, while the system
 // volume with all the system-* roles on it can be manipulated during install
 // mode.
-func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model, encType secboot.EncryptionType) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, bootDisk *OnDiskVolume,
+	model Model, encType secboot.EncryptionType) (
+	system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+
 	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {
