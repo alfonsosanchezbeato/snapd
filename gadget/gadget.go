@@ -191,6 +191,11 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+// IsSeedRole returns true if the partition role is one of the seed types.
+func (vs *VolumeStructure) IsSeedRole() bool {
+	return vs.Role == SystemSeed || vs.Role == SystemSeedNull
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
