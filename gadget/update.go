@@ -244,7 +244,7 @@ func isCompatibleSchema(gadgetSchema, diskSchema string) bool {
 	}
 }
 
-func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
+func onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout *Volume, diskLayout *OnDiskVolume, s OnDiskStructure) bool {
 	// in uc16/uc18 we used to allow system-data to be implicit / missing from
 	// the gadget.yaml in which case we won't have system-data in the laidOutVol
 	// but it will be in diskLayout, so we sometimes need to check if a given on
@@ -320,9 +320,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	if opts == nil {
 		opts = &EnsureLayoutCompatibilityOptions{}
 	}
-	eq := func(ds OnDiskStructure, gs LaidOutStructure) (bool, string) {
-		gv := gs.VolumeStructure
-
+	eq := func(ds *OnDiskStructure, gv *VolumeStructure) (bool, string) {
 		// name mismatch
 		if gv.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
@@ -333,9 +331,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		}
 
 		// start offset mismatch
-		if ds.StartOffset != gs.StartOffset {
+		if ds.StartOffset != *gv.Offset {
 			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
-				ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+				ds.StartOffset, ds.StartOffset.IECString(),
+				*gv.Offset, gv.Offset.IECString())
 		}
 
 		switch {
@@ -362,7 +361,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name()]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gv.Name]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -430,7 +429,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return true, ""
 	}
 
-	laidOutContains := func(haystack []LaidOutStructure, needle OnDiskStructure) (bool, string) {
+	laidOutContains := func(haystack []*VolumeStructure, needle *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
 		for _, h := range haystack {
 			matches, reasonNotMatches := eq(needle, h)
@@ -468,7 +467,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 			// structures we don't find a on disk structure, check if we might
 			// be dealing with a structure that looks like the implicit
 			// system-data that ubuntu-image would have created.
-			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, diskLayout, needle) {
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, diskLayout, *needle) {
 				return true, ""
 			}
 		}
@@ -476,10 +475,10 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(haystack []OnDiskStructure, needle LaidOutStructure) (bool, string) {
+	onDiskContains := func(haystack []OnDiskStructure, needle *VolumeStructure) (bool, string) {
 		reasonAbsent := ""
 		for _, h := range haystack {
-			matches, reasonNotMatches := eq(h, needle)
+			matches, reasonNotMatches := eq(&h, needle)
 			if matches {
 				return true, ""
 			}
@@ -519,8 +518,13 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 	}
 
 	// Check if all existing device partitions are also in gadget
+	// XXX temporary
+	gadgetStructs := []*VolumeStructure{}
+	for _, los := range gadgetLayout.LaidOutStructure {
+		gadgetStructs = append(gadgetStructs, los.VolumeStructure)
+	}
 	for _, ds := range diskLayout.Structure {
-		present, reasonAbsent := laidOutContains(gadgetLayout.LaidOutStructure, ds)
+		present, reasonAbsent := laidOutContains(gadgetStructs, &ds)
 		if !present {
 			if reasonAbsent != "" {
 				// use the right format so that it can be
@@ -538,7 +542,7 @@ func EnsureLayoutCompatibility(gadgetLayout *LaidOutVolume, diskLayout *OnDiskVo
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskLayout.Structure, gs); present {
+		if present, _ := onDiskContains(diskLayout.Structure, gs.VolumeStructure); present {
 			continue
 		}
 
@@ -725,7 +729,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 				return res, err
 			}
 
-			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout, diskLayout, s) {
+			if onDiskStructureIsLikelyImplicitSystemDataRole(expLayout.Volume, diskLayout, s) {
 				// it is likely the implicit system-data
 				logger.Debugf("Identified implicit system-data role on system as %s", s.Node)
 				break

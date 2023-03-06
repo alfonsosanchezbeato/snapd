@@ -3370,60 +3370,60 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	deviceLayout := gadgettest.UC16DeviceLayout
 
 	// bios boot is not implicit system-data
-	matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[0])
+	matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[0])
 	c.Assert(matches, Equals, false)
 
 	// EFI system / system-boot is not implicit system-data
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[1])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[1])
 	c.Assert(matches, Equals, false)
 
 	// system-data is though
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, true)
 
 	// the size of the partition does not matter when it comes to being a
 	// candidate implicit system-data
 	oldSize := deviceLayout.Structure[2].Size
 	deviceLayout.Structure[2].Size = 10
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, true)
 	deviceLayout.Structure[2].Size = oldSize
 
 	// very large okay too
 	deviceLayout.Structure[2].Size = 1000000000000000000
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, true)
 	deviceLayout.Structure[2].Size = oldSize
 
 	// if we make system-data not ext4 then it is not
 	deviceLayout.Structure[2].PartitionFSType = "zfs"
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
 	deviceLayout.Structure[2].PartitionFSType = "ext4"
 
 	// if we make the partition type not "Linux filesystem data", then it is not
 	deviceLayout.Structure[2].Type = "foo"
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
 	deviceLayout.Structure[2].Type = "0FC63DAF-8483-4772-8E79-3D69D8477DE4"
 
 	// if we make the Label not writable, then it is not
 	deviceLayout.Structure[2].PartitionFSLabel = "foo"
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
 	deviceLayout.Structure[2].PartitionFSLabel = "writable"
 
 	// if we add another LaidOutStructure Partition to the YAML so that there is
 	// not exactly one extra partition on disk compated to the YAML, then it is
 	// not
-	gadgetLayout.Structure = append(gadgetLayout.Structure, gadget.VolumeStructure{Type: "foo"})
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	gadgetLayout.Volume.Structure = append(gadgetLayout.Volume.Structure, gadget.VolumeStructure{Type: "foo"})
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
-	gadgetLayout.Structure = gadgetLayout.Structure[:len(gadgetLayout.Structure)-1]
+	gadgetLayout.Volume.Structure = gadgetLayout.Volume.Structure[:len(gadgetLayout.Volume.Structure)-1]
 
 	// if we make the partition not the last partition, then it is not
 	deviceLayout.Structure[2].DiskIndex = 1
-	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, deviceLayout.Structure[2])
+	matches = gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, deviceLayout.Structure[2])
 	c.Assert(matches, Equals, false)
 }
 
@@ -3443,7 +3443,7 @@ func (s *gadgetYamlTestSuite) TestOnDiskStructureIsLikelyImplicitSystemDataRoleU
 	// none of the structures are implicit because we have an explicit
 	// system-data role
 	for _, volStruct := range deviceLayout.Structure {
-		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout, &deviceLayout, volStruct)
+		matches := gadget.OnDiskStructureIsLikelyImplicitSystemDataRole(gadgetLayout.Volume, &deviceLayout, volStruct)
 		c.Assert(matches, Equals, false)
 	}
 }
