@@ -1326,6 +1326,29 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
+func FindBootVolume(vols map[string]*Volume) (*Volume, error) {
+	// find the volume with the system-boot role on it, we already validated
+	// that the system-* roles are all on the same volume
+	var bootVol *Volume
+	for _, vol := range vols {
+		// check if this volume is the boot volume using the system-boot role
+		for _, structure := range vol.Structure {
+			if structure.Role == SystemBoot {
+				if bootVol != nil {
+					// this should be impossible,
+					// the validation above should
+					// ensure there are not
+					// multiple volumes with the
+					// same role on them
+					return nil, fmt.Errorf("gadget has duplicated system-boot roles across multiple volumes")
+				}
+				bootVol = vol
+			}
+		}
+	}
+	return bootVol, nil
+}
+
 // LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
 // on all volumes as specified. It returns the specific volume on which system-*
 // roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
