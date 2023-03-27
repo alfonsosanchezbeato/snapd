@@ -826,6 +826,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 								Target:           ".",
 							},
 						},
+						YamlIndex: 0,
 					},
 					{
 						VolumeName: "frobinator-image",
@@ -836,6 +837,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						Type:       "83",
 						Filesystem: "ext4",
 						Size:       mustParseGadgetSize(c, "380M"),
+						YamlIndex:  1,
 					},
 				},
 			},
@@ -3934,5 +3936,57 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 	} {
 		c.Logf("test min size for %s", tc.gadgetYaml)
 		s.testVolumeMinSize(c, tc.gadgetYaml, tc.volsSizes)
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestOrderStructuresByOffset(c *C) {
+	for _, tc := range []struct {
+		unordered   []gadget.VolumeStructure
+		ordered     []gadget.VolumeStructure
+		description string
+	}{
+		{
+			unordered: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(100)},
+				{Offset: asOffsetPtr(0)},
+				{Offset: nil},
+				{Offset: asOffsetPtr(50)},
+			},
+			ordered: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0)},
+				{Offset: nil},
+				{Offset: asOffsetPtr(50)},
+				{Offset: asOffsetPtr(100)},
+			},
+			description: "test one",
+		},
+		{
+			unordered:   []gadget.VolumeStructure{},
+			ordered:     []gadget.VolumeStructure{},
+			description: "test two",
+		},
+		{
+			unordered: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(300)},
+				{Offset: nil, Name: "nil1"},
+				{Offset: asOffsetPtr(1)},
+				{Offset: asOffsetPtr(100)},
+				{Offset: nil, Name: "nil2"},
+				{Offset: nil, Name: "nil3"},
+			},
+			ordered: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(1)},
+				{Offset: asOffsetPtr(100)},
+				{Offset: nil, Name: "nil2"},
+				{Offset: nil, Name: "nil3"},
+				{Offset: asOffsetPtr(300)},
+				{Offset: nil, Name: "nil1"},
+			},
+			description: "test three",
+		},
+	} {
+		c.Logf("testing order structures: %s", tc.description)
+		ordered := gadget.OrderStructuresByOffset(tc.unordered)
+		c.Check(ordered, DeepEquals, tc.ordered)
 	}
 }

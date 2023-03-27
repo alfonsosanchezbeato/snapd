@@ -192,6 +192,9 @@ type VolumeStructure struct {
 	// and just used as part of the POST /systems/<label> API that
 	// is used by an installer.
 	Device string `yaml:"-" json:"device,omitempty"`
+
+	// Index of the structure definition in gadget YAML, note this starts at 0.
+	YamlIndex int `yaml:"-" json:"-"`
 }
 
 // IsRoleMBR tells us if v has MBR role or not.
@@ -579,6 +582,62 @@ func compatWithPibootOrIndeterminate(m Model) bool {
 	return m == nil || m.Grade() != asserts.ModelGradeUnset
 }
 
+// Ancillary structs to sort structures
+type contiguousStructs struct {
+	// vss contains contiguous structures with the first one
+	// containing a valid Offset
+	vss []VolumeStructure
+}
+
+type setContigStructs []*contiguousStructs
+
+func (scss setContigStructs) Len() int {
+	return len(scss)
+}
+
+func (scss setContigStructs) Less(i, j int) bool {
+	return *scss[i].vss[0].Offset < *scss[j].vss[0].Offset
+}
+
+func (scss setContigStructs) Swap(i, j int) {
+	scss[i], scss[j] = scss[j], scss[i]
+}
+
+func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
+	if vss == nil {
+		return nil
+	}
+
+	// Build contiguous structures
+	scss := setContigStructs{}
+	var currentCont *contiguousStructs
+	for _, s := range vss {
+		// If offset we can start a new "block", otherwise the structure
+		// goes right after the latest structure of the current block.
+		// Note that currentCont will never be accessed as nil as
+		// necessarily the first structure in gadget.yaml will have
+		// offset explicitly or implicitly (the only way for a structure
+		// to have nil offset is when the structure previously defined
+		// in the gadget has min-size set and the current one has no
+		// explicit offset).
+		if s.Offset != nil {
+			currentCont = &contiguousStructs{}
+			scss = append(scss, currentCont)
+		}
+
+		currentCont.vss = append(currentCont.vss, s)
+	}
+
+	sort.Sort(scss)
+
+	// Build plain list of structures now
+	ordVss := []VolumeStructure{}
+	for _, cs := range scss {
+		ordVss = append(ordVss, cs.vss...)
+	}
+	return ordVss
+}
+
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
@@ -637,6 +696,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
+
+		v.Structure = orderStructuresByOffset(v.Structure)
 
 		switch v.Bootloader {
 		case "":
@@ -702,6 +763,8 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
+		// Store index as we will reorder later
+		vol.Structure[i].YamlIndex = i
 
 		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
