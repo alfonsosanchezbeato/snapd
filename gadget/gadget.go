@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -223,6 +224,41 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 // device.
 func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
+}
+
+// IsValidStartOffset returns true if the input offset is valid for the structure.
+func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) bool {
+	// Check against offset if it is fixed.
+	if vss[idx].Offset != nil {
+		return off == *vss[idx].Offset
+	}
+
+	// We need to find the valid interval
+	// Move up for minimum
+	min := quantity.Offset(0)
+	othersSz := quantity.Size(0)
+	for i := idx - 1; i >= 0; i-- {
+		othersSz += vss[i].MinimumSize()
+		if vss[i].Offset != nil {
+			min = *vss[i].Offset + quantity.Offset(othersSz)
+			break
+		}
+	}
+	// and down for maximum
+	max := quantity.Offset(math.MaxUint64)
+	downSz := quantity.Size(0)
+	for i := idx; i < len(vss); i++ {
+		downSz += vss[i].MinimumSize()
+		if vss[i].Offset != nil {
+			max = *vss[i].Offset - quantity.Offset(downSz)
+			break
+		}
+	}
+
+	if min <= off && off < max {
+		return true
+	}
+	return false
 }
 
 // VolumeContent defines the contents of the structure. The content can be
