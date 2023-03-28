@@ -131,14 +131,15 @@ type Volume struct {
 	Name string `json:"-"`
 }
 
-// MinSize returns the minimal size required by a volume, as implicitly
-// defined by the size structures.
+// MinSize returns the minimum size required by a volume, as implicitly
+// defined by the size structures. It assumes sorted structures.
 func (v *Volume) MinSize() quantity.Size {
 	endVol := quantity.Offset(0)
 	for _, s := range v.Structure {
-		structEnd := *s.Offset + quantity.Offset(s.Size)
-		if structEnd > endVol {
-			endVol = structEnd
+		if s.Offset != nil {
+			endVol = *s.Offset + quantity.Offset(s.MinimumSize())
+		} else {
+			endVol += quantity.Offset(s.MinimumSize())
 		}
 	}
 
@@ -163,8 +164,10 @@ type VolumeStructure struct {
 	// the offset of current structure will be written. The position may be
 	// specified as a byte offset relative to the start of a named structure
 	OffsetWrite *RelativeOffset `yaml:"offset-write" json:"offset-write"`
-	// Size of the structure
+	// Size of the structure. Size and MinSize are mutually excluyent.
 	Size quantity.Size `yaml:"size" json:"size"`
+	// Minimum size of the structure
+	MinSize quantity.Size `yaml:"min-size" json:"min-size"`
 	// Type of the structure, which can be 2-hex digit MBR partition,
 	// 36-char GUID partition, comma separated <mbr>,<guid> for hybrid
 	// partitioning schemes, or 'bare' when the structure is not considered
@@ -200,6 +203,15 @@ type VolumeStructure struct {
 // IsRoleMBR tells us if v has MBR role or not.
 func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
+}
+
+// MinimumSize returns the minimum structure size, which is either size or
+// min-size (only one can be defined in the gadget).
+func (v *VolumeStructure) MinimumSize() quantity.Size {
+	if v.Size != 0 {
+		return v.Size
+	}
+	return v.MinSize
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
@@ -694,11 +706,11 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
+		v.Structure = orderStructuresByOffset(v.Structure)
+
 		if err := validateVolume(v); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
-
-		v.Structure = orderStructuresByOffset(v.Structure)
 
 		switch v.Bootloader {
 		case "":
@@ -742,6 +754,10 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
+func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
+	return &offs
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
@@ -760,7 +776,7 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		}
 	}
 
-	previousEnd := quantity.Offset(0)
+	previousEnd := asOffsetPtr(0)
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
 		vol.Structure[i].VolumeName = vol.Name
@@ -772,18 +788,26 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 			return err
 		}
 
-		// set offset if it was not set (must be after setImplicitForVolumeStructure
-		// so roles are good).
-		if vol.Structure[i].Offset == nil {
+		// Set offset if it was not set (must be after setImplicitForVolumeStructure
+		// so roles are good). This is possible only if the previous structure had
+		// a well-defined end.
+		if vol.Structure[i].Offset == nil && previousEnd != nil {
 			var start quantity.Offset
-			if vol.Structure[i].Role != schemaMBR && previousEnd < NonMBRStartOffset {
+			if vol.Structure[i].Role != schemaMBR && *previousEnd < NonMBRStartOffset {
 				start = NonMBRStartOffset
 			} else {
-				start = previousEnd
+				start = *previousEnd
 			}
 			vol.Structure[i].Offset = &start
 		}
-		previousEnd = *vol.Structure[i].Offset + quantity.Offset(vol.Structure[i].Size)
+		// We know the end of the structure only if we could define an offset
+		// and the size is fixed.
+		if vol.Structure[i].Offset != nil && vol.Structure[i].Size != 0 {
+			previousEnd = asOffsetPtr(*vol.Structure[i].Offset +
+				quantity.Offset(vol.Structure[i].Size))
+		} else {
+			previousEnd = nil
+		}
 	}
 
 	return nil
@@ -904,12 +928,6 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-type byStructureOffset []VolumeStructure
-
-func (b byStructureOffset) Len() int           { return len(b) }
-func (b byStructureOffset) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byStructureOffset) Less(i, j int) bool { return *(b[i].Offset) < *(b[j].Offset) }
-
 func validateVolume(vol *Volume) error {
 	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
@@ -920,8 +938,6 @@ func validateVolume(vol *Volume) error {
 
 	// named structures, for cross-referencing relative offset-write names
 	knownStructures := make(map[string]*VolumeStructure, len(vol.Structure))
-	// for validating structure overlap
-	structures := make([]VolumeStructure, len(vol.Structure))
 
 	// TODO: should we also validate that if there is a system-recovery-select
 	// role there should also be at least 2 system-recovery-image roles and
@@ -931,7 +947,7 @@ func validateVolume(vol *Volume) error {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)
 		}
 
-		if vol.Schema == schemaGPT {
+		if vol.Schema == schemaGPT && s.Offset != nil {
 			// If the block size is 512, the First Usable LBA must be greater than or equal to
 			// 34 (allowing 1 block for the Protective MBR, 1 block for the Partition Table
 			// Header, and 32 blocks for the GPT Partition Entry Array); if the logical block
@@ -947,7 +963,7 @@ func validateVolume(vol *Volume) error {
 			// is some data in the union - intersection of the described GPT segments, which
 			// might be fine but is suspicious.
 			start := *s.Offset
-			end := start + quantity.Offset(s.Size)
+			end := start + quantity.Offset(s.MinimumSize())
 			if start < 512*34 && end > 4096 {
 				return fmt.Errorf("invalid structure: GPT header or GPT partition table overlapped with structure %q\n", s.Name)
 			} else if start < 4096*6 && end > 512 {
@@ -955,20 +971,16 @@ func validateVolume(vol *Volume) error {
 			}
 		}
 
-		structures[idx] = vol.Structure[idx]
 		if s.Name != "" {
 			if _, ok := knownStructures[s.Name]; ok {
 				return fmt.Errorf("structure name %q is not unique", s.Name)
 			}
 			// keep track of named structures
-			knownStructures[s.Name] = &structures[idx]
+			knownStructures[s.Name] = &vol.Structure[idx]
 		}
 	}
 
-	// sort by starting offset
-	sort.Sort(byStructureOffset(structures))
-
-	return validateCrossVolumeStructure(structures, knownStructures)
+	return validateCrossVolumeStructure(vol.Structure, knownStructures)
 }
 
 // isMBR returns whether the structure is the MBR and can be used before setImplicitForVolume
@@ -1003,11 +1015,16 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 			}
 		}
 
-		if *(ps.Offset) < previousEnd {
-			previous := structures[pidx-1]
-			return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, previous.Name)
+		// We are assuming ordered structures
+		if ps.Offset != nil {
+			if *(ps.Offset) < previousEnd {
+				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, structures[pidx-1].Name)
+			}
+			previousEnd = *(ps.Offset) + quantity.Offset(ps.MinimumSize())
+		} else {
+			previousEnd += quantity.Offset(ps.MinimumSize())
+
 		}
-		previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 
 		if ps.HasFilesystem() {
 			// content relative offset only possible if it's a bare structure
@@ -1028,8 +1045,8 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if vs.Size == 0 {
-		return errors.New("missing size")
+	if vs.Size == 0 && vs.MinSize == 0 {
+		return errors.New("missing size and min-size")
 	}
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
@@ -1153,7 +1170,7 @@ func validateRole(vs *VolumeStructure) error {
 		// roles have cross dependencies, consistency checks are done at
 		// the volume level
 	case schemaMBR:
-		if vs.Size > SizeMBR {
+		if vs.MinimumSize() > SizeMBR {
 			return errors.New("mbr structures cannot be larger than 446 bytes")
 		}
 		if vs.Offset != nil && *vs.Offset != 0 {

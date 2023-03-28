@@ -296,6 +296,57 @@ volumes:
         size: 1G
 `)
 
+var gadgetYamlMinSizePC = []byte(`
+volumes:
+  pc:
+    # bootloader configuration is shipped and managed by snapd
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+        update:
+          edition: 1
+        content:
+          - image: pc-boot.img
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        # UEFI will boot the ESP partition by default first
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1200M
+        update:
+          edition: 2
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-boot
+        role: system-boot
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        # whats the appropriate size?
+        min-size: 750M
+        update:
+          edition: 1
+        content:
+          - source: grubx64.efi
+            target: EFI/boot/grubx64.efi
+          - source: shim.efi.signed
+            target: EFI/boot/bootx64.efi
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 16M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 1G
+`)
+
 var gadgetYamlClassicWithModes = []byte(`
 volumes:
   pc:
@@ -1644,19 +1695,27 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 		Type:   "bare",
 		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
 	}, gv)
-	c.Check(err, ErrorMatches, "missing size")
+	c.Check(err, ErrorMatches, "missing size and min-size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
 	}, gv)
-	c.Check(err, ErrorMatches, "missing size")
+	c.Check(err, ErrorMatches, "missing size and min-size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
 		Type:       "21686148-6449-6E6F-744E-656564454649",
 		Filesystem: "vfat",
 		Size:       mustParseGadgetSize(c, "123M"),
+		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+	}, gv)
+	c.Check(err, IsNil)
+
+	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
+		Type:       "21686148-6449-6E6F-744E-656564454649",
+		Filesystem: "vfat",
+		MinSize:    mustParseGadgetSize(c, "123M"),
 		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
 	}, gv)
 	c.Check(err, IsNil)
@@ -1710,6 +1769,31 @@ volumes:
 
 	_, err = gadget.ReadInfo(s.dir, nil)
 	c.Check(err, ErrorMatches, `invalid volume "pc": structure "overlaps-with-foo" overlaps with the preceding structure "foo"`)
+}
+
+func (s *gadgetYamlTestSuite) TestValidateLayoutOverlapWithMinSize(c *C) {
+	overlappingGadgetYaml := `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: p1
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 2M
+      - name: p2
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        min-size: 2M
+      - name: p3
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 3M
+`
+	err := ioutil.WriteFile(s.gadgetYamlPath, []byte(overlappingGadgetYaml), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = gadget.ReadInfo(s.dir, nil)
+	c.Check(err, ErrorMatches, `invalid volume "pc": structure "p3" overlaps with the preceding structure "p2"`)
 }
 
 func (s *gadgetYamlTestSuite) TestValidateCrossStructureMBRFixedOffset(c *C) {
@@ -2075,6 +2159,10 @@ volumes:
 		{"pc", "ubuntu-boot", gadgetYamlUC20PC, "ubuntu-boot"},
 		{"pc", "ubuntu-data", gadgetYamlUC20PC, "ubuntu-data"},
 		{"pc", "ubuntu-save", gadgetYamlUC20PC, "ubuntu-save"},
+		{"pc", "ubuntu-seed", gadgetYamlMinSizePC, "ubuntu-seed"},
+		{"pc", "ubuntu-boot", gadgetYamlMinSizePC, "ubuntu-boot"},
+		{"pc", "ubuntu-data", gadgetYamlMinSizePC, "ubuntu-data"},
+		{"pc", "ubuntu-save", gadgetYamlMinSizePC, "ubuntu-save"},
 	}
 
 	for _, t := range tests {
@@ -3771,7 +3859,7 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoVolumeStructureInternalFieldsNoJSON(
 	b, err := json.Marshal(volS)
 	c.Assert(err, IsNil)
 	// ensure the json looks json-ish
-	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
+	c.Check(string(b), Equals, `{"name":"pc","filesystem-label":"ubuntu-seed","offset":123,"offset-write":{"relative-to":"mbr","offset":92},"size":888,"min-size":0,"type":"0C","role":"system-seed","id":"gpt-id","filesystem":"vfat","content":[{"source":"source","target":"some-target","image":"image","offset":12,"offset-write":{"relative-to":"mbr","offset":192},"size":321,"unpack":true}],"update":{"edition":2,"preserve":["foo"]}}`)
 
 	// check that the new structure has no volumeName
 	var newVolS *gadget.VolumeStructure
@@ -3931,6 +4019,12 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 			gadgetYaml: gadgetYamlUC20PC,
 			volsSizes: map[string]quantity.Size{
 				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+			},
+		},
+		{
+			gadgetYaml: gadgetYamlMinSizePC,
+			volsSizes: map[string]quantity.Size{
+				"pc": (1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
 			},
 		},
 	} {
