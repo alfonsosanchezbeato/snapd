@@ -395,6 +395,7 @@ func (cs *clientSuite) TestRequestSystemInstallHappy(c *check.C) {
 						"name":             "vol-name",
 						"id":               "id",
 						"size":             float64(1234),
+						"min-size":         float64(0),
 						"type":             "type",
 						"filesystem":       "fs",
 						"role":             "system-boot",
