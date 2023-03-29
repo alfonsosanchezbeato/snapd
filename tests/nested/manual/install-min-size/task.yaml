@@ -1,0 +1,27 @@
+summary: install a system with gadget using min-size
+
+systems: [ubuntu-20.04-64, ubuntu-22.04-64]
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/valid-for-testing-pc-{VERSION}.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+prepare: |
+  VERSION=$(tests.nested show version)
+  snap download --basename=pc --channel="$VERSION/edge" pc
+  unsquashfs -d pc-gadget pc.snap
+  # apply our modified gadget.yaml
+  cp gadget-min-size.yaml pc-gadget/meta/gadget.yaml
+  snap pack --filename=pc_x1.snap pc-gadget
+
+  tests.nested build-image core
+
+execute: |
+  tests.nested create-vm core
+  # Note: image size is hard-coded to 10GB in lib/nested.sh atm
+  # TODO retrieve size of the built image
+
+  remote.exec "sudo snap wait system seed.loaded"
+  # TODO check partition sizes
