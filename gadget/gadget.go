@@ -209,10 +209,10 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 // MinimumSize returns the minimum structure size, which is either size or
 // min-size (only one can be defined in the gadget).
 func (v *VolumeStructure) MinimumSize() quantity.Size {
-	if v.Size != 0 {
-		return v.Size
+	if v.MinSize != 0 {
+		return v.MinSize
 	}
-	return v.MinSize
+	return v.Size
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.
