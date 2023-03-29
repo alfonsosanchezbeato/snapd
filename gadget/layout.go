@@ -206,7 +206,7 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 			Name:        ps.VolumeStructure.Name,
 			Type:        ps.VolumeStructure.Type,
 			StartOffset: offset,
-			Size:        ps.VolumeStructure.Size,
+			Size:        ps.VolumeStructure.MinimumSize(),
 		}
 
 		offset += quantity.Offset(volume.Structure[idx].MinimumSize())
@@ -220,7 +220,7 @@ func layoutVolumeStructures(volume *Volume) (structures []LaidOutStructure, byNa
 		if ps.StartOffset < previousEnd {
 			return nil, nil, fmt.Errorf("cannot lay out volume, structure %v overlaps with preceding structure %v", ps, structures[idx-1])
 		}
-		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size)
+		previousEnd = ps.StartOffset + quantity.Offset(ps.VolumeStructure.MinimumSize())
 
 		offsetWrite, err := resolveOffsetWrite(ps.VolumeStructure.OffsetWrite, byName)
 		if err != nil {
@@ -296,7 +296,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		if ps.AbsoluteOffsetWrite != nil && *ps.AbsoluteOffsetWrite > fartherstOffsetWrite {
 			fartherstOffsetWrite = *ps.AbsoluteOffsetWrite
 		}
-		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.Size); end > farthestEnd {
+		if end := ps.StartOffset + quantity.Offset(ps.VolumeStructure.MinimumSize()); end > farthestEnd {
 			farthestEnd = end
 		}
 
@@ -497,7 +497,7 @@ func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, known ma
 			AbsoluteOffsetWrite: offsetWrite,
 		}
 		previousEnd = start + quantity.Offset(actualSize)
-		if quantity.Size(previousEnd) > ps.VolumeStructure.Size {
+		if quantity.Size(previousEnd) > ps.VolumeStructure.MinimumSize() {
 			return nil, fmt.Errorf("cannot lay out structure %v: content %q does not fit in the structure", ps, c.Image)
 		}
 	}
