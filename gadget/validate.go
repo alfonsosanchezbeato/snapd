@@ -352,14 +352,14 @@ func splitKernelRef(kernelRef string) (asset, content string, err error) {
 	return asset, content, nil
 }
 
-func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume) error {
+func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *Volume) error {
 	// bare structure content is checked to exist during layout
 	// make sure that filesystem content source paths exist as well
-	for _, s := range vol.LaidOutStructure {
+	for _, s := range vol.Structure {
 		if !s.HasFilesystem() {
 			continue
 		}
-		for _, c := range s.VolumeStructure.Content {
+		for _, c := range s.Content {
 			// TODO: detect and skip Content with "$kernel:" style
 			// refs if there is no kernelSnapRootDir passed in as
 			// well
@@ -373,12 +373,12 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			}
 			realSource := filepath.Join(gadgetSnapRootDir, c.UnresolvedSource)
 			if !osutil.FileExists(realSource) {
-				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
+				return fmt.Errorf("structure #%d (%q), content %v: source path does not exist", s.YamlIndex, s.Name, c)
 			}
 			if strings.HasSuffix(c.UnresolvedSource, "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
-					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
+					return fmt.Errorf("structure #%d (%q), content %v: %v", s.YamlIndex, s.Name, c, err)
 				}
 			}
 		}
@@ -403,11 +403,12 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		if kernelSnapRootDir == "" {
 			opts.SkipResolveContent = true
 		}
-		lv, err := LayoutVolume(vol, opts)
+		// By calling layout we validate image file presence and other bits
+		_, err := LayoutVolume(vol, opts)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
-		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
+		if err := validateVolumeContentsPresence(gadgetSnapRootDir, vol); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
