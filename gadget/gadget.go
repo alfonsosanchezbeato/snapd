@@ -582,24 +582,25 @@ func compatWithPibootOrIndeterminate(m Model) bool {
 	return m == nil || m.Grade() != asserts.ModelGradeUnset
 }
 
-// Ancillary structs to sort structures
+// Ancillary structs to sort volume structures. Each volume structure belong to
+// its own contiguousStructs unless its offset is made unknown by min-size use.
 type contiguousStructs struct {
 	// vss contains contiguous structures with the first one
 	// containing a valid Offset
 	vss []VolumeStructure
 }
 
-type setContigStructs []*contiguousStructs
+type contiguousStructsSet []*contiguousStructs
 
-func (scss setContigStructs) Len() int {
+func (scss contiguousStructsSet) Len() int {
 	return len(scss)
 }
 
-func (scss setContigStructs) Less(i, j int) bool {
+func (scss contiguousStructsSet) Less(i, j int) bool {
 	return *scss[i].vss[0].Offset < *scss[j].vss[0].Offset
 }
 
-func (scss setContigStructs) Swap(i, j int) {
+func (scss contiguousStructsSet) Swap(i, j int) {
 	scss[i], scss[j] = scss[j], scss[i]
 }
 
@@ -609,17 +610,17 @@ func orderStructuresByOffset(vss []VolumeStructure) []VolumeStructure {
 	}
 
 	// Build contiguous structures
-	scss := setContigStructs{}
+	scss := contiguousStructsSet{}
 	var currentCont *contiguousStructs
 	for _, s := range vss {
-		// If offset we can start a new "block", otherwise the structure
-		// goes right after the latest structure of the current block.
-		// Note that currentCont will never be accessed as nil as
-		// necessarily the first structure in gadget.yaml will have
-		// offset explicitly or implicitly (the only way for a structure
-		// to have nil offset is when the structure previously defined
-		// in the gadget has min-size set and the current one has no
-		// explicit offset).
+		// If offset is set we can start a new "block", otherwise the
+		// structure goes right after the latest structure of the
+		// current block. Note that currentCont will never be accessed
+		// as nil as necessarily the first structure in gadget.yaml will
+		// have offset explicitly or implicitly (the only way for a
+		// structure to have nil offset is when the current structure
+		// does not have explicit offset and the previous one either
+		// does not have itself offset or has min-size set).
 		if s.Offset != nil {
 			currentCont = &contiguousStructs{}
 			scss = append(scss, currentCont)

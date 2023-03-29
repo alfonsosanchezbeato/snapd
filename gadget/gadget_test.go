@@ -3990,3 +3990,69 @@ func (s *gadgetYamlTestSuite) TestOrderStructuresByOffset(c *C) {
 		c.Check(ordered, DeepEquals, tc.ordered)
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestGadgetUnorderedStructures(c *C) {
+	var unorderedYaml = []byte(`
+volumes:
+  unordered:
+    bootloader: u-boot
+    schema: gpt
+    structure:
+      - name: ubuntu-seed
+        filesystem: ext4
+        size: 499M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-seed
+      - name: ubuntu-save
+        size: 100M
+        offset: 700M
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-save
+      - name: ubuntu-boot
+        filesystem: ext4
+        size: 100M
+        offset: 500M
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-boot
+      - name: other1
+        size: 100M
+        type: bare
+      - name: ubuntu-data
+        filesystem: ext4
+        offset: 800M
+        size: 1G
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        role: system-data
+`)
+
+	// TODO add more tests when min-size is introduced
+	tests := []struct {
+		yaml         []byte
+		orderedNames []string
+		info         string
+	}{
+		{
+			yaml: unorderedYaml,
+			orderedNames: []string{"ubuntu-seed", "ubuntu-boot",
+				"other1", "ubuntu-save", "ubuntu-data"},
+			info: "test one",
+		},
+	}
+	for _, tc := range tests {
+		c.Logf("tc: %s", tc.info)
+		giMeta, err := gadget.InfoFromGadgetYaml(tc.yaml, nil)
+		c.Assert(err, IsNil)
+		c.Assert(len(giMeta.Volumes), Equals, 1)
+
+		var vol *gadget.Volume
+		for vn := range giMeta.Volumes {
+			vol = giMeta.Volumes[vn]
+		}
+		names := []string{}
+		for _, s := range vol.Structure {
+			names = append(names, s.Name)
+		}
+		c.Check(names, DeepEquals, tc.orderedNames)
+	}
+}
