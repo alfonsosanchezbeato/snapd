@@ -2849,11 +2849,17 @@ func (u *updateTestSuite) policyDataSet(c *C) (oldData gadget.GadgetData, newDat
 	u.AddCleanup(r)
 
 	oldVol := oldData.Info.Volumes["foo"]
-	oldVol.Structure = append(oldVol.Structure, noPartitionStruct, mbrStruct)
+	oldStructs := oldVol.Structure
+	oldVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	oldVol.Structure = append(oldVol.Structure, oldStructs...)
+	oldVol.Structure = append(oldVol.Structure, noPartitionStruct)
 	oldData.Info.Volumes["foo"] = oldVol
 
 	newVol := newData.Info.Volumes["foo"]
-	newVol.Structure = append(newVol.Structure, noPartitionStruct, mbrStruct)
+	newStructs := newVol.Structure
+	newVol.Structure = []gadget.VolumeStructure{mbrStruct}
+	newVol.Structure = append(newVol.Structure, newStructs...)
+	newVol.Structure = append(newVol.Structure, noPartitionStruct)
 	newData.Info.Volumes["foo"] = newVol
 
 	c.Assert(oldData.Info.Volumes["foo"].Structure, HasLen, 5)
