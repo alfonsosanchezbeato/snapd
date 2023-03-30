@@ -3098,7 +3098,7 @@ func (s *gadgetYamlTestSuite) TestMBRLayoutCompatibility(c *C) {
 		},
 	)
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayoutWithExtras, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node4 \(starting at 1260388352\) in gadget: start offsets do not match \(disk: 1260388352 \(1.17 GiB\) and gadget: 2097152 \(2 MiB\)\)`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node4 (starting at 1260388352) in gadget: start offset not in the valid interval (disk: 1260388352 (1.17 GiB) and gadget: min: 2097152 (2 MiB): max: 2097152 (2 MiB))`)
 }
 
 func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C) {
@@ -3163,7 +3163,7 @@ func (s *gadgetYamlTestSuite) TestLayoutCompatibilityWithCreatedPartitions(c *C)
 
 	// now we fail because the gadget says it should be smaller and it can't be expanded
 	err = gadget.EnsureVolumeCompatibility(gadgetVolumeWithExtras, &deviceLayout, nil)
-	c.Assert(err, ErrorMatches, `cannot find disk partition /dev/node2 \(starting at 2097152\) in gadget: on disk size 1258291200 \(1.17 GiB\) is larger than gadget size 1048576 \(1 MiB\) \(and the role should not be expanded\)`)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 1258291200 (1.17 GiB) is not in the valid interval defined by the gadget: min: 1048576 (1 MiB) max: 1048576 (1 MiB)`)
 
 	// but a smaller partition on disk for SystemData role is okay
 	gadgetVolumeWithExtras.Structure[len(gadgetVolumeWithExtras.Structure)-1].Role = gadget.SystemData

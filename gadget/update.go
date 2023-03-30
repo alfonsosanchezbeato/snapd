@@ -320,7 +320,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	if opts == nil {
 		opts = &VolumeCompatibilityOptions{}
 	}
-	eq := func(ds *OnDiskStructure, gv *VolumeStructure) (bool, string) {
+	eq := func(ds *OnDiskStructure, vss []VolumeStructure, idx int) (bool, string) {
+		gv := &vss[idx]
 		// name mismatch
 		if gv.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
@@ -331,30 +332,34 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if ds.StartOffset != *gv.Offset {
-			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))",
-				ds.StartOffset, ds.StartOffset.IECString(),
-				*gv.Offset, gv.Offset.IECString())
-		}
-
-		switch {
-		// on disk size too small
-		case ds.Size < gv.Size:
-			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget size %d (%s)",
-				ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
-
-		// on disk size too large
-		case ds.Size > gv.Size:
-			// larger on disk size is allowed specifically only for system-data
-			if gv.Role != SystemData {
-				return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
-					ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
+		if !IsValidStartOffset(ds.StartOffset, vss, idx) {
+			sOffMin := MinStructureOffset(vss, idx)
+			sOffMax := MaxStructureOffset(vss, idx)
+			maxDesc := "unbounded"
+			if sOffMax != UnboundedStructureOffset {
+				maxDesc = fmt.Sprintf("%d (%s)", sOffMax, sOffMax.IECString())
 			}
+			return false, fmt.Sprintf("start offset not in the valid interval (disk: %d (%s) and gadget: min: %d (%s): max: %s)",
+				ds.StartOffset, ds.StartOffset.IECString(),
+				sOffMin, sOffMin.IECString(), maxDesc)
 		}
 
-		// If we got to this point, the structure on disk has the same name,
-		// size and offset, so the last thing to check is that the filesystem
-		// matches (or that we don't care about the filesystem).
+		if !gv.IsValidSize(ds.Size) {
+			sSzMin := gv.MinimumSize()
+			sSzMax := gv.MaximumSize()
+			maxDesc := "unbounded"
+			if sSzMax != UnboundedStructureSize {
+				maxDesc = fmt.Sprintf("%d (%s)", sSzMax, sSzMax.IECString())
+			}
+			return false, fmt.Sprintf("on disk size %d (%s) is not in the valid interval defined by the gadget: min: %d (%s) max: %s",
+				ds.Size, ds.Size.IECString(),
+				sSzMin, sSzMin.IECString(), maxDesc)
+		}
+
+		// If we got to this point, the structure on disk has the same
+		// name, and compatible size and offset, so the last thing to
+		// check is that the filesystem matches (or that we don't care
+		// about the filesystem).
 
 		// first handle the strict case where this partition was created at
 		// install in case it is an encrypted one
@@ -431,8 +436,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 	gadgetContains := func(haystack []VolumeStructure, needle *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
-		for _, h := range haystack {
-			matches, reasonNotMatches := eq(needle, &h)
+		for structIdx := range haystack {
+			matches, reasonNotMatches := eq(needle, haystack, structIdx)
 			if matches {
 				return true, ""
 			}
@@ -475,10 +480,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(haystack []OnDiskStructure, needle *VolumeStructure) (bool, string) {
+	onDiskContains := func(haystack []OnDiskStructure, vss []VolumeStructure, structIdx int) (bool, string) {
 		reasonAbsent := ""
 		for _, h := range haystack {
-			matches, reasonNotMatches := eq(&h, needle)
+			matches, reasonNotMatches := eq(&h, vss, structIdx)
 			if matches {
 				return true, ""
 			}
@@ -532,12 +537,12 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 	// check all structures in the gadget are present on the disk, or have a
 	// valid excuse for absence (i.e. mbr or creatable structures at install)
-	for _, gs := range gadgetVolume.Structure {
+	for structIdx, gs := range gadgetVolume.Structure {
 		// we ignore reasonAbsent here since if there was an extra on disk
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskVolume.Structure, &gs); present {
+		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, structIdx); present {
 			continue
 		}
 
