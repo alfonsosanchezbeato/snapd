@@ -90,6 +90,9 @@ const (
 	// only supported for legacy reasons
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
+
+	// UnboundedStructureOffset is the maximum effective offset that we can handle
+	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
 )
 
 var (
@@ -226,15 +229,11 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
-// IsValidStartOffset returns true if the input offset is valid for the structure.
-func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) bool {
-	// Check against offset if it is fixed.
+func MinStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	if vss[idx].Offset != nil {
-		return off == *vss[idx].Offset
+		return *vss[idx].Offset
 	}
-
-	// We need to find the valid interval
-	// Move up for minimum
+	// Move up in the slice for minimum
 	min := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
@@ -244,18 +243,29 @@ func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) boo
 			break
 		}
 	}
-	// and down for maximum
-	max := quantity.Offset(math.MaxUint64)
+	return min
+}
+
+func MaxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+	if vss[idx].Offset != nil {
+		return *vss[idx].Offset
+	}
+	// Move down in the slice for maximum
+	max := UnboundedStructureOffset
 	downSz := quantity.Size(0)
 	for i := idx; i < len(vss); i++ {
-		downSz += vss[i].MinimumSize()
 		if vss[i].Offset != nil {
 			max = *vss[i].Offset - quantity.Offset(downSz)
 			break
 		}
+		downSz += vss[i].MinimumSize()
 	}
+	return max
+}
 
-	if min <= off && off < max {
+// IsValidStartOffset returns true if the input offset is valid for the structure.
+func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) bool {
+	if MinStructureOffset(vss, idx) <= off && off <= MaxStructureOffset(vss, idx) {
 		return true
 	}
 	return false

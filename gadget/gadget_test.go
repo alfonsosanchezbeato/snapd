@@ -4156,3 +4156,69 @@ volumes:
 		c.Check(names, DeepEquals, tc.orderedNames)
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
+	type validOffsetTc struct {
+		structIdx int
+		offset    quantity.Offset
+		isValid   bool
+	}
+	for _, tc := range []struct {
+		vss         []gadget.VolumeStructure
+		votcs       []validOffsetTc
+		description string
+	}{
+		{
+			vss: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0), MinSize: 10},
+				{Offset: nil, MinSize: 10},
+				{Offset: nil, MinSize: 10},
+				{Offset: asOffsetPtr(50), Size: 100},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 0, offset: 0, isValid: true},
+				{structIdx: 0, offset: 5, isValid: false},
+				{structIdx: 1, offset: 0, isValid: false},
+				{structIdx: 1, offset: 10, isValid: true},
+				{structIdx: 1, offset: 15, isValid: true},
+				{structIdx: 1, offset: 30, isValid: true},
+				{structIdx: 1, offset: 31, isValid: false},
+				{structIdx: 1, offset: gadget.UnboundedStructureOffset, isValid: false},
+				{structIdx: 2, offset: 10, isValid: false},
+				{structIdx: 2, offset: 20, isValid: true},
+				{structIdx: 2, offset: 30, isValid: true},
+				{structIdx: 2, offset: 40, isValid: true},
+				{structIdx: 2, offset: 41, isValid: false},
+				{structIdx: 2, offset: gadget.UnboundedStructureOffset, isValid: false},
+				{structIdx: 3, offset: 49, isValid: false},
+				{structIdx: 3, offset: 50, isValid: true},
+				{structIdx: 3, offset: 51, isValid: false},
+			},
+			description: "test one",
+		},
+		{
+			vss: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0), MinSize: 10},
+				{Offset: nil, MinSize: 10},
+				{Offset: nil, MinSize: 10},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 0, offset: 0, isValid: true},
+				{structIdx: 0, offset: 1, isValid: false},
+				{structIdx: 1, offset: 9, isValid: false},
+				{structIdx: 1, offset: 10, isValid: true},
+				{structIdx: 1, offset: gadget.UnboundedStructureOffset, isValid: true},
+				{structIdx: 2, offset: 19, isValid: false},
+				{structIdx: 2, offset: 20, isValid: true},
+				{structIdx: 2, offset: gadget.UnboundedStructureOffset, isValid: true},
+			},
+			description: "test two",
+		},
+	} {
+		for _, votc := range tc.votcs {
+			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
+			c.Check(gadget.IsValidStartOffset(votc.offset, tc.vss,
+				votc.structIdx), Equals, votc.isValid)
+		}
+	}
+}
