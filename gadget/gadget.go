@@ -91,8 +91,10 @@ const (
 	legacyBootImage  = "bootimg"
 	legacyBootSelect = "bootselect"
 
-	// UnboundedStructureOffset is the maximum effective offset that we can handle
+	// UnboundedStructureOffset is the maximum effective partition offset that we can handle
 	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
+	// UnboundedStructureSize is the maximum effective partition size that we can handle
+	UnboundedStructureSize = quantity.Size(math.MaxUint64)
 )
 
 var (
@@ -211,11 +213,33 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 
 // MinimumSize returns the minimum structure size, which is either size or
 // min-size (only one can be defined in the gadget).
-func (v *VolumeStructure) MinimumSize() quantity.Size {
-	if v.MinSize != 0 {
-		return v.MinSize
+func (vs *VolumeStructure) MinimumSize() quantity.Size {
+	if vs.MinSize != 0 {
+		return vs.MinSize
 	}
-	return v.Size
+	return vs.Size
+}
+
+// MaximumSize returns the maximum structure size.
+func (vs *VolumeStructure) MaximumSize() quantity.Size {
+	switch {
+	// Historically, for the system-data role Size was equivalent to
+	// MinSize. Keep that behavior if MinSize has not been set for
+	// partitions with this role.
+	case vs.Role == SystemData && vs.MinSize == 0:
+		return UnboundedStructureSize
+	case vs.Size != 0:
+		return vs.Size
+	default:
+		return UnboundedStructureSize
+	}
+}
+
+// IsValidSize says if sz is within the bounds specified by the structure. Note
+// that it does not look at constraints coming from the rest of the gadget
+// structures, so for a full validation IsValidStartOffset must be used as well.
+func (vs *VolumeStructure) IsValidSize(sz quantity.Size) bool {
+	return vs.MinimumSize() <= sz && sz <= vs.MaximumSize()
 }
 
 // HasFilesystem returns true if the structure is using a filesystem.

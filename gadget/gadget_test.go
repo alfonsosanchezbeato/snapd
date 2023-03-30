@@ -4222,3 +4222,56 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		}
 	}
 }
+
+func (s *gadgetYamlTestSuite) TestIsValidSize(c *C) {
+	type validSizeTc struct {
+		size    quantity.Size
+		isValid bool
+	}
+	for _, tc := range []struct {
+		vs          gadget.VolumeStructure
+		vstcs       []validSizeTc
+		description string
+	}{
+		{
+			vs: gadget.VolumeStructure{MinSize: 0},
+			vstcs: []validSizeTc{
+				{0, true}, {quantity.SizeMiB, true},
+			},
+			description: "test one",
+		},
+		{
+			vs: gadget.VolumeStructure{Size: 100},
+			vstcs: []validSizeTc{
+				{99, false}, {100, true}, {101, false},
+			},
+			description: "test one",
+		},
+		{
+			vs: gadget.VolumeStructure{MinSize: 100, Size: 200},
+			vstcs: []validSizeTc{
+				{99, false}, {100, true}, {150, true}, {200, true}, {201, false},
+			},
+			description: "test one",
+		},
+		{
+			vs: gadget.VolumeStructure{Role: gadget.SystemData, Size: 100},
+			vstcs: []validSizeTc{
+				{99, false}, {100, true}, {1000, true},
+			},
+			description: "test one",
+		},
+		{
+			vs: gadget.VolumeStructure{Role: gadget.SystemData, MinSize: 100, Size: 200},
+			vstcs: []validSizeTc{
+				{99, false}, {100, true}, {150, true}, {200, true}, {201, false},
+			},
+			description: "test one",
+		},
+	} {
+		for _, vstc := range tc.vstcs {
+			c.Logf("testing valid size: %s (%+v)", tc.description, vstc)
+			c.Check(tc.vs.IsValidSize(vstc.size), Equals, vstc.isValid)
+		}
+	}
+}
