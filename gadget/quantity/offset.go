@@ -42,7 +42,7 @@ func (o *Offset) String() string {
 // mebibytes), that is as multiples of 1024. Printed values are truncated to 2
 // decimal points.
 func (o *Offset) IECString() string {
-	return iecSizeString(int64(*o))
+	return iecSizeString(uint64(*o))
 }
 
 func (o *Offset) UnmarshalYAML(unmarshal func(interface{}) error) error {

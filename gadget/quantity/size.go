@@ -49,7 +49,7 @@ func (s *Size) String() string {
 // iecSizeString formats the size using multiples from IEC units (i.e.
 // kibibytes, mebibytes), that is as multiples of 1024. Printed values are
 // truncated to 2 decimal points.
-func iecSizeString(sz int64) string {
+func iecSizeString(sz uint64) string {
 	maxFloat := float64(1023.5)
 	r := float64(sz)
 	unit := "B"
@@ -71,7 +71,7 @@ func iecSizeString(sz int64) string {
 // mebibytes), that is as multiples of 1024. Printed values are truncated to 2
 // decimal points.
 func (s Size) IECString() string {
-	return iecSizeString(int64(s))
+	return iecSizeString(uint64(s))
 }
 
 func (s *Size) UnmarshalYAML(unmarshal func(interface{}) error) error {
