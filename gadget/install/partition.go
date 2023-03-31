@@ -84,7 +84,7 @@ func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, 
 // createMissingPartitions creates the partitions listed in the laid out volume
 // pv that are missing from the existing device layout, returning a list of
 // structures that have been created.
-func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.LaidOutStructure, error) {
+func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, gadgetToOnDiskStruct map[*gadget.VolumeStructure]*gadget.OnDiskStructure, opts *CreateOptions) ([]gadget.LaidOutStructure, error) {
 	if opts == nil {
 		opts = &CreateOptions{}
 	}

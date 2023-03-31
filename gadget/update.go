@@ -157,7 +157,7 @@ func searchForVolumeWithTraits(laidOutVol *LaidOutVolume, traits DiskVolumeDevic
 			AllowImplicitSystemData:          validateOpts.AllowImplicitSystemData,
 			ExpectedStructureEncryption:      validateOpts.ExpectedStructureEncryption,
 		}
-		ensureErr := EnsureVolumeCompatibility(laidOutVol.Volume, diskLayout, opts)
+		_, ensureErr := EnsureVolumeCompatibility(laidOutVol.Volume, diskLayout, opts)
 		if ensureErr != nil {
 			logger.Debugf("candidate disk %s not appropriate for volume %s due to incompatibility: %v", candidate.KernelDeviceNode(), vol.Name, ensureErr)
 			return false
@@ -316,7 +316,11 @@ type VolumeCompatibilityOptions struct {
 	ExpectedStructureEncryption map[string]StructureEncryptionParameters
 }
 
-func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, opts *VolumeCompatibilityOptions) error {
+// EnsureVolumeCompatibility checks compatibility between a gadget volume and a
+// real disk. It returns a map of the gadget structures indexes to disk
+// structures that was possible to match.
+func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, opts *VolumeCompatibilityOptions) (map[*VolumeStructure]*OnDiskStructure, error) {
+	gadgetStructIdxToOnDiskStruct := map[*VolumeStructure]*OnDiskStructure{}
 	if opts == nil {
 		opts = &VolumeCompatibilityOptions{}
 	}
@@ -485,6 +489,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		for _, h := range haystack {
 			matches, reasonNotMatches := eq(&h, vss, structIdx)
 			if matches {
+				gadgetStructIdxToOnDiskStruct[&vss[structIdx]] = &h
 				return true, ""
 			}
 			// this has the effect of only returning the last non-empty reason
@@ -499,7 +504,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	// check size of volumes
 	lastUsableByte := quantity.Size(diskVolume.UsableSectorsEnd) * diskVolume.SectorSize
 	if gadgetVolume.MinSize() > lastUsableByte {
-		return fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested minimal size (%s)", diskVolume.Device,
+		return nil, fmt.Errorf("device %v (last usable byte at %s) is too small to fit the requested minimal size (%s)", diskVolume.Device,
 			lastUsableByte.IECString(), gadgetVolume.MinSize().IECString())
 	}
 
@@ -508,7 +513,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	for _, vs := range gadgetVolume.Structure {
 		if !vs.IsRoleMBR() {
 			if vs.Size%diskVolume.SectorSize != 0 {
-				return fmt.Errorf("gadget volume structure %q size is not a multiple of disk sector size %v",
+				return nil, fmt.Errorf("gadget volume structure %q size is not a multiple of disk sector size %v",
 					vs.Name, diskVolume.SectorSize)
 			}
 		}
@@ -516,10 +521,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 	// Check if top level properties match
 	if !isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
-		return fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
+		return nil, fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
 	}
 	if gadgetVolume.ID != "" && gadgetVolume.ID != diskVolume.ID {
-		return fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskVolume.ID, gadgetVolume.ID)
+		return nil, fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskVolume.ID, gadgetVolume.ID)
 	}
 
 	// Check if all existing device partitions are also in gadget
@@ -531,7 +536,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				// appended to the error message
 				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
 			}
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
+			return nil, fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 
@@ -561,7 +566,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			continue
 		}
 
-		return fmt.Errorf("cannot find gadget structure %q on disk", gs.Name)
+		return nil, fmt.Errorf("cannot find gadget structure %q on disk", gs.Name)
 	}
 
 	// finally ensure that all encrypted partitions mentioned in the options are
@@ -576,11 +581,11 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			}
 		}
 		if !found {
-			return fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
+			return nil, fmt.Errorf("expected encrypted structure %s not present in gadget", gadgetLabel)
 		}
 	}
 
-	return nil
+	return gadgetStructIdxToOnDiskStruct, nil
 }
 
 // TODO:ICE: remove this as we only support LUKS (and ICE is a variant of LUKS now)
@@ -638,7 +643,7 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		AllowImplicitSystemData:     opts.AllowImplicitSystemData,
 		ExpectedStructureEncryption: opts.ExpectedStructureEncryption,
 	}
-	if err := EnsureVolumeCompatibility(vol, diskLayout, ensureOpts); err != nil {
+	if _, err := EnsureVolumeCompatibility(vol, diskLayout, ensureOpts); err != nil {
 		return res, fmt.Errorf("volume %s is not compatible with disk %s: %v", vol.Name, dev, err)
 	}
 

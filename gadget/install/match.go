@@ -52,7 +52,7 @@ func findAllOnDiskVolumes() ([]*gadget.OnDiskVolume, error) {
 
 func onDiskMatchesGadgetVolume(dV *gadget.OnDiskVolume, gV *gadget.Volume,
 	opts *gadget.VolumeCompatibilityOptions) bool {
-	if err := gadget.EnsureVolumeCompatibility(gV, dV, opts); err != nil {
+	if _, err := gadget.EnsureVolumeCompatibility(gV, dV, opts); err != nil {
 		logger.Noticef("%q disk is incompatible with gadget volume %q: %v",
 			dV.Device, gV.Name, err)
 		return false
