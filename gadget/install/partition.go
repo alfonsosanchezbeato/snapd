@@ -70,7 +70,8 @@ type CreateOptions struct {
 // OnDiskStructure, as it is meant to be used externally (i.e. by
 // muinstaller).
 func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, opts *CreateOptions) ([]gadget.OnDiskStructure, error) {
-	loStructures, err := createMissingPartitions(dl, pv, opts)
+	// TODO match structures?
+	loStructures, err := createMissingPartitions(dl, pv, nil, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +88,14 @@ func CreateMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, 
 func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, gadgetToOnDiskStruct map[*gadget.VolumeStructure]*gadget.OnDiskStructure, opts *CreateOptions) ([]gadget.LaidOutStructure, error) {
 	if opts == nil {
 		opts = &CreateOptions{}
+	}
+	if gadgetToOnDiskStruct == nil {
+		gadgetToOnDiskStruct = map[*gadget.VolumeStructure]*gadget.OnDiskStructure{}
+	}
+
+	// Set final sizes for partitions
+	if err := setLaidoutOffsetAndSize(dl, pv, gadgetToOnDiskStruct); err != nil {
+		return nil, err
 	}
 
 	buf, created, err := buildPartitionList(dl, pv, opts)
@@ -131,6 +140,134 @@ func createMissingPartitions(dl *gadget.OnDiskVolume, pv *gadget.LaidOutVolume, 
 	}
 
 	return created, nil
+}
+
+func setLaidoutOffsetAndSizeForChunk(chunk []*gadget.LaidOutStructure, begin, end quantity.Offset) error {
+	gap := quantity.Size(end - begin)
+	// Minimum absolute size
+	minChunkSz := quantity.Size(0)
+	for _, los := range chunk {
+		minChunkSz += los.VolumeStructure.MinimumSize()
+	}
+	if minChunkSz > gap {
+		return fmt.Errorf("internal error: unexpected mismatch, disk gap smaller than minimum desrired size (%d < %d)", gap, minChunkSz)
+	}
+	fixedSize := []*gadget.LaidOutStructure{}
+	// Structures that would want more
+	explicitRange := []*gadget.LaidOutStructure{}
+	implicitRange := []*gadget.LaidOutStructure{}
+	var fxSizedSzs, explRangeSzs, explRangeExtra, implRangeMSzs quantity.Size
+	for _, los := range chunk {
+		gs := los.VolumeStructure
+		if gs.MinimumSize() != gs.Size {
+			explicitRange = append(explicitRange, los)
+			explRangeSzs += gs.Size
+			explRangeExtra += gs.Size - gs.MinSize
+		} else if gs.MinSize != 0 && gs.Size == 0 {
+			implicitRange = append(implicitRange, los)
+			implRangeMSzs += gs.Size
+		} else {
+			fixedSize = append(fixedSize, los)
+			fxSizedSzs += gs.Size
+		}
+	}
+
+	// Available space to distribute amongst structures
+	free := gap - minChunkSz
+	// Check if there is enough space for all that were explicit about size
+	if fxSizedSzs+explRangeSzs+implRangeMSzs < gap {
+		// Assign explicit sizes, split remaining among implicits
+		for _, elos := range explicitRange {
+			elos.Size = elos.VolumeStructure.Size
+		}
+		for _, ilos := range implicitRange {
+			gs := ilos.VolumeStructure
+			// Weight according to proportion among min sizes
+			// TODO be careful with arithmetic
+			ilos.Size = gs.MinSize + gs.MinSize*free/implRangeMSzs
+		}
+	} else {
+		// Not enough space for all expectations.
+		// Set implicits to min size, split remaining among explicits
+		for _, ilos := range implicitRange {
+			ilos.Size = ilos.VolumeStructure.MinSize
+		}
+		for _, elos := range explicitRange {
+			gs := elos.VolumeStructure
+			// Weight according to desire extra space (sz-minsz)
+			// TODO be careful with arithmetic
+			elos.Size = gs.MinSize + (gs.Size-gs.MinSize)*free/explRangeExtra
+		}
+	}
+
+	// Finally, assign offsets
+	currOffset := begin
+	for _, los := range chunk {
+		los.StartOffset = currOffset
+		currOffset += quantity.Offset(los.Size)
+	}
+
+	return nil
+}
+
+func setLaidoutOffsetAndSize(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume,
+	gadgetToOnDiskStruct map[*gadget.VolumeStructure]*gadget.OnDiskStructure) error {
+
+	filled := make([]bool, len(lov.LaidOutStructure))
+	for lsi, ls := range lov.LaidOutStructure {
+		if ds := gadgetToOnDiskStruct[ls.VolumeStructure]; ds != nil {
+			ls.StartOffset = ds.StartOffset
+			ls.Size = ds.Size
+			filled[lsi] = true
+		}
+	}
+
+	currOffset := quantity.Offset(0)
+	for lsi := 0; lsi < len(lov.LaidOutStructure); lsi++ {
+		// Invariant: all previous sizes and offsets are well defined
+		ls := &lov.LaidOutStructure[lsi]
+		if filled[lsi] {
+			currOffset = ls.StartOffset + quantity.Offset(ls.Size)
+			continue
+		}
+		gs := ls.VolumeStructure
+		if gs.Offset != nil {
+			ls.StartOffset = *gs.Offset
+		} else {
+			ls.StartOffset = currOffset
+		}
+		// Invariant: offset for current structure is defined
+		if gs.MinimumSize() == gs.Size && gs.Role != gadget.SystemData {
+			ls.Size = gs.Size
+			currOffset = ls.StartOffset + quantity.Offset(ls.Size)
+			continue
+		}
+		// Size not determined, find next fixed offset (might have been
+		// fixed by disk or by gadget) or end of disk
+		chunk := []*gadget.LaidOutStructure{ls}
+		chunkEnd := quantity.Offset(dl.Size)
+		lsi++
+		for ; lsi < len(lov.LaidOutStructure); lsi++ {
+			ls := &lov.LaidOutStructure[lsi]
+			if filled[lsi] {
+				chunkEnd = ls.StartOffset
+				lsi--
+				break
+			}
+			if ls.VolumeStructure.Offset != nil {
+				chunkEnd = *ls.VolumeStructure.Offset
+				lsi--
+				break
+			}
+		}
+		// Now set offset and size for the chunk
+		if err := setLaidoutOffsetAndSizeForChunk(chunk, currOffset, chunkEnd); err != nil {
+			return err
+		}
+		currOffset = chunkEnd
+	}
+
+	return nil
 }
 
 // buildPartitionList builds a list of partitions based on the current
