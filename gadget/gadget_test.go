@@ -3421,6 +3421,118 @@ func (s *gadgetYamlTestSuite) TestIDCompatibility(c *C) {
 	c.Logf("-----")
 }
 
+const mockMinSizeGadgetYaml = `volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: mbr
+        type: mbr
+        size: 440
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+      - name: ubuntu-save
+        role: system-save
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        min-size: 8M
+        size: 98M
+      # Offset could be between 10M and 100M
+      - name: ubuntu-data
+        role: system-data
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 100M
+`
+
+func (s *gadgetYamlTestSuite) TestCompatibilityWithMinSizePartitions(c *C) {
+	var mockDiskVolDataAndSaveParts = gadget.OnDiskVolume{
+		Structure: []gadget.OnDiskStructure{
+			// Note that the first ondisk structure we have is BIOS
+			// Boot, even though in reality the first ondisk
+			// structure is MBR, but the MBR doesn't actually show
+			// up in /dev at all, so we don't ever measure it as
+			// existing on the disk - the code and test accounts for
+			// the MBR structure not being present in the
+			// OnDiskVolume
+			{
+				Node:        "/dev/node1",
+				Name:        "BIOS Boot",
+				Size:        1 * quantity.SizeMiB,
+				StartOffset: 1 * quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node2",
+				Name:             "ubuntu-save",
+				Size:             8 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-save",
+				StartOffset:      2 * quantity.OffsetMiB,
+			},
+			{
+				Node:             "/dev/node3",
+				Name:             "ubuntu-data",
+				Size:             100 * quantity.SizeMiB,
+				PartitionFSType:  "ext4",
+				PartitionFSLabel: "ubuntu-data",
+				StartOffset:      10 * quantity.OffsetMiB,
+			},
+		},
+		ID:         "anything",
+		Device:     "/dev/node",
+		Schema:     "gpt",
+		Size:       2 * quantity.SizeGiB,
+		SectorSize: 512,
+
+		// ( 2 GB / 512 B sector size ) - 33 typical GPT header backup sectors +
+		// 1 sector to get the exclusive end
+		UsableSectorsEnd: uint64((2*quantity.SizeGiB/512)-33) + 1,
+	}
+
+	gadgetVolume, err := gadgettest.VolumeFromYaml(c.MkDir(),
+		mockMinSizeGadgetYaml, nil)
+	c.Assert(err, IsNil)
+	diskVol := mockDiskVolDataAndSaveParts
+
+	match, err := gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		1: &mockDiskVolDataAndSaveParts.Structure[0],
+		2: &mockDiskVolDataAndSaveParts.Structure[1],
+		3: &mockDiskVolDataAndSaveParts.Structure[2],
+	})
+
+	diskVol.Structure[1].Size = 98 * quantity.SizeMiB
+	diskVol.Structure[2].StartOffset = 100 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err, IsNil)
+	c.Assert(match, DeepEquals, map[int]*gadget.OnDiskStructure{
+		1: &mockDiskVolDataAndSaveParts.Structure[0],
+		2: &mockDiskVolDataAndSaveParts.Structure[1],
+		3: &mockDiskVolDataAndSaveParts.Structure[2],
+	})
+
+	diskVol.Structure[1].Size = 98 * quantity.SizeMiB
+	diskVol.Structure[2].StartOffset = 101 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node3 (starting at 105906176) in gadget: start offset not in the valid interval (disk: 105906176 (101 MiB) and gadget: min: 10485760 (10 MiB): max: 104857600 (100 MiB))`)
+	c.Assert(match, IsNil)
+
+	diskVol.Structure[1].Size = 6 * quantity.SizeMiB
+	diskVol.Structure[2].StartOffset = 8 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 6291456 (6 MiB) is smaller than gadget min size 8388608 (8 MiB)`)
+	c.Assert(match, IsNil)
+
+	diskVol.Structure[1].Size = 100 * quantity.SizeMiB
+	diskVol.Structure[2].StartOffset = 102 * quantity.OffsetMiB
+	match, err = gadget.EnsureVolumeCompatibility(gadgetVolume, &diskVol, nil)
+	c.Assert(err.Error(), Equals, `cannot find disk partition /dev/node2 (starting at 2097152) in gadget: on disk size 104857600 (100 MiB) is larger than gadget size 102760448 (98 MiB) (and the role should not be expanded)`)
+	c.Assert(match, IsNil)
+}
+
 var multipleUC20DisksDeviceTraitsMap = map[string]gadget.DiskVolumeDeviceTraits{
 	"foo": gadgettest.VMExtraVolumeDeviceTraits,
 	"pc":  gadgettest.VMSystemVolumeDeviceTraits,
@@ -4216,6 +4328,24 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 				{structIdx: 2, offset: 81, isValid: false},
 			},
 			description: "test two",
+		},
+		{
+			// This tests restriction 2 in maxStructureOffset (see
+			// comments in function).
+			vss: []gadget.VolumeStructure{
+				{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
+				{Offset: nil, MinSize: 20, Size: 40},
+				{Offset: nil, MinSize: 20, Size: 20},
+				{Offset: nil, MinSize: 20, Size: 20},
+				{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
+			},
+			votcs: []validOffsetTc{
+				{structIdx: 2, offset: 39, isValid: false},
+				{structIdx: 2, offset: 40, isValid: true},
+				{structIdx: 2, offset: 60, isValid: true},
+				{structIdx: 2, offset: 61, isValid: false},
+			},
+			description: "test three",
 		},
 	} {
 		for _, votc := range tc.votcs {
