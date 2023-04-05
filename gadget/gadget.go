@@ -226,13 +226,15 @@ func (vs *VolumeStructure) IsFixedSize() bool {
 	return vs.Size == vs.MinSize
 }
 
-func MinStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+// minStructureOffset works out the minimum start offset of an structure, which
+// depends on previous volume structures.
+func minStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	if vss[idx].Offset != nil {
 		return *vss[idx].Offset
 	}
-	// Move up in the slice for minimum: the minimum offset will be
-	// the first fixed offset that we find while going up plus all
-	// the minimum sizes of the structures up to that point.
+	// Move to lower indices in the slice for minimum: the minimum offset
+	// will be the first fixed offset that we find plus all the minimum
+	// sizes of the structures up to that point.
 	min := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
@@ -245,22 +247,24 @@ func MinStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	return min
 }
 
-func MaxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+// maxStructureOffset works out the maximum start offset of an structure, which
+// depends on surrounding volume structures.
+func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 	if vss[idx].Offset != nil {
 		return *vss[idx].Offset
 	}
 	// There are two restrictions on the maximum:
-	// 1. There is an implicit assumption that structures are contiguous
-	//    if no offset is specified, so the max offset would be the first
-	//    fixed offset while moving up in the structures slice plus the
+	// 1. There is an implicit assumption that structures are contiguous if
+	//    no offset is specified, so the max offset would be the first fixed
+	//    offset while moving to previous structures in the slice plus the
 	//    (max) size of each structure up to that point.
-	// 2. There is also a restriction if we find a fixed offset down
-	//    in the slice - in that case the maximum offset needs to be
-	//    smaller than that offset minus all the minimum sizes of
+	// 2. There is also a restriction if we find a fixed offset in following
+	//    structures in the slice - in that case the maximum offset needs to
+	//    be smaller than that offset minus all the minimum sizes of
 	//    structures up to that point.
 	// The final max offset will be the smaller of the two.
 
-	// Move up for first restriction
+	// Move backwards in the slice for the first restriction
 	max := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
@@ -271,27 +275,27 @@ func MaxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 		}
 	}
 
-	// Move down in the slice for second restriction
-	maxDown := UnboundedStructureOffset
+	// Move forward in the slice for the second restriction
+	maxFw := UnboundedStructureOffset
 	downSz := quantity.Size(0)
 	for i := idx; i < len(vss); i++ {
 		if vss[i].Offset != nil {
-			maxDown = *vss[i].Offset - quantity.Offset(downSz)
+			maxFw = *vss[i].Offset - quantity.Offset(downSz)
 			break
 		}
 		downSz += vss[i].MinSize
 	}
 
-	if maxDown < max {
-		max = maxDown
+	if maxFw < max {
+		max = maxFw
 	}
 
 	return max
 }
 
-// IsValidStartOffset returns true if the input offset is valid for the structure.
+// IsValidStartOffset returns true if the input offset is valid for the structure at idx.
 func IsValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) bool {
-	if MinStructureOffset(vss, idx) <= off && off <= MaxStructureOffset(vss, idx) {
+	if minStructureOffset(vss, idx) <= off && off <= maxStructureOffset(vss, idx) {
 		return true
 	}
 	return false

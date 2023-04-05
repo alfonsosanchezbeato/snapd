@@ -350,8 +350,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 		// start offset mismatch
 		if !IsValidStartOffset(ds.StartOffset, vss, idx) {
-			sOffMin := MinStructureOffset(vss, idx)
-			sOffMax := MaxStructureOffset(vss, idx)
+			sOffMin := minStructureOffset(vss, idx)
+			sOffMax := maxStructureOffset(vss, idx)
 			maxDesc := "unbounded"
 			if sOffMax != UnboundedStructureOffset {
 				maxDesc = fmt.Sprintf("%d (%s)", sOffMax, sOffMax.IECString())
