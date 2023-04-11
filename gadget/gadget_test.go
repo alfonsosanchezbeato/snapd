@@ -308,9 +308,17 @@ volumes:
           edition: 1
         content:
           - image: pc-boot.img
+      - name: BIOS Boot
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        offset: 1M
+        offset-write: mbr+92
+        update:
+          edition: 2
+        content:
+          - image: pc-core.img
       - name: ubuntu-seed
         role: system-seed
-        offset: 1M
         filesystem: vfat
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
@@ -2400,8 +2408,7 @@ func (s *gadgetYamlTestSuite) testLaidOutVolumesFromGadgetUCHappy(c *C, gadgetYa
 
 func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUCHappy(c *C) {
 	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlUC20PC)
-	// TODO fix after layouts stuff is fixed
-	//s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlMinSizePC)
+	s.testLaidOutVolumesFromGadgetUCHappy(c, gadgetYamlMinSizePC)
 }
 
 func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
@@ -4189,7 +4196,7 @@ func (s *gadgetYamlTestSuite) TestVolumeMinSize(c *C) {
 		{
 			gadgetYaml: gadgetYamlMinSizePC,
 			volsSizes: map[string]quantity.Size{
-				"pc": (1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
+				"pc": (1 + 1 + 1200 + 750 + 16 + 1024) * quantity.SizeMiB,
 			},
 		},
 	} {
