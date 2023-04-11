@@ -1435,11 +1435,20 @@ func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
-func sizeSegmentsIntersect(from *VolumeStructure, to *VolumeStructure) bool {
+func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool {
+	// Check if [from.MinSize,from.Size], the interval of sizes allowed in
+	// "from", intersects with [to.MinSize,to.Size] (the interval of sizes
+	// allowed in "to"). When both checks are true we know some overlap
+	// between the segments is happening (that this is right can be
+	// visualized by sliding a segment over the abscissa while the other is
+	// fixed, for a moving segment either smaller or bigger than the fixed
+	// one).
 	return from.Size >= to.MinSize && from.MinSize <= to.Size
 }
 
-func offsetSegmentsIntersect(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
+func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
+	// See comment in arePossibleSizesCompatible, this is the same check but
+	// for offsets instead of sizes.
 	return maxStructureOffset(vss1, idx1) >= minStructureOffset(vss2, idx2) &&
 		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
 }
@@ -1452,11 +1461,11 @@ func canUpdateStructure(fromVss []VolumeStructure, fromIdx int, toVss []VolumeSt
 		return fmt.Errorf("cannot change structure name from %q to %q",
 			from.Name, to.Name)
 	}
-	if !sizeSegmentsIntersect(from, to) {
+	if !arePossibleSizesCompatible(from, to) {
 		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
 			to.MinSize, to.Size, from.MinSize, from.Size)
 	}
-	if !offsetSegmentsIntersect(fromVss, fromIdx, toVss, toIdx) {
+	if !arePossibleOffsetsCompatible(fromVss, fromIdx, toVss, toIdx) {
 		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
 			minStructureOffset(toVss, toIdx), maxStructureOffset(toVss, toIdx), minStructureOffset(fromVss, fromIdx), maxStructureOffset(fromVss, fromIdx))
 	}
