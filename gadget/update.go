@@ -452,10 +452,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return true, ""
 	}
 
-	gadgetContains := func(haystack []VolumeStructure, needle *OnDiskStructure) (bool, string) {
+	gadgetContains := func(vss []VolumeStructure, ds *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
-		for structIdx := range haystack {
-			matches, reasonNotMatches := eq(needle, haystack, structIdx)
+		for vssIdx := range vss {
+			matches, reasonNotMatches := eq(ds, vss, vssIdx)
 			if matches {
 				return true, ""
 			}
@@ -490,7 +490,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// structures we don't find the disk structure, check if we might
 			// be dealing with a structure that looks like the implicit
 			// system-data that ubuntu-image would have created.
-			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume, diskVolume, *needle) {
+			if onDiskStructureIsLikelyImplicitSystemDataRole(gadgetVolume, diskVolume, *ds) {
 				return true, ""
 			}
 		}
@@ -498,12 +498,12 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(haystack []OnDiskStructure, vss []VolumeStructure, structIdx int) (bool, string) {
+	onDiskContains := func(dss []OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
 		reasonAbsent := ""
-		for _, h := range haystack {
-			matches, reasonNotMatches := eq(&h, vss, structIdx)
+		for _, ds := range dss {
+			matches, reasonNotMatches := eq(&ds, vss, vssIdx)
 			if matches {
-				gadgetStructIdxToOnDiskStruct[vss[structIdx].YamlIndex] = &h
+				gadgetStructIdxToOnDiskStruct[vss[vssIdx].YamlIndex] = &ds
 				return true, ""
 			}
 			// this has the effect of only returning the last non-empty reason
@@ -558,12 +558,12 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 	// check all structures in the gadget are present on the disk, or have a
 	// valid excuse for absence (i.e. mbr or creatable structures at install)
-	for structIdx, gs := range gadgetVolume.Structure {
+	for vssIdx, gs := range gadgetVolume.Structure {
 		// we ignore reasonAbsent here since if there was an extra on disk
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, structIdx); present {
+		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, vssIdx); present {
 			continue
 		}
 
