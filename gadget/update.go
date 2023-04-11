@@ -337,8 +337,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	logger.Debugf("checking volume compatibility between gadget volume %s and disk %s",
 		gadgetVolume.Name, diskVolume.Device)
 
-	eq := func(ds *OnDiskStructure, vss []VolumeStructure, idx int) (bool, string) {
-		gv := &vss[idx]
+	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
+		gv := &vss[vssIdx]
 		// name mismatch
 		if gv.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
@@ -349,9 +349,9 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if !IsValidStartOffset(ds.StartOffset, vss, idx) {
-			sOffMin := minStructureOffset(vss, idx)
-			sOffMax := maxStructureOffset(vss, idx)
+		if !IsValidStartOffset(ds.StartOffset, vss, vssIdx) {
+			sOffMin := minStructureOffset(vss, vssIdx)
+			sOffMax := maxStructureOffset(vss, vssIdx)
 			maxDesc := "unbounded"
 			if sOffMax != UnboundedStructureOffset {
 				maxDesc = fmt.Sprintf("%d (%s)", sOffMax, sOffMax.IECString())
