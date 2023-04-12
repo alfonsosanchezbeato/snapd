@@ -1,0 +1,46 @@
+type: model
+authority-id: tcMZ22pMaY5EVwoLozfjM4fR31bko4yj
+series: 16
+brand-id: tcMZ22pMaY5EVwoLozfjM4fR31bko4yj
+model: test-snapd-remodel-pc
+architecture: amd64
+base: core22
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 22/stable
+    id: bfwFXAeMCr9x5jt0WYhCe3rT5ueri0oE
+    name: test-snapd-remodel-pc
+    type: gadget
+  -
+    default-channel: 22/stable
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    id: amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
+    name: core22
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+store: CQvkdMjgbapk821Po2cF
+system-user-authority: *
+timestamp: 2023-03-25T01:00:00+00:00
+sign-key-sha3-384: JGh2mJNy5UeNKQ05MNvphnlDcgteasy0WiJFgk-aJ9XvPyqcKwIm8zomJtWwb-mT
+
+AcLBcwQAAQoAHRYhBAho4l7L210CwlP5EEjPuvv/MykzBQJkNnF8AAoJEEjPuvv/MykzNpwQANIf
+o24fDx9h6r0tWGTKBj9S6dXabKftqhUtd6ob9TbfUmmPjK0sWX+a4e9JuutFcS33/RqG7aLJuDx0
+jomdrH7e2FbrNQCBAXRzhHfgwhkGNQKl4xm5RYCIdSFf4eohW7XIlCMOBtagiq1LwG+Vz9Zh+L5I
+CmUw6GibUPdIDFLn+VKaFn6N/B7VA9PMqOskKkfF6o4TQInYpBkDoYG+0pQTlYWXXybYfMm6AEC0
+bmwRYz+JxREgEzReQkbaskV9fbMYpfuRaIgZeGo4BBhnO/TeX187SrtlzDF0aTp0kQMb+M8bmeDN
+JrQHj7etxnzLQwBwgbnyoUS8o6SfngS+XDVagbLMSocKSfzhpVeKRtS+xqpohHJuzVqCAI7eyz/7
+P0m3z3mdvjKfN6POtat8CmuZ+cNIYKQ7T3+3mkxv4LGCKYbus+EfleJwTd9w34AreTdZXSWb3I2w
+xfIuyUxCTEDvP0F4qAaR4MSjcGZ4Y79+W5ZKpuDsgyKSrSMB7EKrVwLDWKQ0WuVWJC539c+CkDYY
+RaWB/5mOY8eMpXiVdZ6kj9wrUfuJsxqRDHgGWgVsQsLpt807vZPsf8jNka2fpbdOw8zIHNKIBl+X
+C0gcFi3+HaT5jgE4thPlcJqXjBhivqkj8Xw2asYDELuSuj5PhisX/d0mZZTBc21bZLBFRseA
