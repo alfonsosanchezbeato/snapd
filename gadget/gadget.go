@@ -1148,9 +1148,9 @@ func validateCrossVolumeStructure(structures []VolumeStructure, knownStructures 
 			if *(ps.Offset) < previousEnd {
 				return fmt.Errorf("structure %q overlaps with the preceding structure %q", ps.Name, structures[pidx-1].Name)
 			}
-			previousEnd = *(ps.Offset) + quantity.Offset(ps.MinSize)
+			previousEnd = *(ps.Offset) + quantity.Offset(ps.Size)
 		} else {
-			previousEnd += quantity.Offset(ps.MinSize)
+			previousEnd += quantity.Offset(ps.Size)
 
 		}
 
