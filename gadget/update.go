@@ -349,16 +349,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if !IsValidStartOffset(ds.StartOffset, vss, vssIdx) {
-			sOffMin := minStructureOffset(vss, vssIdx)
-			sOffMax := maxStructureOffset(vss, vssIdx)
-			maxDesc := "unbounded"
-			if sOffMax != UnboundedStructureOffset {
-				maxDesc = fmt.Sprintf("%d (%s)", sOffMax, sOffMax.IECString())
-			}
-			return false, fmt.Sprintf("start offset not in the valid interval (disk: %d (%s) and gadget: min: %d (%s): max: %s)",
-				ds.StartOffset, ds.StartOffset.IECString(),
-				sOffMin, sOffMin.IECString(), maxDesc)
+		if err := CheckValidStartOffset(ds.StartOffset, vss, vssIdx); err != nil {
+			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
 		switch {
