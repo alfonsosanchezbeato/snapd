@@ -213,6 +213,13 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+func (vs *VolumeStructure) HasLabel(label string) bool {
+	if vs.Filesystem == "vfat" {
+		return strings.EqualFold(vs.Label, label)
+	}
+	return vs.Label == label
+}
+
 // VolumeContent defines the contents of the structure. The content can be
 // either files within a filesystem described by the structure or raw images
 // written into the area of a bare structure.
@@ -747,6 +754,13 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
+func getLabelKey(filesystem, label string) string {
+	if filesystem == "vfat" {
+		return strings.ToLower(label)
+	}
+	return label
+}
+
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
@@ -758,10 +772,10 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	for _, s := range vol.Structure {
 		if s.Label != "" {
-			if seen := knownFsLabels[s.Label]; seen {
+			if seen := knownFsLabels[getLabelKey(s.Filesystem, s.Label)]; seen {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
-			knownFsLabels[s.Label] = true
+			knownFsLabels[getLabelKey(s.Filesystem, s.Label)] = true
 		}
 	}
 
@@ -821,10 +835,10 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLa
 			implicitLabel = ubuntuSaveLabel
 		}
 		if implicitLabel != "" {
-			if knownFsLabels[implicitLabel] {
+			if knownFsLabels[getLabelKey(vs.Filesystem, implicitLabel)] {
 				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
 			}
-			knownFsLabels[implicitLabel] = true
+			knownFsLabels[getLabelKey(vs.Filesystem, implicitLabel)] = true
 			vs.Label = implicitLabel
 		}
 	}
