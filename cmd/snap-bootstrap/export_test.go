@@ -35,6 +35,8 @@ var (
 	DoSystemdMount = doSystemdMountImpl
 
 	MountNonDataPartitionMatchingKernelDisk = mountNonDataPartitionMatchingKernelDisk
+
+	GetNonUEFISystemDisk = getNonUEFISystemDisk
 )
 
 type SystemdMountOptions = systemdMountOptions
@@ -178,6 +180,14 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 	waitFile = f
 	return func() {
 		waitFile = old
+	}
+}
+
+func MockByLabelDir(dir string) (restore func()) {
+	old := byLabelDir
+	byLabelDir = dir
+	return func() {
+		byLabelDir = old
 	}
 }
 

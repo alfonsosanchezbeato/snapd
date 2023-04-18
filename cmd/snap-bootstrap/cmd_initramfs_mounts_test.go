@@ -64,10 +64,11 @@ type baseInitramfsMountsSuite struct {
 	Stdout *bytes.Buffer
 	logs   *bytes.Buffer
 
-	seedDir  string
-	sysLabel string
-	model    *asserts.Model
-	tmpDir   string
+	seedDir    string
+	byLabelDir string
+	sysLabel   string
+	model      *asserts.Model
+	tmpDir     string
 
 	snapDeclAssertsTime time.Time
 
@@ -312,6 +313,16 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	err = asserts.NewEncoder(mf).Encode(s.model)
 	c.Assert(err, IsNil)
 
+	s.byLabelDir = filepath.Join(s.tmpDir, "dev/disk/by-label")
+	err = os.MkdirAll(s.byLabelDir, 0755)
+	c.Assert(err, IsNil)
+	restore = main.MockByLabelDir(s.byLabelDir)
+	s.AddCleanup(restore)
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
+	c.Assert(err, IsNil)
+
 	// make test snap PlaceInfo's for various boot functionality
 	s.kernel, err = snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
@@ -525,17 +536,17 @@ func (s *baseInitramfsMountsSuite) ubuntuLabelMount(label string, mode string) s
 	}
 	switch label {
 	case "ubuntu-boot":
-		mnt.what = "/dev/disk/by-label/ubuntu-boot"
+		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot")
 		mnt.where = boot.InitramfsUbuntuBootDir
 	case "ubuntu-seed":
-		mnt.what = "/dev/disk/by-label/ubuntu-seed"
+		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed")
 		mnt.where = boot.InitramfsUbuntuSeedDir
 		// don't fsck in run mode
 		if mode == "run" {
 			mnt.opts = nil
 		}
 	case "ubuntu-data":
-		mnt.what = "/dev/disk/by-label/ubuntu-data"
+		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-data")
 		mnt.where = boot.InitramfsDataDir
 		if s.isClassic {
 			mnt.opts = needsFsckNoPrivateDiskMountOpts
@@ -1302,7 +1313,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeRealSystemdMountTim
 	defer restore()
 
 	_, err := main.Parser().ParseArgs([]string{"initramfs-mounts"})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1m30s waiting for mount %s on %s", "/dev/disk/by-label/ubuntu-seed", boot.InitramfsUbuntuSeedDir))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("timed out after 1m30s waiting for mount %s on %s", filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"), boot.InitramfsUbuntuSeedDir))
 	c.Check(s.Stdout.String(), Equals, "")
 
 }
@@ -1400,7 +1411,7 @@ Wants=%[1]s
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-label/ubuntu-seed",
+			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -1581,7 +1592,7 @@ Wants=%[1]s
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-label/ubuntu-seed",
+			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -1747,7 +1758,7 @@ Wants=%[1]s
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-label/ubuntu-seed",
+			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed"),
 			boot.InitramfsUbuntuSeedDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -1938,7 +1949,7 @@ Wants=%[1]s
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-label/ubuntu-boot",
+			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot"),
 			boot.InitramfsUbuntuBootDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -2073,7 +2084,7 @@ Wants=%[1]s
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
 			"systemd-mount",
-			"/dev/disk/by-label/ubuntu-boot",
+			filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot"),
 			boot.InitramfsUbuntuBootDir,
 			"--no-pager",
 			"--no-ask-password",
@@ -7769,4 +7780,93 @@ func (s *initramfsClassicMountsSuite) TestInitramfsMountsSystemDiskParamPath(c *
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFail(c *C) {
+	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
+	c.Assert(err, IsNil)
+
+	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err.Error(), Equals, `no candidate found for label "ubuntu-seed"`)
+	c.Assert(path, Equals, "")
+
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-FOO"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	// Mock udevadm calls
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+if [[ "$5" == *UBUNTU-FOO* ]]; then
+    echo "Unknown device"
+    exit 1
+fi
+echo "ID_FS_TYPE=ext4"
+exit 0
+`)
+	defer mockUdevadm.Restore()
+
+	// No device backend
+	path, err = main.GetNonUEFISystemDisk("ubuntu-foo")
+	c.Assert(err.Error(), Equals, `cannot find filesystem type: Unknown device`)
+	c.Assert(path, Equals, "")
+
+	// Filesystem is not vfat
+	path, err = main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err.Error(), Equals, `no candidate found for label "ubuntu-seed" ("UBUNTU-SEED" is not vfat)`)
+	c.Assert(path, Equals, "")
+
+	// More than one candidate
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-seed"), nil, 0644)
+	path, err = main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err.Error(), Equals, `more than one candidate for label "ubuntu-seed"`)
+	c.Assert(path, Equals, "")
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name",
+			filepath.Join(s.byLabelDir, "UBUNTU-FOO")},
+		{"udevadm", "info", "--query", "property", "--name",
+			filepath.Join(s.byLabelDir, "UBUNTU-SEED")},
+	})
+}
+
+func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineOk(c *C) {
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+	echo "ID_FS_TYPE=vfat"
+`)
+	defer mockUdevadm.Restore()
+
+	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err, IsNil)
+	c.Assert(path, Equals, filepath.Join(s.byLabelDir, "UBUNTU-SEED"))
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name",
+			filepath.Join(s.byLabelDir, "UBUNTU-SEED")},
+	})
+}
+
+func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFailNoFs(c *C) {
+	mockUdevadm := testutil.MockCommand(c, "udevadm", `
+`)
+	defer mockUdevadm.Restore()
+
+	err := os.Remove(filepath.Join(s.byLabelDir, "ubuntu-seed"))
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "UBUNTU-SEED"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err.Error(), Equals, `no candidate found for label "ubuntu-seed" ("UBUNTU-SEED" is not vfat)`)
+	c.Assert(path, Equals, "")
+
+	c.Assert(mockUdevadm.Calls(), DeepEquals, [][]string{
+		{"udevadm", "info", "--query", "property", "--name",
+			filepath.Join(s.byLabelDir, "UBUNTU-SEED")},
+	})
 }
