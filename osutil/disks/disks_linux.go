@@ -856,7 +856,7 @@ func (d *disk) FindMatchingPartitionWithFsLabel(label string) (Partition, error)
 	}
 
 	for _, p := range d.partitions {
-		if p.FilesystemLabel == encodedLabel {
+		if p.hasFilesystemLabel(encodedLabel) {
 			return p, nil
 		}
 	}
