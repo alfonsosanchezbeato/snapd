@@ -1970,3 +1970,35 @@ func (s *diskSuite) TestPartitionUUID(c *C) {
 	c.Assert(err, ErrorMatches, "cannot process udev properties: mock failure")
 	c.Check(uuid, Equals, "")
 }
+
+func (s *diskSuite) TestFilesystemTypeForPartition(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		c.Assert(typeOpt, Equals, "--name")
+		switch dev {
+		case "/dev/vda4":
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/dev/no-fs":
+			return map[string]string{}, nil
+		case "/dev/mock-failure":
+			return nil, fmt.Errorf("mock failure")
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
+	})
+	defer restore()
+
+	fs, err := disks.FilesystemTypeForPartition("/dev/vda4")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "vfat")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/no-fs")
+	c.Assert(err, IsNil)
+	c.Check(fs, Equals, "")
+
+	fs, err = disks.FilesystemTypeForPartition("/dev/mock-failure")
+	c.Assert(err.Error(), Equals, "mock failure")
+	c.Check(fs, Equals, "")
+}

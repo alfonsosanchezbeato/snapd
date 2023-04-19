@@ -983,3 +983,15 @@ func PartitionUUID(node string) (string, error) {
 func SectorSize(devname string) (uint64, error) {
 	return blockDeviceSectorSize(devname)
 }
+
+// FilesystemTypeForPartition returns the filesystem type for a
+// partition passed by device name. The type might be an empty string
+// if no filesystem has been detected.
+func FilesystemTypeForPartition(devname string) (string, error) {
+	props, err := udevPropertiesForName(devname)
+	if err != nil {
+		return "", err
+	}
+
+	return props["ID_FS_TYPE"], nil
+}
