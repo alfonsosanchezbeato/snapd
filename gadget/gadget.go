@@ -754,13 +754,6 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func getLabelKey(filesystem, label string) string {
-	if filesystem == "vfat" {
-		return strings.ToLower(label)
-	}
-	return label
-}
-
 func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) bool {
 	lowerLabel := strings.ToLower(label)
 	if seen := knownVfatFsLabels[lowerLabel]; seen {
