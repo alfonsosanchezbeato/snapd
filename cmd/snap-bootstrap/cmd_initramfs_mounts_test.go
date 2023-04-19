@@ -122,6 +122,13 @@ var (
 		KernelDeviceNode: "/dev/sda2",
 	}
 
+	seedPartCapitalFsLabel = disks.Partition{
+		FilesystemLabel:  "UBUNTU-SEED",
+		FilesystemType:   "vfat",
+		PartitionUUID:    "ubuntu-seed-partuuid",
+		KernelDeviceNode: "/dev/sda2",
+	}
+
 	bootPart = disks.Partition{
 		FilesystemLabel:  "ubuntu-boot",
 		PartitionUUID:    "ubuntu-boot-partuuid",
@@ -172,6 +179,17 @@ var (
 	defaultBootWithSaveDisk = &disks.MockDiskMapping{
 		Structure: []disks.Partition{
 			seedPart,
+			bootPart,
+			dataPart,
+			savePart,
+		},
+		DiskHasPartitions: true,
+		DevNum:            "default-with-save",
+	}
+
+	defaultBootWithSeedPartCapitalFsLabel = &disks.MockDiskMapping{
+		Structure: []disks.Partition{
+			seedPartCapitalFsLabel,
 			bootPart,
 			dataPart,
 			savePart,
@@ -7869,4 +7887,35 @@ func (s *initramfsMountsSuite) TestGetDiskNotUEFINotKernelCmdlineFailNoFs(c *C) 
 		{"udevadm", "info", "--query", "property", "--name",
 			filepath.Join(s.byLabelDir, "UBUNTU-SEED")},
 	})
+}
+
+func (s *initramfsMountsSuite) TestGetDiskNotUEFISeedPartCapitalFsLabel(c *C) {
+	fmt.Println("TestGetDiskNotUEFISeed")
+	defer fmt.Println("TestGetDiskNotUEFISeed")
+
+	s.mockProcCmdlineContent(c, "snapd_system_disk=/dev/sda snapd_recovery_mode=run")
+
+	restore := main.MockPartitionUUIDForBootedKernelDisk("")
+	defer restore()
+
+	restore = disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/sda": defaultBootWithSeedPartCapitalFsLabel,
+	})
+	defer restore()
+
+	path, err := main.GetNonUEFISystemDisk("ubuntu-seed")
+	c.Assert(err, IsNil)
+	c.Assert(path, Equals, "/dev/sda2")
+
+	path, err = main.GetNonUEFISystemDisk("UBUNTU-SEED")
+	c.Assert(err, IsNil)
+	c.Assert(path, Equals, "/dev/sda2")
+
+	path, err = main.GetNonUEFISystemDisk("ubuntu-boot")
+	c.Assert(err, IsNil)
+	c.Assert(path, Equals, "/dev/sda3")
+
+	path, err = main.GetNonUEFISystemDisk("UBUNTU-BOOT")
+	c.Assert(err.Error(), Equals, `filesystem label "UBUNTU-BOOT" not found`)
+	c.Assert(path, Equals, "")
 }
