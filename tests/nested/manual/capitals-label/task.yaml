@@ -1,0 +1,35 @@
+summary: verify that it is ok to have vfat filesystem with capitalized label
+details: |
+  Build and run an image where the ubuntu-seed partition has a label
+  that contains capital letters.
+
+systems: [ubuntu-22.04-64]
+
+environment:
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_GADGET_SNAP: false
+  NESTED_REPACK_BASE_SNAP: false
+
+prepare: |
+  snap install yq
+
+  variant=$(tests.nested show version)
+
+  # Modify gadget adding a filesystem label
+  CHANNEL="$(tests.nested show version)/edge"
+  snap download --basename=pc --channel="$CHANNEL" pc
+  unsquashfs -d pc pc.snap
+  yq -i '(.volumes.pc.structure[] | select(.role == "system-seed") | .filesystem-label) = "UBUNTU-SEED"' pc/meta/gadget.yaml
+  snap pack pc
+  GADGET_SNAP=$(find . -maxdepth 1 -name pc_\*.snap -printf "%f")
+  mv "$GADGET_SNAP" "$(tests.nested get extra-snaps-path)"
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+execute: |
+  # wait until device is initialized and has a serial
+  remote.wait-for device-initialized
