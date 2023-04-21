@@ -51,6 +51,27 @@ var abstractCalculateLastUsableLBA = func(device string, diskSize uint64, sector
 	return CalculateLastUsableLBA(device, diskSize, sectorSize)
 }
 
+func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, error)) (restore func()) {
+	old := udevadmProperties
+	// for better testing we mock the udevadm command output so that we still
+	// test the parsing
+	udevadmProperties = func(typeOpt, dev string) ([]byte, error) {
+		props, err := new(typeOpt, dev)
+		if err != nil {
+			return []byte(err.Error()), err
+		}
+		// put it into udevadm format output, i.e. "KEY=VALUE\n"
+		output := ""
+		for k, v := range props {
+			output += fmt.Sprintf("%s=%s\n", k, v)
+		}
+		return []byte(output), nil
+	}
+	return func() {
+		udevadmProperties = old
+	}
+}
+
 func parseDeviceMajorMinor(s string) (int, int, error) {
 	errMsg := fmt.Errorf("invalid device number format: (expected <int>:<int>)")
 	devNums := strings.SplitN(s, ":", 2)
