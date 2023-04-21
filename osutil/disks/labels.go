@@ -125,7 +125,7 @@ func CandidateByLabelPath(label string) (string, error) {
 			return "", fmt.Errorf("no candidate found for label %q", label)
 		}
 		// Make sure it is vfat
-		fsType, err := FilesystemTypeForPartition(filepath.Join(byLabelDir, candidate))
+		fsType, err := filesystemTypeForPartition(filepath.Join(byLabelDir, candidate))
 		if err != nil {
 			return "", fmt.Errorf("cannot find filesystem type: %v", err)
 		}

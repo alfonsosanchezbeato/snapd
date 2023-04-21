@@ -19,6 +19,10 @@
 
 package disks
 
-var UnregisterDeviceMapperBackResolver = unregisterDeviceMapperBackResolver
+var (
+	UnregisterDeviceMapperBackResolver = unregisterDeviceMapperBackResolver
 
-var CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver
+	CryptLuks2DeviceMapperBackResolver = cryptLuks2DeviceMapperBackResolver
+
+	FilesystemTypeForPartition = filesystemTypeForPartition
+)
