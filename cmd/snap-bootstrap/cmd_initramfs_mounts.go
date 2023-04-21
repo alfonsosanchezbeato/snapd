@@ -74,7 +74,6 @@ func (c *cmdInitramfsMounts) Execute([]string) error {
 
 var (
 	osutilIsMounted = osutil.IsMounted
-	byLabelDir      = "/dev/disk/by-label/"
 
 	snapTypeToMountDir = map[snap.Type]string{
 		snap.TypeBase:   "base",
@@ -1331,46 +1330,6 @@ func waitForDevice(path string) error {
 	return nil
 }
 
-func candidateLabel(label string) (string, error) {
-	byLabelFs, err := ioutil.ReadDir(byLabelDir)
-	if err != nil {
-		return "", err
-	}
-	candidate := ""
-	// Search first for an exact match
-	for _, file := range byLabelFs {
-		if file.Name() == label {
-			candidate = file.Name()
-			break
-		}
-	}
-	if candidate == "" {
-		// Now try to find a candidate ignoring case, which
-		// will be fine only for vfat partitions.
-		for _, file := range byLabelFs {
-			if strings.ToLower(file.Name()) == label {
-				if candidate != "" {
-					return "", fmt.Errorf("more than one candidate for label %q", label)
-				}
-				candidate = file.Name()
-			}
-		}
-		if candidate == "" {
-			return "", fmt.Errorf("no candidate found for label %q", label)
-		}
-		// Make sure it is vfat
-		fsType, err := disks.FilesystemTypeForPartition(filepath.Join(byLabelDir, candidate))
-		if err != nil {
-			return "", fmt.Errorf("cannot find filesystem type: %v", err)
-		}
-		if fsType != "vfat" {
-			return "", fmt.Errorf("no candidate found for label %q (%q is not vfat)", label, candidate)
-		}
-	}
-
-	return candidate, nil
-}
-
 func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 	values, err := osutil.KernelCommandLineKeyValues("snapd_system_disk")
 	if err != nil {
@@ -1395,12 +1354,12 @@ func getNonUEFISystemDisk(fallbacklabel string) (string, error) {
 		return partition.KernelDeviceNode, nil
 	}
 
-	candidate, err := candidateLabel(fallbacklabel)
+	candidate, err := disks.CandidateByLabelPath(fallbacklabel)
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(byLabelDir, candidate), nil
+	return candidate, nil
 }
 
 // mountNonDataPartitionMatchingKernelDisk will select the partition to mount at

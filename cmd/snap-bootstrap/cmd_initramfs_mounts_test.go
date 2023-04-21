@@ -334,8 +334,6 @@ func (s *baseInitramfsMountsSuite) SetUpTest(c *C) {
 	s.byLabelDir = filepath.Join(s.tmpDir, "dev/disk/by-label")
 	err = os.MkdirAll(s.byLabelDir, 0755)
 	c.Assert(err, IsNil)
-	restore = main.MockByLabelDir(s.byLabelDir)
-	s.AddCleanup(restore)
 	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
@@ -554,17 +552,17 @@ func (s *baseInitramfsMountsSuite) ubuntuLabelMount(label string, mode string) s
 	}
 	switch label {
 	case "ubuntu-boot":
-		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-boot")
+		mnt.what = filepath.Join(s.byLabelDir, "ubuntu-boot")
 		mnt.where = boot.InitramfsUbuntuBootDir
 	case "ubuntu-seed":
-		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-seed")
+		mnt.what = filepath.Join(s.byLabelDir, "ubuntu-seed")
 		mnt.where = boot.InitramfsUbuntuSeedDir
 		// don't fsck in run mode
 		if mode == "run" {
 			mnt.opts = nil
 		}
 	case "ubuntu-data":
-		mnt.what = filepath.Join(s.tmpDir, "/dev/disk/by-label/ubuntu-data")
+		mnt.what = filepath.Join(s.byLabelDir, "ubuntu-data")
 		mnt.where = boot.InitramfsDataDir
 		if s.isClassic {
 			mnt.opts = needsFsckNoPrivateDiskMountOpts
@@ -3015,6 +3013,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 
 	for _, t := range tt {
 		comment := Commentf(t.comment)
+		c.Log(comment)
 
 		var cleanups []func()
 
@@ -3029,6 +3028,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		rootDir := c.MkDir()
 		cleanups = append(cleanups, func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 		dirs.SetRootDir(rootDir)
+		// we need to recreate by-label files in the new root dir
+		s.byLabelDir = filepath.Join(dirs.GlobalRootDir, "dev/disk/by-label")
+		var err error
+		err = os.MkdirAll(s.byLabelDir, 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-seed"), nil, 0644)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(s.byLabelDir, "ubuntu-boot"), nil, 0644)
+		c.Assert(err, IsNil)
 
 		restore := disks.MockMountPointDisksToPartitionMapping(
 			map[disks.Mountpoint]*disks.MockDiskMapping{
@@ -3039,7 +3047,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		cleanups = append(cleanups, restore)
 
 		// Make sure we have a model
-		var err error
 		err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755)
 		c.Assert(err, IsNil)
 		mf, err := os.Create(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))

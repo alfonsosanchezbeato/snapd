@@ -183,12 +183,4 @@ func MockWaitFile(f func(string, time.Duration, int) error) (restore func()) {
 	}
 }
 
-func MockByLabelDir(dir string) (restore func()) {
-	old := byLabelDir
-	byLabelDir = dir
-	return func() {
-		byLabelDir = old
-	}
-}
-
 var WaitFile = waitFile

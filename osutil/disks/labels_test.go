@@ -20,10 +20,12 @@
 package disks_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/osutil/disks"
 )
 
@@ -149,5 +151,37 @@ func (ts *diskLabelSuite) TestBlkIDDecodeLabelUnhappy(c *C) {
 		c.Logf("input: %q", t.in)
 		_, err := disks.BlkIDDecodeLabel(t.in)
 		c.Assert(err, ErrorMatches, t.experr)
+	}
+}
+
+func (s *diskSuite) TestFindMatchingPartitionWithFsLabel(c *C) {
+	// mock disk
+	restore := disks.MockDeviceNameToDiskMapping(map[string]*disks.MockDiskMapping{
+		"/dev/vda": gadgettest.VMSystemVolumeDiskMappingSeedFsLabelCaps,
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDeviceName("/dev/vda")
+	c.Assert(err, IsNil)
+
+	// seed partition is vfat, capitals are ignored when searching
+	for _, searchLabel := range []string{"ubuntu-seed", "UBUNTU-SEED", "ubuntu-SEED"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		c.Assert(err, IsNil)
+		c.Check(p.KernelDeviceNode, Equals, "/dev/vda1")
+		c.Check(p.FilesystemLabel, Equals, "UBUNTU-SEED")
+	}
+
+	// boot partition is not vfat, case-sensitive search
+	for _, searchLabel := range []string{"ubuntu-boot", "UBUNTU-BOOT", "ubuntu-BOOT"} {
+		p, err := d.FindMatchingPartitionWithFsLabel(searchLabel)
+		if searchLabel == "ubuntu-boot" {
+			c.Assert(err, IsNil)
+			c.Check(p.KernelDeviceNode, Equals, "/dev/vda2")
+			c.Check(p.FilesystemLabel, Equals, "ubuntu-boot")
+		} else {
+			c.Assert(err.Error(), Equals, fmt.Sprintf("filesystem label %q not found", searchLabel))
+			c.Check(p, Equals, disks.Partition{})
+		}
 	}
 }
