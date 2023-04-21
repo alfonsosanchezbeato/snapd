@@ -213,6 +213,8 @@ func (vs *VolumeStructure) IsPartition() bool {
 	return vs.Type != "bare" && vs.Role != schemaMBR
 }
 
+// HasLabel checks if label matches the VolumeStructure label. It ignores
+// capitals if the structure has a vfat filesystem.
 func (vs *VolumeStructure) HasLabel(label string) bool {
 	if vs.Filesystem == "vfat" {
 		return strings.EqualFold(vs.Label, label)
@@ -754,7 +756,7 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) bool {
+func setKnownLabel(label, filesystem string, knownFsLabels, knownVfatFsLabels map[string]bool) (unique bool) {
 	lowerLabel := strings.ToLower(label)
 	if seen := knownVfatFsLabels[lowerLabel]; seen {
 		return false
