@@ -3029,7 +3029,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		cleanups = append(cleanups, func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 		dirs.SetRootDir(rootDir)
 		// we need to recreate by-label files in the new root dir
-		s.byLabelDir = filepath.Join(dirs.GlobalRootDir, "dev/disk/by-label")
+		s.byLabelDir = filepath.Join(rootDir, "dev/disk/by-label")
 		var err error
 		err = os.MkdirAll(s.byLabelDir, 0755)
 		c.Assert(err, IsNil)

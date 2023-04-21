@@ -22,7 +22,7 @@ package disks
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -93,7 +93,7 @@ func BlkIDDecodeLabel(in string) (string, error) {
 // the symlink in the by-label folder.
 func CandidateByLabelPath(label string) (string, error) {
 	byLabelDir := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/")
-	byLabelFs, err := ioutil.ReadDir(byLabelDir)
+	byLabelFs, err := os.ReadDir(byLabelDir)
 	if err != nil {
 		return "", err
 	}
