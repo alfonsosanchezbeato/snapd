@@ -1261,7 +1261,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 
 	rollbackDir := c.MkDir()
 
-	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlSeedFsLabelCaps, uc20Model)
+	allLaidOutVolumes, err := gadgettest.LayoutMultiVolumeFromYaml(c.MkDir(), "", gadgettest.MultiVolumeUC20GadgetYamlNoBIOS, uc20Model)
 	c.Assert(err, IsNil)
 
 	// put the same volumes into both the old and the new data so they are
@@ -1443,6 +1443,23 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 			},
 		}
 		return mu, nil
+	})
+	defer restore()
+
+	restore = disks.MockUdevPropertiesForDevice(func(typeOpt, dev string) (map[string]string, error) {
+		switch dev {
+		case filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-label/UBUNTU-SEED"):
+			c.Assert(typeOpt, Equals, "--name")
+			return map[string]string{
+				"ID_FS_TYPE": "vfat",
+			}, nil
+		case "/sys/devices/pci0000:00/0000:00:03.0/virtio1/block/vda":
+			c.Assert(typeOpt, Equals, "--path")
+			return map[string]string{}, nil
+		default:
+			c.Errorf("unexpected udev device properties requested: %s", dev)
+			return nil, fmt.Errorf("unexpected udev device: %s", dev)
+		}
 	})
 	defer restore()
 

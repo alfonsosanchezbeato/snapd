@@ -808,7 +808,7 @@ volumes:
         size: 1G
 `
 
-const SingleVolumeUC20GadgetYamlSeedFsLabelCaps = `
+const SingleVolumeUC20GadgetYamlSeedNoBIOS = `
 volumes:
   pc:
     schema: gpt
@@ -820,7 +820,6 @@ volumes:
       - name: ubuntu-seed
         role: system-seed
         filesystem: vfat
-        filesystem-label: UBUNTU-SEED
         # UEFI will boot the ESP partition by default first
         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
         size: 1200M
@@ -902,7 +901,7 @@ volumes:
         size: 4G
 `
 
-const MultiVolumeUC20GadgetYamlSeedFsLabelCaps = SingleVolumeUC20GadgetYamlSeedFsLabelCaps + `
+const MultiVolumeUC20GadgetYamlNoBIOS = SingleVolumeUC20GadgetYamlSeedNoBIOS + `
   foo:
     schema: gpt
     structure:
