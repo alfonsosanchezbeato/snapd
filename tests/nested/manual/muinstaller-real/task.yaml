@@ -204,8 +204,8 @@ execute: |
   # push and install muinstaller, which will automatically start the installation
   remote.push "$MUINSTALLER_SNAP"
   remote.exec "sudo snap install --classic --dangerous $(basename "$MUINSTALLER_SNAP")"
-  install_disk=$(readlink -f /dev/disk/by-id/virtio-target)
-  remote.exec "sudo muinstaller.muinstaller classic \
+  install_disk=$(remote.exec "readlink -f /dev/disk/by-id/virtio-target")
+  remote.exec "sudo muinstaller classic \
       /snap/muinstaller/current/bin/mk-classic-rootfs.sh $install_disk"
 
   # TODO: use retry
