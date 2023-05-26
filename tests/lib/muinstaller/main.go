@@ -167,7 +167,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 	if err != nil {
 		return nil, fmt.Errorf("cannot read %v partitions: %v", bootDevice, err)
 	}
-	if len(diskLayout.Structure) > 0 {
+	if len(diskLayout.Structure) > 0 && !vol.HasPartial(gadget.PartialStructure) {
 		return nil, fmt.Errorf("cannot yet install on a disk that has partitions")
 	}
 
