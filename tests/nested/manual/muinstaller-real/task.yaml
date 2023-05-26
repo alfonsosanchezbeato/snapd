@@ -136,7 +136,9 @@ execute: |
   #       from classic->core and use nested_start_core_vm (like below)
   #
   # start it so that cloud-init creates ssh keys and user
-  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=virtio,snapshot=off"
+  # We set a serial for our disk to easily locate it when invoking muinstaller (virtio-target)
+  NESTED_PARAM_EXTRA="-drive file=$(pwd)/fake-disk.img,if=none,snapshot=off,format=raw,id=disk2 \
+      -device virtio-blk-pci,drive=disk2,serial=target"
   tests.nested create-vm classic --extra-param "$NESTED_PARAM_EXTRA"
 
   # make sure classic image is bootable with snakeoil keys
@@ -202,6 +204,9 @@ execute: |
   # push and install muinstaller, which will automatically start the installation
   remote.push "$MUINSTALLER_SNAP"
   remote.exec "sudo snap install --classic --dangerous $(basename "$MUINSTALLER_SNAP")"
+  install_disk=$(readlink -f /dev/disk/by-id/virtio-target)
+  remote.exec "sudo muinstaller.muinstaller classic \
+      /snap/muinstaller/current/bin/mk-classic-rootfs.sh $install_disk"
 
   # TODO: use retry
   while true; do
