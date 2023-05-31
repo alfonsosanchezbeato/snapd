@@ -145,7 +145,8 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 
 	// The partition / disk index - we find the current max number
 	// currently on the disk and we start from there for the partitions we
-	// create.
+	// create (this is necessary as some partitions might not be defined by
+	// the gadget).
 	pIndex := 0
 
 	// Keep track what partitions we already have on disk - the keys to this map
@@ -177,13 +178,13 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 			continue
 		}
 
-		pIndex++
-
-		// Skip partitions that are already in the volume
+		// Skip partitions defined in the gadget that are already in the volume
 		startInSectors := uint64(laidOut.StartOffset) / sectorSize
 		if seen[startInSectors] {
 			continue
 		}
+
+		pIndex++
 
 		// Only allow creating certain partitions, namely the ubuntu-* roles
 		if !opts.CreateAllMissingPartitions && !gadget.IsCreatableAtInstall(laidOut.VolumeStructure) {
