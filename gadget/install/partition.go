@@ -143,6 +143,11 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	}
 	sectorSize := uint64(dl.SectorSize)
 
+	// The partition / disk index - we find the current max number
+	// currently on the disk and we start from there for the partitions we
+	// create.
+	pIndex := 0
+
 	// Keep track what partitions we already have on disk - the keys to this map
 	// is the starting sector of the structure we have seen.
 	// TODO: use quantity.SectorOffset or similar when that is available
@@ -151,6 +156,9 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 	for _, s := range dl.Structure {
 		start := uint64(s.StartOffset) / sectorSize
 		seen[start] = true
+		if s.DiskIndex > pIndex {
+			pIndex = s.DiskIndex
+		}
 	}
 
 	// Check if the last partition has a system-data role
@@ -161,10 +169,6 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 			canExpandData = true
 		}
 	}
-
-	// The partition / disk index - note that it will start at 1, we increment
-	// it before we use it in the loop below
-	pIndex := 0
 
 	// Write new partition data in named-fields format
 	buf := &bytes.Buffer{}
