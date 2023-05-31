@@ -90,8 +90,12 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, lovs map[st
 			}
 		}
 
-		// Should not be partially defined anymore
-		lov.Partial = []PartialProperty{}
+		// The only thing that can still be partial is the structure
+		if lov.HasPartial(PartialStructure) {
+			lov.Partial = []PartialProperty{PartialStructure}
+		} else {
+			lov.Partial = []PartialProperty{}
+		}
 
 		// Now validate finalized volume
 		if err := validateVolume(lov.Volume); err != nil {
