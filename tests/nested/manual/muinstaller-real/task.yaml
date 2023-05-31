@@ -208,13 +208,6 @@ execute: |
   remote.exec "sudo muinstaller classic \
       /snap/muinstaller/current/bin/mk-classic-rootfs.sh $install_disk"
 
-  # TODO: use retry
-  while true; do
-    if remote.exec "sudo snap logs muinstaller" | MATCH "install done"; then
-        break
-    fi
-    sleep 5
-  done
   remote.exec "sudo sync"
 
   # Stop and remove the classic vm now that the attached disk (fake-disk.img)
