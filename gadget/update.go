@@ -336,8 +336,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	if opts == nil {
 		opts = &VolumeCompatibilityOptions{}
 	}
-	logger.Debugf("checking volume compatibility between gadget volume %s and disk %s",
-		gadgetVolume.Name, diskVolume.Device)
+	logger.Debugf("checking volume compatibility between gadget volume %s (partial: %v) and disk %s",
+		gadgetVolume.Name, gadgetVolume.Partial, diskVolume.Device)
 
 	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
 		gv := &vss[vssIdx]
@@ -545,6 +545,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				// use the right format so that it can be
 				// appended to the error message
 				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+			}
+			if gadgetVolume.HasPartial(PartialStructure) {
+				logger.Debugf("ignoring partition %s (starting at %d) as it was not in partial gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
+				continue
 			}
 			return nil, fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
@@ -756,12 +760,16 @@ func DiskTraitsFromDeviceAndValidate(expLayout *LaidOutVolume, dev string, opts 
 		for _, part := range diskPartitionsByOffset {
 			leftovers = append(leftovers, part.KernelDeviceNode)
 		}
-		// this is an internal error because to get here we would have had to
-		// pass validation in EnsureVolumeCompatibility but then still have
-		// extra partitions - the only non-buggy situation where that function
-		// passes validation but leaves partitions on disk not in the YAML is
-		// the implicit system-data role handled above
-		return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+		if vol.HasPartial(PartialStructure) {
+			logger.Debugf("additional partitions on disk %s ignored as the gadget has partial structures: %v", disk.KernelDeviceNode(), leftovers)
+		} else {
+			// this is an internal error because to get here we would have had to
+			// pass validation in EnsureVolumeCompatibility but then still have
+			// extra partitions - the only non-buggy situation where that function
+			// passes validation but leaves partitions on disk not in the YAML is
+			// the implicit system-data role handled above
+			return res, fmt.Errorf("internal error: unexpected additional partitions on disk %s not present in the gadget layout: %v", disk.KernelDeviceNode(), leftovers)
+		}
 	}
 
 	return DiskVolumeDeviceTraits{
