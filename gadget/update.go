@@ -1318,7 +1318,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			if err != nil {
 				return err
 			}
-			if err := canUpdateStructure(oldVol, fromIdx, newVol, toIdx, pNew.Schema); err != nil {
+			if err := canUpdateStructure(oldVol, fromIdx, newVol, toIdx); err != nil {
 				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
 			}
 		}
@@ -1445,21 +1445,30 @@ func arePossibleOffsetsCompatible(v1 *Volume, idx1 int, v2 *Volume, idx2 int) bo
 		v1.minStructureOffset(idx1) <= v2.maxStructureOffset(idx2)
 }
 
-func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int, schema string) error {
+// canUpdateStructure checks gadget compatibility on updates, looking only at
+// features that are not reflected on the installed disk (for this we check
+// elsewhere the new gadget against the actual disk content).
+//
+// Partial properties are not checked as they will be checked against the real
+// disk later, in EnsureVolumeCompatibility. TODO Some checks should maybe
+// happen only there even for non-partial gadgets.
+func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) error {
 	from := &fromV.Structure[fromIdx]
 	to := &toV.Structure[toIdx]
-	if schema == schemaGPT && from.Name != to.Name {
+	if !toV.HasPartial(PartialSchema) && toV.Schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
 		return fmt.Errorf("cannot change structure name from %q to %q",
 			from.Name, to.Name)
 	}
-	if !arePossibleSizesCompatible(from, to) {
-		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
-			to.MinSize, to.Size, from.MinSize, from.Size)
-	}
-	if !arePossibleOffsetsCompatible(fromV, fromIdx, toV, toIdx) {
-		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
-			toV.minStructureOffset(toIdx), toV.maxStructureOffset(toIdx), fromV.minStructureOffset(fromIdx), fromV.maxStructureOffset(fromIdx))
+	if !toV.HasPartial(PartialSize) {
+		if !arePossibleSizesCompatible(from, to) {
+			return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
+				to.MinSize, to.Size, from.MinSize, from.Size)
+		}
+		if !arePossibleOffsetsCompatible(fromV, fromIdx, toV, toIdx) {
+			return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
+				toV.minStructureOffset(toIdx), toV.maxStructureOffset(toIdx), fromV.minStructureOffset(fromIdx), fromV.maxStructureOffset(fromIdx))
+		}
 	}
 	// TODO: should this limitation be lifted?
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
@@ -1478,21 +1487,23 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int, sche
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
-	if to.HasFilesystem() {
-		if !from.HasFilesystem() {
-			return fmt.Errorf("cannot change a bare structure to filesystem one")
-		}
-		if from.Filesystem != to.Filesystem {
-			return fmt.Errorf("cannot change filesystem from %q to %q",
-				from.Filesystem, to.Filesystem)
-		}
-		if from.Label != to.Label {
-			return fmt.Errorf("cannot change filesystem label from %q to %q",
-				from.Label, to.Label)
-		}
-	} else {
-		if from.HasFilesystem() {
-			return fmt.Errorf("cannot change a filesystem structure to a bare one")
+	if !toV.HasPartial(PartialFilesystem) {
+		if to.HasFilesystem() {
+			if !from.HasFilesystem() {
+				return fmt.Errorf("cannot change a bare structure to filesystem one")
+			}
+			if from.Filesystem != to.Filesystem {
+				return fmt.Errorf("cannot change filesystem from %q to %q",
+					from.Filesystem, to.Filesystem)
+			}
+			if from.Label != to.Label {
+				return fmt.Errorf("cannot change filesystem label from %q to %q",
+					from.Label, to.Label)
+			}
+		} else {
+			if from.HasFilesystem() {
+				return fmt.Errorf("cannot change a filesystem structure to a bare one")
+			}
 		}
 	}
 

@@ -134,9 +134,11 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		if schema == "" {
 			schema = "gpt"
 		}
-		fromVss := &gadget.Volume{Structure: []gadget.VolumeStructure{tc.from}}
-		toVss := &gadget.Volume{Structure: []gadget.VolumeStructure{tc.to}}
-		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0, schema)
+		fromVss := &gadget.Volume{Schema: schema,
+			Structure: []gadget.VolumeStructure{tc.from}}
+		toVss := &gadget.Volume{Schema: schema,
+			Structure: []gadget.VolumeStructure{tc.to}}
+		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0)
 		if tc.err == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -442,7 +444,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 		},
 	}
 
-	err := gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
+	err := gadget.CanUpdateStructure(fromV, 1, toV, 1)
 	c.Check(err, IsNil)
 
 	toV = &gadget.Volume{
@@ -452,7 +454,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 		},
 	}
 
-	err = gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
+	err = gadget.CanUpdateStructure(fromV, 1, toV, 1)
 	c.Check(err, IsNil)
 
 	toV = &gadget.Volume{
@@ -462,7 +464,7 @@ func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
 		},
 	}
 
-	err = gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
+	err = gadget.CanUpdateStructure(fromV, 1, toV, 1)
 	c.Check(err.Error(), Equals,
 		`new valid structure offset range [21, 30] is not compatible with current ([10, 20])`)
 }

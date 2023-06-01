@@ -520,7 +520,7 @@ func isLayoutCompatible(current, new *Volume) error {
 
 	// at the structure level we expect the volume to be identical
 	for i := range current.Structure {
-		if err := canUpdateStructure(current, i, new, i, new.Schema); err != nil {
+		if err := canUpdateStructure(current, i, new, i); err != nil {
 			return fmt.Errorf("incompatible structure #%d (%q) change: %v", new.Structure[i].YamlIndex, new.Structure[i].Name, err)
 		}
 	}
