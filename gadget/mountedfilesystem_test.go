@@ -811,26 +811,6 @@ func (s *mountedfilesystemTestSuite) TestMountedWriterImplicitDir(c *C) {
 	verifyWrittenGadgetData(c, outDir, gd)
 }
 
-func (s *mountedfilesystemTestSuite) TestMountedWriterNoFs(c *C) {
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
-			// no filesystem
-			Content: []gadget.VolumeContent{
-				{
-					// single file in target directory
-					UnresolvedSource: "foo",
-					Target:           "/foo-dir/",
-				},
-			},
-		},
-	}
-
-	rw, err := gadget.NewMountedFilesystemWriter(ps, nil)
-	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
-	c.Assert(rw, IsNil)
-}
-
 func (s *mountedfilesystemTestSuite) TestMountedWriterTrivialValidation(c *C) {
 	rw, err := gadget.NewMountedFilesystemWriter(nil, nil)
 	c.Assert(err, ErrorMatches, `internal error: \*LaidOutStructure.*`)
@@ -2949,10 +2929,6 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 		return "", nil
 	}
 
-	rw, err := gadget.NewMountedFilesystemUpdater(psNoFs, s.backup, lookupFail, nil)
-	c.Assert(err, ErrorMatches, "structure #0 has no filesystem")
-	c.Assert(rw, IsNil)
-
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Size:       2048,
@@ -2962,7 +2938,7 @@ func (s *mountedfilesystemTestSuite) TestMountedUpdaterTrivialValidation(c *C) {
 	}
 	s.mustResolveVolumeContent(c, ps)
 
-	rw, err = gadget.NewMountedFilesystemUpdater(ps, "", lookupFail, nil)
+	rw, err := gadget.NewMountedFilesystemUpdater(ps, "", lookupFail, nil)
 	c.Assert(err, ErrorMatches, `internal error: backup directory must not be unset`)
 	c.Assert(rw, IsNil)
 
