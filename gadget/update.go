@@ -355,6 +355,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
+		maxSz := gs.Size
+		if gs.hasPartialSize(gv) {
+			maxSz = UnboundedStructureSize
+		}
 		switch {
 		// on disk size too small
 		case ds.Size < gs.MinSize:
@@ -362,11 +366,11 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				ds.Size, ds.Size.IECString(), gs.MinSize, gs.MinSize.IECString())
 
 		// on disk size too large
-		case ds.Size > gv.Size:
+		case ds.Size > maxSz:
 			// larger on disk size is allowed specifically only for system-data
 			if gs.Role != SystemData {
 				return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
-					ds.Size, ds.Size.IECString(), gs.Size, gs.Size.IECString())
+					ds.Size, ds.Size.IECString(), maxSz, maxSz.IECString())
 			}
 		}
 
@@ -430,7 +434,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// filesystem when the image is deployed to a partition. In this
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
-			// image file with a new binary image file.
+			// image file with a new binary image file. This also covers the
+			// partial filesystem case.
 			if gs.Filesystem != "" && gs.Filesystem != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
@@ -530,7 +535,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	}
 
 	// Check if top level properties match
-	if !isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
+	if !gadgetVolume.HasPartial(PartialSchema) && !isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
 		return nil, fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
 	}
 	if gadgetVolume.ID != "" && gadgetVolume.ID != diskVolume.ID {
@@ -538,19 +543,18 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	}
 
 	// Check if all existing device partitions are also in gadget
-	for _, ds := range diskVolume.Structure {
-		present, reasonAbsent := gadgetContains(gadgetVolume, &ds)
-		if !present {
-			if reasonAbsent != "" {
-				// use the right format so that it can be
-				// appended to the error message
-				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+	// (unless partial strucuture).
+	if !gadgetVolume.HasPartial(PartialStructure) {
+		for _, ds := range diskVolume.Structure {
+			present, reasonAbsent := gadgetContains(gadgetVolume, &ds)
+			if !present {
+				if reasonAbsent != "" {
+					// use the right format so that it can be
+					// appended to the error message
+					reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+				}
+				return nil, fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 			}
-			if gadgetVolume.HasPartial(PartialStructure) {
-				logger.Debugf("ignoring partition %s (starting at %d) as it was not in partial gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
-				continue
-			}
-			return nil, fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 
@@ -1008,7 +1012,7 @@ func buildVolumeStructureToLocation(mod Model,
 
 			loc := StructureLocation{}
 
-			if volStruct.HasFilesystem() {
+			if volStruct.WillHaveFilesystem(vol) {
 				// Here we know what disk is associated with this volume, so we
 				// just need to find what partition is associated with this
 				// structure to find it's root mount points. On GPT since
@@ -1616,24 +1620,13 @@ func updateLocationForStructure(structureLocations map[string]map[int]StructureL
 	if !ok {
 		return loc, fmt.Errorf("structure with index %d on volume %s not found", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
-	if !ps.HasFilesystem() {
-		if loc.Device == "" {
-			return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device set but did not have one in an internal mapping", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
-		}
-		return loc, nil
-	} else {
-		if loc.RootMountPoint == "" {
-			// then we can't update this structure because it has a filesystem
-			// specified in the gadget.yaml, but that partition is not mounted
-			// anywhere writable for us to update the filesystem content
-			// there is a TODO in buildVolumeStructureToLocation above about
-			// possibly mounting it, we could also mount it here instead and
-			// then proceed with the update, but we should also have a way to
-			// unmount it when we are done updating it
-			return loc, fmt.Errorf("structure %d on volume %s does not have a writable mountpoint in order to update the filesystem content", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
-		}
-		return loc, nil
+
+	// One of these must have been set in buildVolumeStructureToLocation
+	if loc.Device == "" && loc.RootMountPoint == "" {
+		return loc, fmt.Errorf("internal error: structure %d on volume %s should have had a device or a mount point set but did not have one in an internal mapping", ps.VolumeStructure.YamlIndex, ps.VolumeStructure.VolumeName)
 	}
+
+	return loc, nil
 }
 
 func applyUpdates(structureLocations map[string]map[int]StructureLocation, new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
@@ -1718,9 +1711,7 @@ func applyUpdates(structureLocations map[string]map[int]StructureLocation, new G
 var updaterForStructure = updaterForStructureImpl
 
 func updaterForStructureImpl(loc StructureLocation, ps *LaidOutStructure, newRootDir, rollbackDir string, observer ContentUpdateObserver) (Updater, error) {
-	// TODO: this is sort of clunky, we already did the lookup, but doing the
-	// lookup out of band from this function makes for easier mocking
-	if !ps.HasFilesystem() {
+	if loc.RootMountPoint == "" {
 		lookup := func(ps *LaidOutStructure) (device string, offs quantity.Offset, err error) {
 			return loc.Device, loc.Offset, nil
 		}
