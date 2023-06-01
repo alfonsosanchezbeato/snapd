@@ -94,6 +94,10 @@ const (
 	// UnboundedStructureOffset is the maximum effective partition offset
 	// that we can handle.
 	UnboundedStructureOffset = quantity.Offset(math.MaxUint64)
+
+	// UnboundedStructureSize is the maximum effective partition size
+	// that we can handle.
+	UnboundedStructureSize = quantity.Size(math.MaxUint64)
 )
 
 var (
@@ -347,6 +351,12 @@ func (v *Volume) maxStructureOffset(idx int) quantity.Offset {
 	max := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
+		if vss[i].hasPartialSize(v) {
+			// If a previous partition has not a defined size, the
+			// allowed offset is not really bounded.
+			max = UnboundedStructureOffset
+			break
+		}
 		othersSz += vss[i].Size
 		if vss[i].Offset != nil {
 			max = *vss[i].Offset + quantity.Offset(othersSz)
