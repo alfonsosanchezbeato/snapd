@@ -426,7 +426,7 @@ func wasCreatedDuringInstall(gv *gadget.Volume, s gadget.OnDiskStructure) bool {
 			// then it was created during install or is to be created during
 			// install, see if the offset matches the provided on disk structure
 			// has
-			if gadget.CheckValidStartOffset(s.StartOffset, gv.Structure, i) == nil {
+			if gv.CheckValidStartOffset(s.StartOffset, i) == nil {
 				return true
 			}
 		}

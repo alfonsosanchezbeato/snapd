@@ -339,10 +339,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	logger.Debugf("checking volume compatibility between gadget volume %s (partial: %v) and disk %s",
 		gadgetVolume.Name, gadgetVolume.Partial, diskVolume.Device)
 
-	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
-		gv := &vss[vssIdx]
+	eq := func(ds *OnDiskStructure, gv *Volume, vssIdx int) (bool, string) {
+		gs := &gv.Structure[vssIdx]
 		// name mismatch
-		if gv.Name != ds.Name {
+		if gs.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
 			if gadgetVolume.Schema != "mbr" {
 				// don't return a reason if the names don't match
@@ -351,22 +351,22 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if err := CheckValidStartOffset(ds.StartOffset, vss, vssIdx); err != nil {
+		if err := gadgetVolume.CheckValidStartOffset(ds.StartOffset, vssIdx); err != nil {
 			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
 		switch {
 		// on disk size too small
-		case ds.Size < gv.MinSize:
+		case ds.Size < gs.MinSize:
 			return false, fmt.Sprintf("on disk size %d (%s) is smaller than gadget min size %d (%s)",
-				ds.Size, ds.Size.IECString(), gv.MinSize, gv.MinSize.IECString())
+				ds.Size, ds.Size.IECString(), gs.MinSize, gs.MinSize.IECString())
 
 		// on disk size too large
 		case ds.Size > gv.Size:
 			// larger on disk size is allowed specifically only for system-data
-			if gv.Role != SystemData {
+			if gs.Role != SystemData {
 				return false, fmt.Sprintf("on disk size %d (%s) is larger than gadget size %d (%s) (and the role should not be expanded)",
-					ds.Size, ds.Size.IECString(), gv.Size, gv.Size.IECString())
+					ds.Size, ds.Size.IECString(), gs.Size, gs.Size.IECString())
 			}
 		}
 
@@ -377,10 +377,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 		// first handle the strict case where this partition was created at
 		// install in case it is an encrypted one
-		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gv) {
+		if opts.AssumeCreatablePartitionsCreated && IsCreatableAtInstall(gs) {
 			// only partitions that are creatable at install can be encrypted,
 			// check if this partition was encrypted
-			if encTypeParams, ok := opts.ExpectedStructureEncryption[gv.Name]; ok {
+			if encTypeParams, ok := opts.ExpectedStructureEncryption[gs.Name]; ok {
 				if encTypeParams.Method == "" {
 					return false, "encrypted structure parameter missing required parameter \"method\""
 				}
@@ -396,13 +396,13 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 				case EncryptionLUKS:
 					// then this partition is expected to have been encrypted, the
 					// filesystem label on disk will need "-enc" appended
-					if ds.PartitionFSLabel != gv.Name+"-enc" {
-						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gv.Name)
+					if ds.PartitionFSLabel != gs.Name+"-enc" {
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but is not named %[1]s-enc", gs.Name)
 					}
 
 					// the filesystem should also be "crypto_LUKS"
 					if ds.PartitionFSType != "crypto_LUKS" {
-						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gv.Name)
+						return false, fmt.Sprintf("partition %[1]s is expected to be encrypted but does not have an encrypted filesystem", gs.Name)
 					}
 
 					// at this point the partition matches
@@ -416,7 +416,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// below logic still applies
 		}
 
-		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gv) {
+		if opts.AssumeCreatablePartitionsCreated || !IsCreatableAtInstall(gs) {
 			// we assume that this partition has already been created
 			// successfully - either because this function was forced to(as is
 			// the case when doing gadget asset updates), or because this
@@ -431,14 +431,14 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			// case we don't care about the filesystem at all because snapd does
 			// not touch it, unless a gadget asset update says to update that
 			// image file with a new binary image file.
-			if gv.Filesystem != "" && gv.Filesystem != ds.PartitionFSType {
+			if gs.Filesystem != "" && gs.Filesystem != ds.PartitionFSType {
 				// use more specific error message for structures that are
 				// not creatable at install when we are not being strict
-				if !IsCreatableAtInstall(gv) && !opts.AssumeCreatablePartitionsCreated {
-					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
+				if !IsCreatableAtInstall(gs) && !opts.AssumeCreatablePartitionsCreated {
+					return false, fmt.Sprintf("filesystems do not match (and the partition is not creatable at install): declared as %s, got %s", gs.Filesystem, ds.PartitionFSType)
 				}
 				// otherwise generic
-				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gv.Filesystem, ds.PartitionFSType)
+				return false, fmt.Sprintf("filesystems do not match: declared as %s, got %s", gs.Filesystem, ds.PartitionFSType)
 			}
 		}
 
@@ -446,10 +446,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return true, ""
 	}
 
-	gadgetContains := func(vss []VolumeStructure, ds *OnDiskStructure) (bool, string) {
+	gadgetContains := func(gv *Volume, ds *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
-		for vssIdx := range vss {
-			matches, reasonNotMatches := eq(ds, vss, vssIdx)
+		for vssIdx := range gv.Structure {
+			matches, reasonNotMatches := eq(ds, gv, vssIdx)
 			if matches {
 				return true, ""
 			}
@@ -492,12 +492,12 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(dss []OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
+	onDiskContains := func(dss []OnDiskStructure, gv *Volume, vssIdx int) (bool, string) {
 		reasonAbsent := ""
 		for _, ds := range dss {
-			matches, reasonNotMatches := eq(&ds, vss, vssIdx)
+			matches, reasonNotMatches := eq(&ds, gv, vssIdx)
 			if matches {
-				gadgetStructIdxToOnDiskStruct[vss[vssIdx].YamlIndex] = &ds
+				gadgetStructIdxToOnDiskStruct[gv.Structure[vssIdx].YamlIndex] = &ds
 				return true, ""
 			}
 			// this has the effect of only returning the last non-empty reason
@@ -539,7 +539,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskVolume.Structure {
-		present, reasonAbsent := gadgetContains(gadgetVolume.Structure, &ds)
+		present, reasonAbsent := gadgetContains(gadgetVolume, &ds)
 		if !present {
 			if reasonAbsent != "" {
 				// use the right format so that it can be
@@ -561,7 +561,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, vssIdx); present {
+		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume, vssIdx); present {
 			continue
 		}
 
@@ -1318,7 +1318,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 			if err != nil {
 				return err
 			}
-			if err := canUpdateStructure(oldVol.Structure, fromIdx, newVol.Structure, toIdx, pNew.Schema); err != nil {
+			if err := canUpdateStructure(oldVol, fromIdx, newVol, toIdx, pNew.Schema); err != nil {
 				return fmt.Errorf("cannot update volume structure %v for volume %s: %v", update.to, volName, err)
 			}
 		}
@@ -1343,7 +1343,7 @@ func Update(model Model, old, new GadgetData, rollbackDirPath string, updatePoli
 	// build the map of volume structure locations where the first key is the
 	// volume name, and the second key is the structure's index in the list of
 	// structures on that volume, and the final value is the StructureLocation
-	// hat can actually be used to perform the lookup/update in applyUpdates
+	// that can actually be used to perform the lookup/update in applyUpdates
 	structureLocations, err := volumeStructureToLocationMap(old, model, laidOutVols)
 	if err != nil {
 		if err == errSkipUpdateProceedRefresh {
@@ -1438,16 +1438,16 @@ func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool
 	return from.Size >= to.MinSize && from.MinSize <= to.Size
 }
 
-func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
+func arePossibleOffsetsCompatible(v1 *Volume, idx1 int, v2 *Volume, idx2 int) bool {
 	// See comment in arePossibleSizesCompatible, this is the same check but
 	// for offsets instead of sizes.
-	return maxStructureOffset(vss1, idx1) >= minStructureOffset(vss2, idx2) &&
-		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
+	return v1.maxStructureOffset(idx1) >= v2.minStructureOffset(idx2) &&
+		v1.minStructureOffset(idx1) <= v2.maxStructureOffset(idx2)
 }
 
-func canUpdateStructure(fromVss []VolumeStructure, fromIdx int, toVss []VolumeStructure, toIdx int, schema string) error {
-	from := &fromVss[fromIdx]
-	to := &toVss[toIdx]
+func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int, schema string) error {
+	from := &fromV.Structure[fromIdx]
+	to := &toV.Structure[toIdx]
 	if schema == schemaGPT && from.Name != to.Name {
 		// partition names are only effective when GPT is used
 		return fmt.Errorf("cannot change structure name from %q to %q",
@@ -1457,9 +1457,9 @@ func canUpdateStructure(fromVss []VolumeStructure, fromIdx int, toVss []VolumeSt
 		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
 			to.MinSize, to.Size, from.MinSize, from.Size)
 	}
-	if !arePossibleOffsetsCompatible(fromVss, fromIdx, toVss, toIdx) {
+	if !arePossibleOffsetsCompatible(fromV, fromIdx, toV, toIdx) {
 		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
-			minStructureOffset(toVss, toIdx), maxStructureOffset(toVss, toIdx), minStructureOffset(fromVss, fromIdx), maxStructureOffset(fromVss, fromIdx))
+			toV.minStructureOffset(toIdx), toV.maxStructureOffset(toIdx), fromV.minStructureOffset(fromIdx), fromV.maxStructureOffset(fromIdx))
 	}
 	// TODO: should this limitation be lifted?
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {

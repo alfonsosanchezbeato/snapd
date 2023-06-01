@@ -305,7 +305,8 @@ func (vs *VolumeStructure) hasPartialSize(v *Volume) bool {
 
 // minStructureOffset works out the minimum start offset of an structure, which
 // depends on previous volume structures.
-func minStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+func (v *Volume) minStructureOffset(idx int) quantity.Offset {
+	vss := v.Structure
 	if vss[idx].Offset != nil {
 		return *vss[idx].Offset
 	}
@@ -326,7 +327,8 @@ func minStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
 
 // maxStructureOffset works out the maximum start offset of an structure, which
 // depends on surrounding volume structures.
-func maxStructureOffset(vss []VolumeStructure, idx int) quantity.Offset {
+func (v *Volume) maxStructureOffset(idx int) quantity.Offset {
+	vss := v.Structure
 	if vss[idx].Offset != nil {
 		return *vss[idx].Offset
 	}
@@ -387,9 +389,9 @@ func (e *invalidOffsetError) Error() string {
 
 // CheckValidStartOffset returns an error if the input offset is not valid for
 // the structure at idx, nil otherwise.
-func CheckValidStartOffset(off quantity.Offset, vss []VolumeStructure, idx int) error {
-	min := minStructureOffset(vss, idx)
-	max := maxStructureOffset(vss, idx)
+func (v *Volume) CheckValidStartOffset(off quantity.Offset, idx int) error {
+	min := v.minStructureOffset(idx)
+	max := v.maxStructureOffset(idx)
 	if min <= off && off <= max {
 		return nil
 	}

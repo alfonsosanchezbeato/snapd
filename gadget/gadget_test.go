@@ -4313,16 +4313,18 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		err       *gadget.InvalidOffsetError
 	}
 	for _, tc := range []struct {
-		vss         []gadget.VolumeStructure
+		vs          gadget.Volume
 		votcs       []validOffsetTc
 		description string
 	}{
 		{
-			vss: []gadget.VolumeStructure{
-				{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
-				{Offset: nil, MinSize: 10, Size: 20},
-				{Offset: nil, MinSize: 10, Size: 20},
-				{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
+			vs: gadget.Volume{
+				Structure: []gadget.VolumeStructure{
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+					{Offset: nil, MinSize: 10, Size: 20},
+					{Offset: nil, MinSize: 10, Size: 20},
+					{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
+				},
 			},
 			votcs: []validOffsetTc{
 				{structIdx: 0, offset: 0, err: nil},
@@ -4346,10 +4348,12 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			description: "test one",
 		},
 		{
-			vss: []gadget.VolumeStructure{
-				{Offset: asOffsetPtr(0), MinSize: 10, Size: 100},
-				{Offset: nil, MinSize: 10, Size: 10},
-				{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
+			vs: gadget.Volume{
+				Structure: []gadget.VolumeStructure{
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 100},
+					{Offset: nil, MinSize: 10, Size: 10},
+					{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
+				},
 			},
 			votcs: []validOffsetTc{
 				{structIdx: 0, offset: 0, err: nil},
@@ -4367,12 +4371,14 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		{
 			// This tests restriction 2 in maxStructureOffset (see
 			// comments in function).
-			vss: []gadget.VolumeStructure{
-				{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
-				{Offset: nil, MinSize: 20, Size: 40},
-				{Offset: nil, MinSize: 20, Size: 20},
-				{Offset: nil, MinSize: 20, Size: 20},
-				{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
+			vs: gadget.Volume{
+				Structure: []gadget.VolumeStructure{
+					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
+					{Offset: nil, MinSize: 20, Size: 40},
+					{Offset: nil, MinSize: 20, Size: 20},
+					{Offset: nil, MinSize: 20, Size: 20},
+					{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
+				},
 			},
 			votcs: []validOffsetTc{
 				{structIdx: 2, offset: 39, err: gadget.NewInvalidOffsetError(39, 40, 60)},
@@ -4386,10 +4392,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		for _, votc := range tc.votcs {
 			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
 			if votc.err == nil {
-				c.Check(gadget.CheckValidStartOffset(votc.offset, tc.vss,
+				c.Check(tc.vs.CheckValidStartOffset(votc.offset,
 					votc.structIdx), IsNil)
 			} else {
-				c.Check(gadget.CheckValidStartOffset(votc.offset, tc.vss,
+				c.Check(tc.vs.CheckValidStartOffset(votc.offset,
 					votc.structIdx), DeepEquals, votc.err)
 			}
 		}

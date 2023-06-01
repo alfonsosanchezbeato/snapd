@@ -134,8 +134,8 @@ func (u *updateTestSuite) testCanUpdate(c *C, testCases []canUpdateTestCase) {
 		if schema == "" {
 			schema = "gpt"
 		}
-		fromVss := []gadget.VolumeStructure{tc.from}
-		toVss := []gadget.VolumeStructure{tc.to}
+		fromVss := &gadget.Volume{Structure: []gadget.VolumeStructure{tc.from}}
+		toVss := &gadget.Volume{Structure: []gadget.VolumeStructure{tc.to}}
 		err := gadget.CanUpdateStructure(fromVss, 0, toVss, 0, schema)
 		if tc.err == "" {
 			c.Check(err, IsNil)
@@ -428,33 +428,41 @@ func (u *updateTestSuite) TestCanUpdateName(c *C) {
 }
 
 func (u *updateTestSuite) TestCanUpdateOffsetRange(c *C) {
-	fromVss := []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
-		// Valid offset range for second structure is [10, 20]
-		{MinSize: 10, Size: 10},
+	fromV := &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
+			// Valid offset range for second structure is [10, 20]
+			{MinSize: 10, Size: 10},
+		},
 	}
-	toVss := []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 10, Size: 10},
-		{MinSize: 10, Size: 10},
+	toV := &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Offset: asOffsetPtr(0), MinSize: 10, Size: 10},
+			{MinSize: 10, Size: 10},
+		},
 	}
 
-	err := gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	err := gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
 	c.Check(err, IsNil)
 
-	toVss = []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 15, Size: 21},
-		{MinSize: 10, Size: 10},
+	toV = &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Offset: asOffsetPtr(0), MinSize: 15, Size: 21},
+			{MinSize: 10, Size: 10},
+		},
 	}
 
-	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	err = gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
 	c.Check(err, IsNil)
 
-	toVss = []gadget.VolumeStructure{
-		{Offset: asOffsetPtr(0), MinSize: 21, Size: 30},
-		{MinSize: 10, Size: 10},
+	toV = &gadget.Volume{
+		Structure: []gadget.VolumeStructure{
+			{Offset: asOffsetPtr(0), MinSize: 21, Size: 30},
+			{MinSize: 10, Size: 10},
+		},
 	}
 
-	err = gadget.CanUpdateStructure(fromVss, 1, toVss, 1, "")
+	err = gadget.CanUpdateStructure(fromV, 1, toV, 1, "")
 	c.Check(err.Error(), Equals,
 		`new valid structure offset range [21, 30] is not compatible with current ([10, 20])`)
 }
