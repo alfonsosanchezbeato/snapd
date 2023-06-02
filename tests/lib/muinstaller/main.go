@@ -435,7 +435,7 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	if vol.HasPartial(gadget.PartialFilesystem) {
 		for sidx := range vol.Structure {
 			s := &vol.Structure[sidx]
-			if s.WillHaveFilesystem(vol) && s.Filesystem == "" {
+			if s.HasFilesystem(vol) && s.Filesystem == "" {
 				switch s.Role {
 				case gadget.SystemSeed, gadget.SystemSeedNull:
 					s.Filesystem = "vfat"
