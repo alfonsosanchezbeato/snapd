@@ -46,9 +46,6 @@ func NewRawStructureWriter(contentDir string, ps *LaidOutStructure) (*RawStructu
 	if ps == nil {
 		return nil, fmt.Errorf("internal error: *LaidOutStructure is nil")
 	}
-	if ps.HasFilesystem() {
-		return nil, fmt.Errorf("internal error: structure %s has a filesystem", ps)
-	}
 	if contentDir == "" {
 		return nil, fmt.Errorf("internal error: gadget content directory cannot be unset")
 	}

@@ -260,22 +260,17 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
 }
 
-// HasFilesystem returns true if the structure is using a filesystem.
-func (vs *VolumeStructure) HasFilesystem() bool {
-	return vs.Filesystem != "none" && vs.Filesystem != ""
-}
-
-// WillHaveFilesystem considers also partially defined filesystem.
-func (vs *VolumeStructure) WillHaveFilesystem(v *Volume) bool {
-	if vs.HasFilesystem() {
+// HasFilesystem returns true if the structure definition expects a filesystem.
+func (vs *VolumeStructure) HasFilesystem(v *Volume) bool {
+	if vs.Filesystem != "none" && vs.Filesystem != "" {
 		return true
 	}
 
-	if vs.Type == "bare" || vs.Type == "mbr" || !v.HasPartial(PartialFilesystem) {
+	if vs.Type == "bare" || vs.Type == "mbr" {
 		return false
 	}
 
-	return true
+	return v.HasPartial(PartialFilesystem)
 }
 
 // IsPartition returns true when the structure describes a partition in a block
@@ -636,7 +631,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(vol.Volume, ls.VolumeStructure)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -1320,7 +1315,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.WillHaveFilesystem(vol) {
+	if vs.HasFilesystem(vol) {
 		contentChecker = validateFilesystemContent
 	} else {
 		contentChecker = validateBareContent
@@ -1478,7 +1473,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
-	if !vs.WillHaveFilesystem(v) && len(vs.Update.Preserve) > 0 {
+	if !vs.HasFilesystem(v) && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 

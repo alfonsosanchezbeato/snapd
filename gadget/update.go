@@ -853,7 +853,7 @@ func buildNewVolumeToDeviceMapping(mod Model, old GadgetData, laidOutVols map[st
 		// here it is okay that we require there to be either a partition label
 		// or a filesystem label since we require there to be a system-boot role
 		// on this volume which by definition must have a filesystem
-		structureDevice, err := FindDeviceForStructure(vs.VolumeStructure)
+		structureDevice, err := FindDeviceForStructure(laidOutVol.Volume, vs.VolumeStructure)
 		if err == ErrDeviceNotFound {
 			continue
 		}
@@ -1012,7 +1012,7 @@ func buildVolumeStructureToLocation(mod Model,
 
 			loc := StructureLocation{}
 
-			if volStruct.WillHaveFilesystem(vol) {
+			if volStruct.HasFilesystem(vol) {
 				// Here we know what disk is associated with this volume, so we
 				// just need to find what partition is associated with this
 				// structure to find it's root mount points. On GPT since
@@ -1491,23 +1491,26 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 	if from.ID != to.ID {
 		return fmt.Errorf("cannot change structure ID from %q to %q", from.ID, to.ID)
 	}
-	if !toV.HasPartial(PartialFilesystem) {
-		if to.HasFilesystem() {
-			if !from.HasFilesystem() {
-				return fmt.Errorf("cannot change a bare structure to filesystem one")
+	if to.HasFilesystem(toV) {
+		if !from.HasFilesystem(fromV) {
+			return fmt.Errorf("cannot change a bare structure to filesystem one")
+		}
+		if !fromV.HasPartial(PartialFilesystem) {
+			if toV.HasPartial(PartialFilesystem) {
+				return fmt.Errorf("changing from defined to undefined filesystem is not allowed")
 			}
 			if from.Filesystem != to.Filesystem {
 				return fmt.Errorf("cannot change filesystem from %q to %q",
 					from.Filesystem, to.Filesystem)
 			}
-			if from.Label != to.Label {
-				return fmt.Errorf("cannot change filesystem label from %q to %q",
-					from.Label, to.Label)
-			}
-		} else {
-			if from.HasFilesystem() {
-				return fmt.Errorf("cannot change a filesystem structure to a bare one")
-			}
+		}
+		if from.Label != to.Label {
+			return fmt.Errorf("cannot change filesystem label from %q to %q",
+				from.Label, to.Label)
+		}
+	} else {
+		if from.HasFilesystem(fromV) {
+			return fmt.Errorf("cannot change a filesystem structure to a bare one")
 		}
 	}
 

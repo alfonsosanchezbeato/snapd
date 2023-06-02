@@ -695,7 +695,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 		switch updaterForStructureCalls {
 		case 0:
 			c.Check(ps.Name(), Equals, "first")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
@@ -705,7 +705,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
 		case 1:
 			c.Check(ps.Name(), Equals, "second")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 10*quantity.SizeMiB)
@@ -848,7 +848,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		case 0:
 			// mbr raw structure
 			c.Check(ps.Name(), Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
@@ -861,7 +861,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		case 1:
 			// bios boot
 			c.Check(ps.Name(), Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
@@ -874,7 +874,7 @@ func (u *updateTestSuite) TestUpdateApplyUC16FullLogic(c *C) {
 		case 2:
 			// EFI system partition
 			c.Check(ps.Name(), Equals, "EFI System")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 50*quantity.SizeMiB)
@@ -1042,7 +1042,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 0:
 			// mbr raw structure
 			c.Check(ps.Name(), Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
@@ -1055,7 +1055,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 1:
 			// bios boot
 			c.Check(ps.Name(), Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
@@ -1068,7 +1068,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 2:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -1081,7 +1081,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 3:
 			// ubuntu-boot
 			c.Check(ps.Name(), Equals, "ubuntu-boot")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
@@ -1094,7 +1094,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 4:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
@@ -1107,7 +1107,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 5:
 			// ubuntu-data
 			c.Check(ps.Name(), Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
@@ -1283,7 +1283,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 0:
 			// mbr raw structure
 			c.Check(ps.Name(), Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
@@ -1296,7 +1296,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 1:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -1309,7 +1309,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 2:
 			// ubuntu-boot
 			c.Check(ps.Name(), Equals, "ubuntu-boot")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
@@ -1322,7 +1322,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 3:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
@@ -1335,7 +1335,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 4:
 			// ubuntu-data
 			c.Check(ps.Name(), Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
@@ -1534,7 +1534,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 0:
 			// mbr raw structure
 			c.Check(ps.Name(), Equals, "mbr")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 			c.Check(ps.IsPartition(), Equals, false)
 			// no offset since we are updating the MBR itself
@@ -1547,7 +1547,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 1:
 			// bios boot
 			c.Check(ps.Name(), Equals, "BIOS Boot")
-			c.Check(ps.HasFilesystem(), Equals, false)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 			c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
@@ -1560,7 +1560,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 2:
 			// ubuntu-seed
 			c.Check(ps.Name(), Equals, "ubuntu-seed")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "vfat")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -1573,7 +1573,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 3:
 			// ubuntu-boot
 			c.Check(ps.Name(), Equals, "ubuntu-boot")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
@@ -1586,7 +1586,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 4:
 			// ubuntu-save
 			c.Check(ps.Name(), Equals, "ubuntu-save")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
@@ -1599,7 +1599,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20MissingInitialMapFullLogicOnlySyste
 		case 5:
 			// ubuntu-data
 			c.Check(ps.Name(), Equals, "ubuntu-data")
-			c.Check(ps.HasFilesystem(), Equals, true)
+			c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 			c.Check(ps.Filesystem(), Equals, "ext4")
 			c.Check(ps.IsPartition(), Equals, true)
 			// NOTE: this is the laid out size, not the actual size (since data
@@ -1806,7 +1806,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 0:
 				// mbr raw structure
 				c.Check(ps.Name(), Equals, "mbr")
-				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(440))
 				c.Check(ps.IsPartition(), Equals, false)
 				// no offset since we are updating the MBR itself
@@ -1819,7 +1819,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 1:
 				// bios boot
 				c.Check(ps.Name(), Equals, "BIOS Boot")
-				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeMiB)
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
@@ -1832,7 +1832,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 2:
 				// ubuntu-seed
 				c.Check(ps.Name(), Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -1845,7 +1845,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 3:
 				// ubuntu-boot
 				c.Check(ps.Name(), Equals, "ubuntu-boot")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 750*quantity.SizeMiB)
@@ -1858,7 +1858,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 4:
 				// ubuntu-save
 				c.Check(ps.Name(), Equals, "ubuntu-save")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 16*quantity.SizeMiB)
@@ -1871,7 +1871,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			case 5:
 				// ubuntu-data
 				c.Check(ps.Name(), Equals, "ubuntu-data")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				// NOTE: this is the laid out size, not the actual size (since data
@@ -1905,7 +1905,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 			switch fooUpdaterForStructureCalls {
 			case 0:
 				c.Check(ps.Name(), Equals, "barething")
-				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 				c.Check(ps.IsPartition(), Equals, false)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB)
@@ -1917,7 +1917,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 1:
 				c.Check(ps.Name(), Equals, "nofspart")
-				c.Check(ps.HasFilesystem(), Equals, false)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, false)
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.Size(4096))
 				c.Check(ps.StartOffset, Equals, quantity.OffsetMiB+4096)
@@ -1929,7 +1929,7 @@ func (u *updateTestSuite) TestUpdateApplyUC20WithInitialMapAllVolumesUpdatedFull
 				})
 			case 2:
 				c.Check(ps.Name(), Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
@@ -2289,7 +2289,7 @@ volumes:
 			case 0:
 				// ubuntu-seed
 				c.Check(ps.Name(), Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -2325,7 +2325,7 @@ volumes:
 			switch fooUpdaterForStructureCalls {
 			case 0:
 				c.Check(ps.Name(), Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)
@@ -2589,7 +2589,7 @@ volumes:
 			case 0:
 				// ubuntu-seed
 				c.Check(ps.Name(), Equals, "ubuntu-seed")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "vfat")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, 1200*quantity.SizeMiB)
@@ -2625,7 +2625,7 @@ volumes:
 			switch fooUpdaterForStructureCalls {
 			case 0:
 				c.Check(ps.Name(), Equals, "some-filesystem")
-				c.Check(ps.HasFilesystem(), Equals, true)
+				c.Check(ps.HasFilesystem(&gadget.LaidOutVolume{Volume: &gadget.Volume{}}), Equals, true)
 				c.Check(ps.Filesystem(), Equals, "ext4")
 				c.Check(ps.IsPartition(), Equals, true)
 				c.Check(ps.VolumeStructure.Size, Equals, quantity.SizeGiB)

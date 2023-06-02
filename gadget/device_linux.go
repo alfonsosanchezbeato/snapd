@@ -35,14 +35,14 @@ var evalSymlinks = filepath.EvalSymlinks
 // given volume structure, by inspecting its name and, optionally, the
 // filesystem label. Assumes that the host's udev has set up device symlinks
 // correctly.
-func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
+func FindDeviceForStructure(v *Volume, vs *VolumeStructure) (string, error) {
 	var candidates []string
 
 	if vs.Name != "" {
 		byPartlabel := filepath.Join(dirs.GlobalRootDir, "/dev/disk/by-partlabel/", disks.BlkIDEncodeLabel(vs.Name))
 		candidates = append(candidates, byPartlabel)
 	}
-	if vs.HasFilesystem() {
+	if vs.HasFilesystem(v) {
 		fsLabel := vs.Label
 		if fsLabel == "" && vs.Name != "" {
 			// when image is built and the structure has no

@@ -234,20 +234,6 @@ func (r *rawTestSuite) TestRawWriterNoImage(c *C) {
 	c.Assert(err, ErrorMatches, "failed to write image .*: no image defined")
 }
 
-func (r *rawTestSuite) TestRawWriterFailWithNonBare(c *C) {
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
-			// non-bare
-			Filesystem: "ext4",
-		},
-	}
-
-	rw, err := gadget.NewRawStructureWriter(r.dir, ps)
-	c.Assert(err, ErrorMatches, "internal error: structure #0 has a filesystem")
-	c.Assert(rw, IsNil)
-}
-
 func (r *rawTestSuite) TestRawWriterInternalErrors(c *C) {
 	ps := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
@@ -268,23 +254,6 @@ func getFileSize(c *C, path string) int64 {
 	stat, err := os.Stat(path)
 	c.Assert(err, IsNil)
 	return stat.Size()
-}
-
-func (r *rawTestSuite) TestRawUpdaterFailWithNonBare(c *C) {
-	ps := &gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Size: 2048,
-			// non-bare
-			Filesystem: "ext4",
-		},
-	}
-
-	ru, err := gadget.NewRawStructureUpdater(r.dir, ps, r.backup, func(to *gadget.LaidOutStructure) (string, quantity.Offset, error) {
-		c.Fatalf("unexpected call")
-		return "", 0, nil
-	})
-	c.Assert(err, ErrorMatches, "internal error: structure #0 has a filesystem")
-	c.Assert(ru, IsNil)
 }
 
 func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
