@@ -214,27 +214,39 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (
+	sideInfos []*snap.SideInfo, names []string, tempPaths []string, origPaths []string,
+	apiError *apiError) {
+
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
-		return nil, InternalError(err.Error())
+		return nil, nil, nil, nil, InternalError(err.Error())
 	}
 
-	sideInfos := make([]*snap.SideInfo, len(snapFiles))
-	names := make([]string, len(snapFiles))
-	tempPaths := make([]string, len(snapFiles))
-	origPaths := make([]string, len(snapFiles))
+	sideInfos = make([]*snap.SideInfo, len(snapFiles))
+	names = make([]string, len(snapFiles))
+	tempPaths = make([]string, len(snapFiles))
+	origPaths = make([]string, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
 		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 		if apiError != nil {
-			return nil, apiError
+			return nil, nil, nil, nil, apiError
 		}
 
 		sideInfos[i] = si
 		names[i] = si.RealName
 		tempPaths[i] = snapFile.tmpPath
 		origPaths[i] = snapFile.filename
+	}
+
+	return sideInfos, names, tempPaths, origPaths, nil
+}
+
+func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
+	sideInfos, names, tempPaths, origPaths, apiErr := sideloadInfo(st, snapFiles, flags)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	var userID int
