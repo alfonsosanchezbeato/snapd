@@ -80,7 +80,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappyNotSeeded(c *C) {
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
 	})
-	_, err := devicestate.Remodel(s.state, newModel)
+	_, err := devicestate.Remodel(s.state, newModel, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "cannot remodel until fully seeded")
 }
 
@@ -160,7 +160,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
-		chg, err := devicestate.Remodel(s.state, new)
+		chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
@@ -197,7 +197,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelFromClassicUnhappy(c *C) {
 		"classic":      cur["classic"],
 	})
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Check(err, ErrorMatches, `cannot remodel from classic model`)
 }
 
@@ -235,7 +235,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 		c.Logf("tc: %v", idx)
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
-		chg, err := devicestate.Remodel(s.state, new)
+		chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
@@ -270,7 +270,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
 	}
 	mergeMockModelHeaders(cur, newModelHdrs)
 	new := s.brands.Model("canonical", "pc-model", newModelHdrs)
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Check(chg, IsNil)
 	c.Check(err, ErrorMatches, "cannot remodel without a serial")
 }
@@ -506,7 +506,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -640,7 +640,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1"},
 		"revision":       "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -718,7 +718,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 		"base":         "core18",
 		"revision":     "1",
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -807,7 +807,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		return testStore
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -866,7 +866,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 		return nil
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(chg.Summary(), Equals, "Remodel device to canonical/rereg-model (0)")
@@ -951,7 +951,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 	})
 
 	clashing = other
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model-other (0)",
 	})
@@ -963,7 +963,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		Serial: "1234",
 	})
 	clashing = new
-	_, err = devicestate.Remodel(s.state, new)
+	_, err = devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message: "cannot start remodel, clashing with concurrent remodel to canonical/pc-model (1)",
 	})
@@ -1019,7 +1019,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		"revision":       "1",
 	})
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message:    "cannot start remodel, clashing with concurrent one",
 		ChangeKind: "remodel",
@@ -1065,7 +1065,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	chg := s.state.NewChange("chg", "other change")
 	chg.SetStatus(state.DoingStatus)
 
-	_, err := devicestate.Remodel(s.state, new)
+	_, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "chg",
@@ -1589,7 +1589,7 @@ volumes:
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1676,7 +1676,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
@@ -1873,7 +1873,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2101,7 +2101,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2342,7 +2342,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2621,7 +2621,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -2865,7 +2865,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3083,7 +3083,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentCh
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3256,7 +3256,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsAlreadyInstalledAnd
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3439,7 +3439,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20BaseNoDownloadSimpleChannelSwitch
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
@@ -3631,7 +3631,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 		defer os.Chmod(systemsDir, 0755)
 	}
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	if tc.expectedErr == "" {
 		c.Assert(err, IsNil)
 		c.Assert(chg, NotNil)
@@ -3841,7 +3841,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 	var setModelTask *state.Task
 	for _, tsk := range chg.Tasks() {
@@ -4163,7 +4163,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	})
 	defer restore()
 
-	chg, err := devicestate.Remodel(s.state, new)
+	chg, err := devicestate.Remodel(s.state, new, nil, nil, nil)
 	c.Assert(err, IsNil)
 
 	// since we cannot panic in random place in code that runs under

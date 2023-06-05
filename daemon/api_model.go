@@ -22,7 +22,9 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
@@ -58,7 +60,7 @@ type postModelData struct {
 
 func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
-	mediaType, _, err := mime.ParseMediaType(contentType)
+	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		// assume json body, as type was not enforced in the past
 		mediaType = "application/json"
@@ -66,12 +68,29 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	switch mediaType {
 	case "application/json":
+		// If json content type we get only the new model assertion and
+		// the rest is downloaded from the store.
 		return storeRemodel(c, r)
 	case "multipart/form-data":
-		return BadRequest("media type %q not implemented yet", mediaType)
+		// multipart/form-data content type can be used to sideload
+		// part of the things necessary for a remodel.
+		return offlineRemodel(c, r, params)
 	default:
 		return BadRequest("unexpected media type %q", mediaType)
 	}
+}
+
+func modelFromData(data []byte) (*asserts.Model, error) {
+	rawNewModel, err := asserts.Decode(data)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode new model assertion: %v", err)
+	}
+	newModel, ok := rawNewModel.(*asserts.Model)
+	if !ok {
+		return nil, fmt.Errorf("new model is not a model assertion: %v", newModel.Type())
+	}
+
+	return newModel, nil
 }
 
 func storeRemodel(c *Command, r *http.Request) Response {
@@ -80,21 +99,77 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	if err := decoder.Decode(&data); err != nil {
 		return BadRequest("cannot decode request body into remodel operation: %v", err)
 	}
-
-	rawNewModel, err := asserts.Decode([]byte(data.NewModel))
+	newModel, err := modelFromData([]byte(data.NewModel))
 	if err != nil {
-		return BadRequest("cannot decode new model assertion: %v", err)
-	}
-	newModel, ok := rawNewModel.(*asserts.Model)
-	if !ok {
-		return BadRequest("new model is not a model assertion: %v", newModel.Type())
+		return BadRequest(err.Error())
 	}
 
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel)
+	chg, err := devicestateRemodel(st, newModel, nil, nil, nil)
+	if err != nil {
+		return BadRequest("cannot remodel device: %v", err)
+	}
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]string) Response {
+	boundary := contentTypeParams["boundary"]
+	mpReader := multipart.NewReader(r.Body, boundary)
+	form, errRsp := readForm(mpReader)
+	if errRsp != nil {
+		return errRsp
+	}
+
+	// we are in charge of the temp files, until they're handed off to the change
+	var pathsToNotRemove []string
+	defer func() {
+		form.RemoveAllExcept(pathsToNotRemove)
+	}()
+
+	// New model
+	model := form.Values["new-model"]
+	if len(model) != 1 {
+		return BadRequest("one model assertion is expected (%d found)", len(model))
+	}
+	newModel, err := modelFromData([]byte(model[0]))
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	// Snap files
+	snapFiles, errRsp := form.GetSnapFiles()
+	if errRsp != nil {
+		return errRsp
+	}
+
+	// Assertions
+	formAsserts := form.Values["assertion"]
+	remodAsserts := make([]asserts.Assertion, len(formAsserts))
+	for _, a := range formAsserts {
+		assert, err := asserts.Decode([]byte(a))
+		if err != nil {
+			return BadRequest("cannot decode model assertion: %v", err)
+		}
+		remodAsserts = append(remodAsserts, assert)
+	}
+
+	// Create change
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// TODO should flags be considered in this case?
+	sis, _, paths, _, err := sideloadInfo(st, snapFiles, sideloadFlags{})
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	chg, err := devicestateRemodel(st, newModel, sis, paths, remodAsserts)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}

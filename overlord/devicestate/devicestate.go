@@ -862,7 +862,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 //     (need to check that even unchanged snaps are accessible)
 //   - Make sure this works with Core 20 as well, in the Core 20 case
 //     we must enforce the default-channels from the model as well
-func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
+func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, localSnapPaths []string, localAsserts []asserts.Assertion) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
