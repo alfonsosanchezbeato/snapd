@@ -4881,8 +4881,7 @@ func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -4890,15 +4889,17 @@ func (s *snapmgrTestSuite) TestInstallPathMany(c *C) {
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("3"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("3"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4925,8 +4926,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyWithOneFailing(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -4934,15 +4934,20 @@ func (s *snapmgrTestSuite) TestInstallPathManyWithOneFailing(c *C) {
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
+		sideInfos = append(sideInfos, &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("3"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
+		})
 	}
 
 	s.o.TaskRunner().AddHandler("fail", func(*state.Task, *tomb.Tomb) error {
 		return errors.New("expected")
 	}, nil)
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -4978,8 +4983,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -4987,16 +4991,18 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionally(c *C) {
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("3"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("3"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
+		0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -5030,8 +5036,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionallyWithOneFailing(c *C
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5039,15 +5044,17 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionallyWithOneFailing(c *C
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		sideInfos = append(sideInfos, &snap.SideInfo{RealName: name})
+		sideInfos = append(sideInfos, &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{RealName: name},
+			TmpPath:  makeTestSnap(c, yaml),
+		})
 	}
 
 	// make other-snap installation fail
 	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/other-snap/x1")
 
 	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos,
-		paths, 0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
+		0, &snapstate.Flags{Transaction: client.TransactionAllSnaps})
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -5075,7 +5082,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyAsUpdate(c *C) {
 	defer s.state.Unlock()
 
 	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5095,17 +5102,20 @@ version: 1.0
 epoch: 1
 `, name)
 
-		newSi := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("2"),
+		newSi := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("2"),
+			},
 		}
-		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, newSi)
+		path, _ := snaptest.MakeTestSnapInfoWithFiles(c, yaml, nil, &newSi.SideInfo)
+		newSi.TmpPath = path
 
 		paths = append(paths, path)
 		sideInfos = append(sideInfos, newSi)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 2)
 
@@ -5135,8 +5145,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyDiskSpaceError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5144,10 +5153,12 @@ func (s *snapmgrTestSuite) TestInstallPathManyDiskSpaceError(c *C) {
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("1"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("1"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
@@ -5155,7 +5166,7 @@ epoch: 1
 	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
 	tr.Commit()
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, nil)
 	diskSpaceErr, ok := err.(*snapstate.InsufficientSpaceError)
 	c.Assert(ok, Equals, true)
 	c.Check(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "install" change for the following snaps: some-snap, other-snap`)
@@ -5171,7 +5182,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassic(c *C) {
 	defer s.state.Unlock()
 
 	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5180,15 +5191,18 @@ version: 1.0
 epoch: 1
 confinement: classic
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("1"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("1"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
+		paths = append(paths, si.TmpPath)
 	}
 
-	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{Classic: true})
+	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{Classic: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 
@@ -5204,7 +5218,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyDevMode(c *C) {
 	defer s.state.Unlock()
 
 	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5213,15 +5227,17 @@ version: 1.0
 epoch: 1
 confinement: devmode
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
+		si := &snap.PathSideInfo{SideInfo: snap.SideInfo{
 			RealName: name,
 			Revision: snap.R("1"),
+		},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
+		paths = append(paths, si.TmpPath)
 	}
 
-	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{DevMode: true})
+	tts, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 2)
 
@@ -5236,8 +5252,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyMissingClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5246,15 +5261,16 @@ version: 1.0
 epoch: 1
 confinement: classic
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
+		si := &snap.PathSideInfo{SideInfo: snap.SideInfo{
 			RealName: name,
 			Revision: snap.R("1"),
+		},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, `snap "some-snap" requires classic confinement`)
 }
 
@@ -5271,13 +5287,14 @@ func (s *snapmgrTestSuite) TestInstallPathManyFailOnEpochMismatch(c *C) {
 version: 1.0
 epoch: 42
 `
-	path := makeTestSnap(c, yaml)
-	si := &snap.SideInfo{
+	si := &snap.PathSideInfo{SideInfo: snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(-2),
+	},
+		TmpPath: makeTestSnap(c, yaml),
 	}
 
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, s.user.ID, nil)
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.PathSideInfo{si}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh "some-snap" to local snap with epoch 42, because it can't read the current epoch of 1\*`)
 }
 
@@ -5296,7 +5313,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
 	defer s.state.Unlock()
 
 	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5314,13 +5331,16 @@ func (s *snapmgrTestSuite) TestInstallPathManyClassicAsUpdate(c *C) {
 version: 1.0
 confinement: classic
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
 
-		si = &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("2"),
+		psi := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("2"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
-		sideInfos = append(sideInfos, si)
+		sideInfos = append(sideInfos, psi)
+		paths = append(paths, psi.TmpPath)
 	}
 
 	checkClassicInstall := func(tss []*state.TaskSet, err error, expectClassic bool) {
@@ -5339,23 +5359,23 @@ confinement: classic
 	}
 
 	// works with --classic
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{Classic: true})
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{Classic: true})
 	checkClassicInstall(tss, err, true)
 
 	// works without --classic
-	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, nil)
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, nil)
 	checkClassicInstall(tss, err, true)
 
 	// devmode overrides the snapsetup classic flag
-	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{DevMode: true})
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{DevMode: true})
 	checkClassicInstall(tss, err, false)
 
 	// jailmode overrides it too (you need to provide both)
-	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{JailMode: true})
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{JailMode: true})
 	checkClassicInstall(tss, err, false)
 
 	// jailmode and classic together gets you both
-	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, s.user.ID, &snapstate.Flags{JailMode: true, Classic: true})
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, s.user.ID, &snapstate.Flags{JailMode: true, Classic: true})
 	checkClassicInstall(tss, err, true)
 }
 
@@ -5364,7 +5384,8 @@ func (s *snapmgrTestSuite) TestInstallPathManyValidateContainer(c *C) {
 	defer s.state.Unlock()
 
 	path, si := mkInvalidSnap(c)
-	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.SideInfo{si}, []string{path}, s.user.ID, nil)
+	psi := &snap.PathSideInfo{SideInfo: *si, TmpPath: path}
+	_, err := snapstate.InstallPathMany(context.Background(), s.state, []*snap.PathSideInfo{psi}, s.user.ID, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(".*%s.*", snap.ErrBadModes))
 }
 
@@ -5410,8 +5431,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyWithLocalPrereqAndBaseNoStore(c *C
 	// no core, we'll install it as well
 	snapstate.Set(s.state, "core", nil)
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "prereq-snap", "core"}
 	yamls := []string{
@@ -5438,15 +5458,17 @@ type: base
 	}
 
 	for i, name := range snapNames {
-		paths = append(paths, makeTestSnap(c, yamls[i]))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("1"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("1"),
+			},
+			TmpPath: makeTestSnap(c, yamls[i]),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, nil)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(tss, HasLen, 3)
 
@@ -5626,8 +5648,7 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionalWithLane(c *C) {
 		Lane:        lane,
 	}
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	snapNames := []string{"some-snap", "other-snap"}
 	for _, name := range snapNames {
@@ -5635,15 +5656,17 @@ func (s *snapmgrTestSuite) TestInstallPathManyTransactionalWithLane(c *C) {
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("3"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("3"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, flags)
 	c.Assert(err, IsNil)
 	c.Check(tss, HasLen, 2)
 
@@ -5663,28 +5686,29 @@ func (s *snapmgrTestSuite) TestInstallPathManyErrorsWithLaneButNoTransaction(c *
 		Lane: lane,
 	}
 
-	var paths []string
-	var sideInfos []*snap.SideInfo
+	var sideInfos []*snap.PathSideInfo
 
 	for _, name := range []string{"some-snap", "other-snap"} {
 		yaml := fmt.Sprintf(`name: %s
 version: 1.0
 epoch: 1
 `, name)
-		paths = append(paths, makeTestSnap(c, yaml))
-		si := &snap.SideInfo{
-			RealName: name,
-			Revision: snap.R("3"),
+		si := &snap.PathSideInfo{
+			SideInfo: snap.SideInfo{
+				RealName: name,
+				Revision: snap.R("3"),
+			},
+			TmpPath: makeTestSnap(c, yaml),
 		}
 		sideInfos = append(sideInfos, si)
 	}
 
-	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	tss, err := snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, flags)
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
 	c.Check(tss, IsNil)
 
 	flags.Transaction = client.TransactionPerSnap
-	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, paths, 0, flags)
+	tss, err = snapstate.InstallPathMany(context.Background(), s.state, sideInfos, 0, flags)
 	c.Assert(err, ErrorMatches, "cannot specify a lane without setting transaction to \"all-snaps\"")
 	c.Check(tss, IsNil)
 }

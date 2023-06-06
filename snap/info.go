@@ -287,6 +287,13 @@ type SideInfo struct {
 	Paid                bool   `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
+// PathSideInfo is a SideInfo with an additional field specifying a
+// temporary storage for the snap.
+type PathSideInfo struct {
+	SideInfo
+	TmpPath string
+}
+
 // Info provides information about snaps.
 type Info struct {
 	SuggestedName string
