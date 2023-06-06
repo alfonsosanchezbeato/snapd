@@ -206,7 +206,7 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string, *snapstate.Remove
 	}
 }
 
-func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.SideInfo, []string, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
+func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.PathSideInfo, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
 	old := snapstateInstallPathMany
 	snapstateInstallPathMany = f
 	return func() {

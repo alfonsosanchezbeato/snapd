@@ -317,7 +317,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", nil)
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
@@ -341,11 +341,11 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID())
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID(), nil)
 	c.Assert(err, IsNil)
 	verifyInstallTasks(c, snap.TypeGadget, 0, 0, ts)
 
-	ts, err = snapstate.InstallWithDeviceContext(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID())
+	ts, err = snapstate.InstallWithDeviceContext(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{}, deviceCtx, chg.ID(), nil)
 	c.Assert(err, IsNil)
 	verifyInstallTasks(c, snap.TypeSnapd, noConfigure, 0, ts)
 }
@@ -367,7 +367,7 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContextRemodelConflict(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "brand-gadget", opts, 0, snapstate.Flags{}, deviceCtx, "", nil)
 	c.Assert(err.Error(), Equals, "remodeling in progress, no other changes allowed until this is done")
 	c.Assert(ts, IsNil)
 }
@@ -4623,7 +4623,7 @@ func (s *snapmgrTestSuite) TestInstallPrerequisiteWithSameDeviceContext(c *C) {
 	}
 	snapstatetest.MockDeviceContext(deviceCtx)
 
-	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{}, deviceCtx, "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), Not(HasLen), 0)
 
@@ -5722,7 +5722,7 @@ func (s *snapmgrTestSuite) TestInstallPathWithTransactionLaneForbidden(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallWithTransactionLaneForbidden(c *C) {
-	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "")
+	tss, err := snapstate.InstallWithDeviceContext(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{Lane: 1}, nil, "", nil)
 	c.Assert(err, ErrorMatches, "transaction lane is unsupported in InstallWithDeviceContext")
 	c.Check(tss, IsNil)
 }

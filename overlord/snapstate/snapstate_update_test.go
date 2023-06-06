@@ -4231,7 +4231,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContext(c *C) {
 	// hook it up
 	snapstate.ValidateRefreshes = happyValidateRefreshes
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "", nil)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -4262,7 +4262,7 @@ func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	})
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(11)}
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", nil)
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -7219,7 +7219,7 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteWithSameDeviceContext(c *C) {
 	}
 	snapstatetest.MockDeviceContext(deviceCtx)
 
-	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, deviceCtx, "")
+	ts, err := snapstate.UpdateWithDeviceContext(s.state, "outdated-consumer", nil, s.user.ID, snapstate.Flags{NoReRefresh: true}, deviceCtx, "", nil)
 	c.Assert(err, IsNil)
 	c.Assert(ts.Tasks(), Not(HasLen), 0)
 

@@ -329,7 +329,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "")
+	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{RequireTypeBase: requireTypeBase}, deviceCtx, "", nil)
 
 	// something might have triggered an explicit install while
 	// the state was unlocked -> deal with that here by simply
@@ -374,7 +374,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	}
 
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "")
+	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, deviceCtx, "", nil)
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
 			// If we aren't seeded, then it's to early to do any updates and we cannot

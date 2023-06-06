@@ -26,10 +26,15 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -108,7 +113,7 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil, nil, nil)
+	chg, err := devicestateRemodel(st, newModel, nil)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
@@ -149,27 +154,46 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 
 	// Assertions
 	formAsserts := form.Values["assertion"]
-	remodAsserts := make([]asserts.Assertion, len(formAsserts))
+	batch := asserts.NewBatch(nil)
 	for _, a := range formAsserts {
-		assert, err := asserts.Decode([]byte(a))
+		_, err := batch.AddStream(strings.NewReader(a))
 		if err != nil {
-			return BadRequest("cannot decode model assertion: %v", err)
+			return BadRequest("cannot decode assertion: %v", err)
 		}
-		remodAsserts = append(remodAsserts, assert)
 	}
 
-	// Create change
+	// State lock neeed for the rest of the function
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
-	// TODO should flags be considered in this case?
-	sis, _, paths, _, err := sideloadInfo(st, snapFiles, sideloadFlags{})
-	if err != nil {
-		return BadRequest(err.Error())
+	// Include assertions in the DB, we need them as soon as
+	// we create the snap.SideInfo struct in sideloadInfo.
+	if err := assertstate.AddBatch(st, batch,
+		&asserts.CommitOptions{Precheck: true}); err != nil {
+		return BadRequest("error committing assertions: %v", err)
 	}
 
-	chg, err := devicestateRemodel(st, newModel, sis, paths, remodAsserts)
+	// Build snaps information
+	// TODO should flags be considered in this case?
+	pathSis, _, _, apiErr := sideloadInfo(st, snapFiles, sideloadFlags{})
+	if apiErr != nil {
+		return apiErr
+	}
+
+	pathsToNotRemove = make([]string, len(pathSis))
+	for i, psi := range pathSis {
+		// Move file to the same name of what a downloaded one would have
+		dest := filepath.Join(dirs.SnapBlobDir,
+			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
+		os.Rename(psi.TmpPath, dest)
+		psi.TmpPath = dest
+		// Avoid trying to remove a file that does not exist anymore
+		pathsToNotRemove[i] = psi.TmpPath
+	}
+
+	// Now create and start the remodel change
+	chg, err := devicestateRemodel(st, newModel, pathSis)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}

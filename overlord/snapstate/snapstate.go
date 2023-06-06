@@ -1198,7 +1198,7 @@ func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, e
 // identifying the last task before the first task that introduces system
 // modifications.
 func Install(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "")
+	return InstallWithDeviceContext(ctx, st, name, opts, userID, flags, nil, "", nil)
 }
 
 // InstallWithDeviceContext returns a set of tasks for installing a snap.
@@ -1208,7 +1208,7 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 // The returned TaskSet will contain a LastBeforeLocalModificationsEdge
 // identifying the last task before the first task that introduces system
 // modifications.
-func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1282,6 +1282,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		CohortKey:          opts.CohortKey,
 		ExpectedProvenance: info.SnapProvenance,
 	}
+	if localSnap == nil {
+		snapsup.DownloadInfo = &info.DownloadInfo
+	} else {
+		snapsup.SnapPath = localSnap.TmpPath
+	}
 
 	if sar.RedirectChannel != "" {
 		snapsup.Channel = sar.RedirectChannel
@@ -1297,7 +1302,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 // The provided SideInfos can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case
 // the snaps will appear as installed from the store.
-func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
+func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.PathSideInfo, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if flags == nil {
 		flags = &Flags{}
 	}
@@ -1309,14 +1314,15 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 
 	var updates []minimalInstallInfo
 	var names []string
-	stateByInstanceName := make(map[string]*SnapState, len(paths))
-	flagsByInstanceName := make(map[string]Flags, len(paths))
+	stateByInstanceName := make(map[string]*SnapState, len(sideInfos))
+	flagsByInstanceName := make(map[string]Flags, len(sideInfos))
 
-	for i, path := range paths {
-		si := sideInfos[i]
+	for _, si := range sideInfos {
+		// Deal with si being per loop
+		si := si
 		name := si.RealName
 
-		info, container, err := backend.OpenSnapFile(path, si)
+		info, container, err := backend.OpenSnapFile(si.TmpPath, &si.SideInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -1342,7 +1348,7 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 			flags.Classic = flags.Classic || snapst.Flags.Classic
 		}
 
-		updates = append(updates, pathInfo{Info: info, path: path, sideInfo: si})
+		updates = append(updates, pathInfo{Info: info, path: si.TmpPath, sideInfo: &si.SideInfo})
 		names = append(names, name)
 		stateByInstanceName[name] = &snapst
 		flagsByInstanceName[name] = flags
@@ -2298,7 +2304,7 @@ type RevisionOptions struct {
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
 func Update(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags) (*state.TaskSet, error) {
-	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "")
+	return UpdateWithDeviceContext(st, name, opts, userID, flags, nil, "", nil)
 }
 
 // UpdateWithDeviceContext initiates a change updating a snap.
@@ -2309,7 +2315,7 @@ func Update(st *state.State, name string, opts *RevisionOptions, userID int, fla
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
+func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -2368,9 +2374,15 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 		return nil, infoErr
 	}
 
-	toUpdate := make([]minimalInstallInfo, len(updates))
-	for i, up := range updates {
-		toUpdate[i] = installSnapInfo{up}
+	toUpdate := []minimalInstallInfo{}
+	if localSnap != nil {
+		installInfo := pathInfo{Info: info, path: localSnap.TmpPath, sideInfo: &localSnap.SideInfo}
+		toUpdate = append(toUpdate, installInfo)
+	} else {
+		// Slice might be len 0 or 1
+		for _, up := range updates {
+			toUpdate = append(toUpdate, installSnapInfo{up})
+		}
 	}
 
 	if err = checkDiskSpace(st, "refresh", toUpdate, userID); err != nil {

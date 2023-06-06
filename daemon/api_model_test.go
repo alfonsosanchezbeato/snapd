@@ -101,7 +101,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	defer restore()
 
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, sis []*snap.SideInfo, paths []string, asserts []asserts.Assertion) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, sis []*snap.PathSideInfo) (*state.Change, error) {
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
 		return chg, nil

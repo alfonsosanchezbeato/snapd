@@ -19,6 +19,7 @@
 package devicestate
 
 import (
+	"errors"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
@@ -188,7 +189,13 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID)
+	var localSnaps []*snap.PathSideInfo
+	err = t.Get("local-snaps", &localSnaps)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID, localSnaps)
 	if err != nil {
 		return err
 	}
