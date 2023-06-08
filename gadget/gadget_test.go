@@ -2427,7 +2427,7 @@ size: 1M`
 		{mustParseStructure(c, raw), false, true},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
-		c.Check(tc.s.HasFilesystem(&gadget.Volume{}), Equals, tc.hasFs)
+		c.Check(tc.s.HasFilesystem(), Equals, tc.hasFs)
 		c.Check(tc.s.IsPartition(), Equals, tc.isPartition)
 	}
 }

@@ -74,7 +74,7 @@ func (d *deviceSuite) TestDeviceFindByStructureName(c *C) {
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.Volume{}, &gadget.VolumeStructure{Name: tc.structure})
+		found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: tc.structure})
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 	}
@@ -84,7 +84,7 @@ func (d *deviceSuite) TestDeviceFindRelativeSymlink(c *C) {
 	err := os.Symlink("../../fakedevice", filepath.Join(d.dir, "/dev/disk/by-partlabel/relative"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{}, &gadget.VolumeStructure{Name: "relative"})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{Name: "relative"})
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
@@ -108,11 +108,10 @@ func (d *deviceSuite) TestDeviceFindByFilesystemLabel(c *C) {
 
 	for _, tc := range names {
 		c.Logf("trying: %q", tc)
-		found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-			&gadget.VolumeStructure{
-				Filesystem: "ext4",
-				Label:      tc.structure,
-			})
+		found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+			Filesystem: "ext4",
+			Label:      tc.structure,
+		})
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 	}
@@ -126,11 +125,10 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelHappy(c *C)
 	err = os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name:  "bar",
-			Label: "foo",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name:  "bar",
+		Label: "foo",
+	})
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
@@ -141,11 +139,10 @@ func (d *deviceSuite) TestDeviceFindFilesystemLabelToNameFallback(c *C) {
 	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name:       "foo",
-			Filesystem: "ext4",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name:       "foo",
+		Filesystem: "ext4",
+	})
 	c.Check(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
 }
@@ -162,45 +159,41 @@ func (d *deviceSuite) TestDeviceFindChecksPartlabelAndFilesystemLabelMismatch(c 
 	err = os.Symlink(fakedeviceOther, filepath.Join(d.dir, "/dev/disk/by-partlabel/bar"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name:       "bar",
-			Label:      "foo",
-			Filesystem: "ext4",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name:       "bar",
+		Label:      "foo",
+		Filesystem: "ext4",
+	})
 	c.Check(err, ErrorMatches, `conflicting device match, ".*/by-label/foo" points to ".*/fakedevice", previous match ".*/by-partlabel/bar" points to ".*/fakedevice-other"`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFound(c *C) {
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name:  "bar",
-			Label: "foo",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name:  "bar",
+		Label: "foo",
+	})
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
 
 func (d *deviceSuite) TestDeviceFindNotFoundEmpty(c *C) {
 	// neither name nor filesystem label set
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name: "",
-			// structure has no filesystem, fs label check is
-			// ineffective
-			Label: "",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name: "",
+		// structure has no filesystem, fs label check is
+		// ineffective
+		Label: "",
+	})
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 
 	// try with proper filesystem now
-	found, err = gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Name:       "",
-			Label:      "",
-			Filesystem: "ext4",
-		})
+	found, err = gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Name:       "",
+		Label:      "",
+		Filesystem: "ext4",
+	})
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
@@ -210,10 +203,9 @@ func (d *deviceSuite) TestDeviceFindNotFoundSymlinkPointsNowhere(c *C) {
 	err := os.Symlink(fakedevice, filepath.Join(d.dir, "/dev/disk/by-label/foo"))
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Label: "foo",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Label: "foo",
+	})
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
 }
@@ -222,11 +214,10 @@ func (d *deviceSuite) TestDeviceFindNotFoundNotASymlink(c *C) {
 	err := ioutil.WriteFile(filepath.Join(d.dir, "/dev/disk/by-label/foo"), nil, 0644)
 	c.Assert(err, IsNil)
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Filesystem: "ext4",
-			Label:      "foo",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Filesystem: "ext4",
+		Label:      "foo",
+	})
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-label/foo is not a symlink`)
 	c.Check(found, Equals, "")
 }
@@ -243,11 +234,10 @@ func (d *deviceSuite) TestDeviceFindBadEvalSymlinks(c *C) {
 	})
 	defer restore()
 
-	found, err := gadget.FindDeviceForStructure(&gadget.Volume{},
-		&gadget.VolumeStructure{
-			Filesystem: "vfat",
-			Label:      "foo",
-		})
+	found, err := gadget.FindDeviceForStructure(&gadget.VolumeStructure{
+		Filesystem: "vfat",
+		Label:      "foo",
+	})
 	c.Check(err, ErrorMatches, `cannot read device link: failed`)
 	c.Check(found, Equals, "")
 }

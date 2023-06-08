@@ -55,7 +55,7 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, lovs map[st
 				if err != nil {
 					return err
 				}
-				if vs.Filesystem == "" && vs.HasFilesystem(lov.Volume) {
+				if vs.Filesystem == "" && vs.HasFilesystem() {
 					if insStr.Filesystem == "" {
 						return fmt.Errorf("installer did not provide filesystem for structure %q in volume %q", vs.Name, volName)
 					}

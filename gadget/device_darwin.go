@@ -25,6 +25,6 @@ import (
 
 var errNotImplemented = errors.New("not implemented")
 
-func FindDeviceForStructure(v *Volume, vs *VolumeStructure) (string, error) {
+func FindDeviceForStructure(vs *VolumeStructure) (string, error) {
 	return "", errNotImplemented
 }

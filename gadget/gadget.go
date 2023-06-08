@@ -253,6 +253,10 @@ type VolumeStructure struct {
 
 	// Index of the structure definition in gadget YAML, note this starts at 0.
 	YamlIndex int `yaml:"-" json:"-"`
+	// PartialFilesystem is set if that property is part of the partial list in
+	// the volume. Duplicating it is needed so RequiresFilesystem has all the
+	// information it needs.
+	PartialFilesystem bool `yaml:"-" json:"-"`
 }
 
 // IsRoleMBR tells us if v has MBR role or not.
@@ -260,17 +264,16 @@ func (v *VolumeStructure) IsRoleMBR() bool {
 	return v.Role == schemaMBR
 }
 
-// HasFilesystem returns true if the structure definition expects a filesystem.
-func (vs *VolumeStructure) HasFilesystem(v *Volume) bool {
-	if vs.Filesystem != "none" && vs.Filesystem != "" {
+// HasFilesystem tells us if the structure definition expects a filesystem.
+func (vs *VolumeStructure) HasFilesystem() bool {
+	switch {
+	case vs.Filesystem != "none" && vs.Filesystem != "":
 		return true
-	}
-
-	if vs.Type == "bare" || vs.Type == "mbr" {
+	case vs.Type == "bare" || vs.Type == "mbr":
 		return false
+	default:
+		return vs.PartialFilesystem
 	}
-
-	return v.HasPartial(PartialFilesystem)
 }
 
 // IsPartition returns true when the structure describes a partition in a block
@@ -631,7 +634,7 @@ func AllDiskVolumeDeviceTraits(allLaidOutVols map[string]*LaidOutVolume, optsPer
 				continue
 			}
 
-			structureDevice, err := FindDeviceForStructure(vol.Volume, ls.VolumeStructure)
+			structureDevice, err := FindDeviceForStructure(ls.VolumeStructure)
 			if err != nil && err != ErrDeviceNotFound {
 				return nil, err
 			}
@@ -1016,6 +1019,8 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		if vol.Structure[i].MinSize == 0 {
 			vol.Structure[i].MinSize = vol.Structure[i].Size
 		}
+		// Set PartialFilesystem by looking at volume
+		vol.Structure[i].PartialFilesystem = vol.HasPartial(PartialFilesystem)
 
 		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
@@ -1315,7 +1320,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 
 	var contentChecker func(*VolumeContent) error
 
-	if vs.HasFilesystem(vol) {
+	if vs.HasFilesystem() {
 		contentChecker = validateFilesystemContent
 	} else {
 		contentChecker = validateBareContent
@@ -1473,7 +1478,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 }
 
 func validateStructureUpdate(vs *VolumeStructure, v *Volume) error {
-	if !vs.HasFilesystem(v) && len(vs.Update.Preserve) > 0 {
+	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
 
