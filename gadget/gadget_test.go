@@ -4417,11 +4417,12 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		for _, votc := range tc.votcs {
 			c.Logf("testing valid offset: %s (%+v)", tc.description, votc)
 			if votc.err == nil {
-				c.Check(tc.vs.CheckValidStartOffset(votc.offset,
-					votc.structIdx), IsNil)
+				c.Check(gadget.CheckValidStartOffset(votc.offset,
+					tc.vs.Structure, votc.structIdx), IsNil)
 			} else {
-				c.Check(tc.vs.CheckValidStartOffset(votc.offset,
-					votc.structIdx), DeepEquals, votc.err)
+				c.Check(gadget.CheckValidStartOffset(votc.offset,
+					tc.vs.Structure, votc.structIdx),
+					DeepEquals, votc.err)
 			}
 		}
 	}

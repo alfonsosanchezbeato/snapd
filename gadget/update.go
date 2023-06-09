@@ -351,7 +351,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if err := gadgetVolume.CheckValidStartOffset(ds.StartOffset, vssIdx); err != nil {
+		if err := CheckValidStartOffset(ds.StartOffset, gadgetVolume.Structure, vssIdx); err != nil {
 			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
@@ -1442,11 +1442,11 @@ func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool
 	return from.Size >= to.MinSize && from.MinSize <= to.Size
 }
 
-func arePossibleOffsetsCompatible(v1 *Volume, idx1 int, v2 *Volume, idx2 int) bool {
+func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
 	// See comment in arePossibleSizesCompatible, this is the same check but
 	// for offsets instead of sizes.
-	return v1.maxStructureOffset(idx1) >= v2.minStructureOffset(idx2) &&
-		v1.minStructureOffset(idx1) <= v2.maxStructureOffset(idx2)
+	return maxStructureOffset(vss1, idx1) >= minStructureOffset(vss2, idx2) &&
+		minStructureOffset(vss1, idx1) <= maxStructureOffset(vss2, idx2)
 }
 
 // canUpdateStructure checks gadget compatibility on updates, looking only at
@@ -1469,9 +1469,9 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 			return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
 				to.MinSize, to.Size, from.MinSize, from.Size)
 		}
-		if !arePossibleOffsetsCompatible(fromV, fromIdx, toV, toIdx) {
+		if !arePossibleOffsetsCompatible(fromV.Structure, fromIdx, toV.Structure, toIdx) {
 			return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
-				toV.minStructureOffset(toIdx), toV.maxStructureOffset(toIdx), fromV.minStructureOffset(fromIdx), fromV.maxStructureOffset(fromIdx))
+				minStructureOffset(toV.Structure, toIdx), maxStructureOffset(toV.Structure, toIdx), minStructureOffset(fromV.Structure, fromIdx), maxStructureOffset(fromV.Structure, fromIdx))
 		}
 	}
 	// TODO: should this limitation be lifted?
