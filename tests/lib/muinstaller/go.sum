@@ -1,5 +1,5 @@
-github.com/alfonsosanchezbeato/snapd v0.0.0-20230609122212-d3bf1e0634ce h1:JyjGbnUdNN8+4cc2Igtr/3855jl9tm64/YEFhhYQCYs=
-github.com/alfonsosanchezbeato/snapd v0.0.0-20230609122212-d3bf1e0634ce/go.mod h1:0jWm7clILqcKi9fyg1qhMDrT9p8jZO/Shy0Z6yM/VuE=
+github.com/alfonsosanchezbeato/snapd v0.0.0-20230609160638-1d144018c04c h1:4Gpmvb9PkTuSIVMZsIxI6ra6DoS+CFSAcT5kzc9IR10=
+github.com/alfonsosanchezbeato/snapd v0.0.0-20230609160638-1d144018c04c/go.mod h1:0jWm7clILqcKi9fyg1qhMDrT9p8jZO/Shy0Z6yM/VuE=
 github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93 h1:F0bRDzPy/j2IX/iIWqCEA23S1nal+f7A+/vLyj6Ye+4=
 github.com/canonical/go-efilib v0.3.1-0.20220815143333-7e5151412e93/go.mod h1:9b2PNAuPcZsB76x75/uwH99D8CyH/A2y4rq1/+bvplg=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 h1:USzKjrfWo/ESzozv2i3OMM7XDgxrZRvaHFrKkIKRtwU=
