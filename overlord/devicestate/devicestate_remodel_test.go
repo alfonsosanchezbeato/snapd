@@ -1389,6 +1389,14 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 	return &goff
 }
 
+func setEnclosingVolumeInStructs(vv map[string]*gadget.Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 	var currentGadgetYaml = `
 volumes:
@@ -1506,7 +1514,7 @@ volumes:
 		gadgetUpdateCalled = true
 		c.Check(policy, NotNil)
 		c.Check(reflect.ValueOf(policy).Pointer(), Equals, reflect.ValueOf(gadget.RemodelUpdatePolicy).Pointer())
-		c.Check(current, DeepEquals, gadget.GadgetData{
+		gd := gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1524,7 +1532,8 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
-							YamlIndex: 0,
+							YamlIndex:       0,
+							EnclosingVolume: &gadget.Volume{},
 						}, {
 							VolumeName: "pc",
 							Name:       "bare-one",
@@ -1535,14 +1544,17 @@ volumes:
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
-							YamlIndex: 1,
+							YamlIndex:       1,
+							EnclosingVolume: &gadget.Volume{},
 						}},
 					},
 				},
 			},
 			RootDir: currentGadgetInfo.MountDir(),
-		})
-		c.Check(update, DeepEquals, gadget.GadgetData{
+		}
+		setEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(current, DeepEquals, gd)
+		gd = gadget.GadgetData{
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
@@ -1577,7 +1589,9 @@ volumes:
 				},
 			},
 			RootDir: newGadgetInfo.MountDir(),
-		})
+		}
+		setEnclosingVolumeInStructs(gd.Info.Volumes)
+		c.Check(update, DeepEquals, gd)
 		return nil
 	})
 	defer restore()

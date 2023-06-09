@@ -807,13 +807,21 @@ var (
 	}
 )
 
+func setEnclosingVolumeInStructs(vv map[string]*gadget.Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockGadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.Info{
+	expectedgi := &gadget.Info{
 		Defaults: map[string]map[string]interface{}{
 			"system": {"something": true},
 		},
@@ -855,7 +863,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				},
 			},
 		},
-	})
+	}
+	setEnclosingVolumeInStructs(expectedgi.Volumes)
+	c.Assert(ginfo, DeepEquals, expectedgi)
 }
 
 func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
@@ -865,7 +875,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	c.Check(ginfo.Volumes, HasLen, 2)
-	c.Assert(ginfo, DeepEquals, &gadget.Info{
+	expectedgi := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"frobinator-image": {
 				Name:       "frobinator-image",
@@ -924,7 +934,9 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 		},
-	})
+	}
+	setEnclosingVolumeInStructs(expectedgi.Volumes)
+	c.Assert(ginfo, DeepEquals, expectedgi)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
@@ -1011,7 +1023,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 
 	ginfo, err := gadget.ReadInfo(s.dir, coreMod)
 	c.Check(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &gadget.Info{
+	expectedgi := &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"bootloader": {
 				Name:       "bootloader",
@@ -1045,7 +1057,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 				},
 			},
 		},
-	})
+	}
+	setEnclosingVolumeInStructs(expectedgi.Volumes)
+	c.Assert(ginfo, DeepEquals, expectedgi)
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdateUnhappy(c *C) {
@@ -1213,7 +1227,7 @@ func (s *gadgetYamlTestSuite) TestValidateStructureType(c *C) {
 	} {
 		c.Logf("tc: %v %q", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123}, &gadget.Volume{Schema: tc.schema})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Type: tc.s, Size: 123, EnclosingVolume: &gadget.Volume{}}, &gadget.Volume{Schema: tc.schema})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1226,6 +1240,7 @@ func mustParseStructureNoImplicit(c *C, s string) *gadget.VolumeStructure {
 	var v gadget.VolumeStructure
 	err := yaml.Unmarshal([]byte(s), &v)
 	c.Assert(err, IsNil)
+	v.EnclosingVolume = &gadget.Volume{}
 	return &v
 }
 
@@ -1353,7 +1368,7 @@ func (s *gadgetYamlTestSuite) TestValidateFilesystem(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123}, &gadget.Volume{})
+		err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{Filesystem: tc.s, Type: "21686148-6449-6E6F-744E-656564454649", Size: 123, EnclosingVolume: &gadget.Volume{}}, &gadget.Volume{})
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1411,7 +1426,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchemaNotOverlapWithGPT(c *C) {
 		err := gadget.ValidateVolume(&gadget.Volume{
 			Name: "name", Schema: tc.s,
 			Structure: []gadget.VolumeStructure{
-				{Name: "name", Type: "bare", MinSize: tc.sz, Size: tc.sz, Offset: &tc.o},
+				{Name: "name", Type: "bare", MinSize: tc.sz, Size: tc.sz, Offset: &tc.o, EnclosingVolume: &gadget.Volume{}},
 			},
 		})
 		c.Check(err, IsNil)
@@ -1462,8 +1477,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
-			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576)},
+			{Name: "duplicate", Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
 		},
 	})
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
@@ -1546,8 +1561,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err := gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
-			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576)},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Type: "bogus", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
@@ -1555,8 +1570,8 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576)},
-			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576)},
+			{Type: "bare", Size: 1024, Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
+			{Type: "bogus", Size: 1024, Name: "foo", Offset: asOffsetPtr(24576), EnclosingVolume: &gadget.Volume{}},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
@@ -1564,7 +1579,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 	err = gadget.ValidateVolume(&gadget.Volume{
 		Name: "name",
 		Structure: []gadget.VolumeStructure{
-			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
+			{Type: "bare", Name: "foo", Size: 1024, Offset: asOffsetPtr(24576), Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}, EnclosingVolume: &gadget.Volume{}},
 		},
 	})
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
@@ -1681,24 +1696,27 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveOnlyForFs(c *C)
 	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:   "bare",
-		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		Size:   512,
+		Type:            "bare",
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:            512,
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:   "21686148-6449-6E6F-744E-656564454649",
-		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		Size:   512,
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:            512,
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, ErrorMatches, "preserving files during update is not supported for non-filesystem structures")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
-		Size:       512,
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Size:            512,
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, IsNil)
 }
@@ -1707,18 +1725,20 @@ func (s *gadgetYamlTestSuite) TestValidateStructureUpdatePreserveDuplicates(c *C
 	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
-		Size:       512,
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		Update:          gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar"}},
+		Size:            512,
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, IsNil)
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		Update:     gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
-		Size:       512,
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		Update:          gadget.VolumeUpdate{Edition: 1, Preserve: []string{"foo", "bar", "foo"}},
+		Size:            512,
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, ErrorMatches, `duplicate "preserve" entry "foo"`)
 }
@@ -1728,32 +1748,36 @@ func (s *gadgetYamlTestSuite) TestValidateStructureSizeRequired(c *C) {
 	gv := &gadget.Volume{}
 
 	err := gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:   "bare",
-		Update: gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Type:            "bare",
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, ErrorMatches, "missing size")
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		Size:       mustParseGadgetSize(c, "123M"),
-		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		Size:            mustParseGadgetSize(c, "123M"),
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, IsNil)
 
 	err = gadget.ValidateVolumeStructure(&gadget.VolumeStructure{
-		Type:       "21686148-6449-6E6F-744E-656564454649",
-		Filesystem: "vfat",
-		MinSize:    mustParseGadgetSize(c, "10M"),
-		Size:       mustParseGadgetSize(c, "123M"),
-		Update:     gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		Type:            "21686148-6449-6E6F-744E-656564454649",
+		Filesystem:      "vfat",
+		MinSize:         mustParseGadgetSize(c, "10M"),
+		Size:            mustParseGadgetSize(c, "123M"),
+		Update:          gadget.VolumeUpdate{Preserve: []string{"foo"}},
+		EnclosingVolume: &gadget.Volume{},
 	}, gv)
 	c.Check(err, IsNil)
 }
@@ -2324,6 +2348,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 				Content: []gadget.VolumeContent{
 					{Image: "u-boot.imz"},
 				},
+				EnclosingVolume: all["u-boot-frobinator"].Volume,
 			},
 			LaidOutContent: []gadget.LaidOutContent{
 				{
@@ -4320,10 +4345,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		{
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 10, Size: 20},
-					{Offset: nil, MinSize: 10, Size: 20},
-					{Offset: nil, MinSize: 10, Size: 20},
-					{Offset: asOffsetPtr(50), MinSize: 100, Size: 100},
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 10, Size: 20, EnclosingVolume: &gadget.Volume{}},
+					{Offset: asOffsetPtr(50), MinSize: 100, Size: 100, EnclosingVolume: &gadget.Volume{}},
 				},
 			},
 			votcs: []validOffsetTc{
@@ -4350,9 +4375,9 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 		{
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 10, Size: 100},
-					{Offset: nil, MinSize: 10, Size: 10},
-					{Offset: asOffsetPtr(80), MinSize: 100, Size: 100},
+					{Offset: asOffsetPtr(0), MinSize: 10, Size: 100, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 10, Size: 10, EnclosingVolume: &gadget.Volume{}},
+					{Offset: asOffsetPtr(80), MinSize: 100, Size: 100, EnclosingVolume: &gadget.Volume{}},
 				},
 			},
 			votcs: []validOffsetTc{
@@ -4373,10 +4398,10 @@ func (s *gadgetYamlTestSuite) TestValidStartOffset(c *C) {
 			// comments in function).
 			vs: gadget.Volume{
 				Structure: []gadget.VolumeStructure{
-					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40},
-					{Offset: nil, MinSize: 20, Size: 40},
-					{Offset: nil, MinSize: 20, Size: 20},
-					{Offset: nil, MinSize: 20, Size: 20},
+					{Offset: asOffsetPtr(0), MinSize: 20, Size: 40, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 20, Size: 40, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 20, Size: 20, EnclosingVolume: &gadget.Volume{}},
+					{Offset: nil, MinSize: 20, Size: 20, EnclosingVolume: &gadget.Volume{}},
 					{Offset: asOffsetPtr(100), MinSize: 100, Size: 100},
 				},
 			},

@@ -253,10 +253,10 @@ type VolumeStructure struct {
 
 	// Index of the structure definition in gadget YAML, note this starts at 0.
 	YamlIndex int `yaml:"-" json:"-"`
-	// PartialFilesystem is set if that property is part of the partial list in
-	// the volume. Duplicating it is needed so RequiresFilesystem has all the
-	// information it needs.
-	PartialFilesystem bool `yaml:"-" json:"-"`
+	// EnclosingVolume is a pointer to the enclosing Volume, and should be used
+	// exclusively to check for partial information that affects the
+	// structure properties.
+	EnclosingVolume *Volume `yaml:"-" json:"-"`
 }
 
 // IsRoleMBR tells us if v has MBR role or not.
@@ -272,7 +272,7 @@ func (vs *VolumeStructure) HasFilesystem() bool {
 	case vs.Type == "bare" || vs.Type == "mbr":
 		return false
 	default:
-		return vs.PartialFilesystem
+		return vs.EnclosingVolume.HasPartial(PartialFilesystem)
 	}
 }
 
@@ -297,8 +297,8 @@ func (vs *VolumeStructure) IsFixedSize() bool {
 }
 
 // hasPartialSize tells us if the structure has partially defined size.
-func (vs *VolumeStructure) hasPartialSize(v *Volume) bool {
-	if !v.HasPartial(PartialSize) {
+func (vs *VolumeStructure) hasPartialSize() bool {
+	if !vs.EnclosingVolume.HasPartial(PartialSize) {
 		return false
 	}
 
@@ -349,7 +349,7 @@ func (v *Volume) maxStructureOffset(idx int) quantity.Offset {
 	max := quantity.Offset(0)
 	othersSz := quantity.Size(0)
 	for i := idx - 1; i >= 0; i-- {
-		if vss[i].hasPartialSize(v) {
+		if vss[i].hasPartialSize() {
 			// If a previous partition has not a defined size, the
 			// allowed offset is not really bounded.
 			max = UnboundedStructureOffset
@@ -1019,8 +1019,8 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		if vol.Structure[i].MinSize == 0 {
 			vol.Structure[i].MinSize = vol.Structure[i].Size
 		}
-		// Set PartialFilesystem by looking at volume
-		vol.Structure[i].PartialFilesystem = vol.HasPartial(PartialFilesystem)
+		// Set the pointer to the volume
+		vol.Structure[i].EnclosingVolume = vol
 
 		// set other implicit data for the structure
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels, knownVfatFsLabels); err != nil {
@@ -1293,7 +1293,7 @@ func validateOffsetWrite(s, firstStruct *VolumeStructure, volSize quantity.Size)
 }
 
 func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
-	if !vs.hasPartialSize(vol) {
+	if !vs.hasPartialSize() {
 		if vs.Size == 0 {
 			return errors.New("missing size")
 		}

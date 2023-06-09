@@ -356,7 +356,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		maxSz := gs.Size
-		if gs.hasPartialSize(gv) {
+		if gs.hasPartialSize() {
 			maxSz = UnboundedStructureSize
 		}
 		switch {

@@ -74,7 +74,7 @@ func ApplyInstallerVolumesToGadget(installerVols map[string]*Volume, lovs map[st
 				if err != nil {
 					return err
 				}
-				if vs.hasPartialSize(lov.Volume) {
+				if vs.hasPartialSize() {
 					if insStr.Size == 0 {
 						return fmt.Errorf("installer did not provide size for structure %q in volume %q", vs.Name, volName)
 					}

@@ -912,6 +912,14 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelNotFoundIntegration(c *check.C
 	c.Check(rspe.Message, check.Equals, `cannot load assertions for label "does-not-exist": no seed assertions`)
 }
 
+func setEnclosingVolumeInStructs(vv map[string]*gadget.Volume) {
+	for _, v := range vv {
+		for sidx := range v.Structure {
+			v.Structure[sidx].EnclosingVolume = v
+		}
+	}
+}
+
 func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -943,7 +951,7 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(client.SystemDetails)
 
-	c.Assert(sys, check.DeepEquals, client.SystemDetails{
+	sd := client.SystemDetails{
 		Label: "20191119",
 		Model: s.seedModelForLabel20191119.Headers(),
 		Actions: []client.SystemAction{
@@ -1061,7 +1069,9 @@ func (s *systemsSuite) TestSystemsGetSpecificLabelIntegration(c *check.C) {
 				},
 			},
 		},
-	})
+	}
+	setEnclosingVolumeInStructs(sd.Volumes)
+	c.Assert(sys, check.DeepEquals, sd)
 }
 
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevicestate(c *check.C) {
