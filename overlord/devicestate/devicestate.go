@@ -461,6 +461,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 		if changed {
+			logger.Debugf("essential snap %s track changed", ms.newModelSnap.Name)
 			// new modes specifies the same snap, but with a new channel
 			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
 				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
@@ -476,6 +477,7 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 	}
 	if needsInstall {
 		// which needs to be installed
+		logger.Debugf("essential snap %s needs install", ms.newModelSnap.Name)
 		return snapstateInstallWithDeviceContext(ctx, st, ms.newSnap,
 			&snapstate.RevisionOptions{Channel: newModelSnapChannel},
 			userID, snapstate.Flags{}, deviceCtx, fromChange, localSnap)
@@ -594,7 +596,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Kernel(),
 		newModelSnap:     new.KernelSnap(),
 	}
-	localKernel := sideInfoFromID(localSnaps, current.KernelSnap().SnapID)
+	localKernel := sideInfoFromID(localSnaps, new.KernelSnap().SnapID)
 	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange, localKernel)
 	if err != nil {
 		return nil, err
@@ -613,8 +615,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 	var localBase *snap.PathSideInfo
 	// base might not set on UC16 models
-	if current.BaseSnap() != nil {
-		localBase = sideInfoFromID(localSnaps, current.BaseSnap().SnapID)
+	if new.BaseSnap() != nil {
+		localBase = sideInfoFromID(localSnaps, new.BaseSnap().SnapID)
 	}
 	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange, localBase)
 	if err != nil {
@@ -632,7 +634,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Gadget(),
 		newModelSnap:     new.GadgetSnap(),
 	}
-	localGadget := sideInfoFromID(localSnaps, current.GadgetSnap().SnapID)
+	localGadget := sideInfoFromID(localSnaps, new.GadgetSnap().SnapID)
 	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange, localGadget)
 	if err != nil {
 		return nil, err
@@ -648,6 +650,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	// go through all the model snaps, see if there are new required snaps
 	// or a track for existing ones needs to be updated
 	for _, modelSnap := range new.SnapsWithoutEssential() {
+		logger.Debugf("adding remodel tasks for non-essential snap %s", modelSnap.Name)
+
 		// TODO|XXX: have methods that take refs directly
 		// to respect the snap ids
 		currentInfo, err := snapstate.CurrentInfo(st, modelSnap.SnapName())
@@ -671,6 +675,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		var ts *state.TaskSet
 		if needsInstall {
 			// If the snap is not installed we need to install it now.
+			logger.Debugf("%s snap needs install", modelSnap.Name)
 			ts, err = snapstateInstallWithDeviceContext(ctx, st,
 				modelSnap.SnapName(),
 				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
@@ -690,6 +695,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			if changed {
+				logger.Debugf("%s snap changed track", modelSnap.Name)
 				ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
 					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
 					userID, snapstate.Flags{NoReRefresh: true},

@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -338,6 +339,7 @@ func isCoreSnap(snapName string) bool {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
+	logger.Debugf("doing install for %s", snapsup.SideInfo.RealName)
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
 	// one point
@@ -1209,6 +1211,7 @@ func Install(ctx context.Context, st *state.State, name string, opts *RevisionOp
 // identifying the last task before the first task that introduces system
 // modifications.
 func InstallWithDeviceContext(ctx context.Context, st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
+	logger.Debugf("installing with device context %s", name)
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
@@ -1242,11 +1245,21 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	sar, err := installInfo(ctx, st, name, opts, userID, flags, deviceCtx)
-	if err != nil {
-		return nil, err
+	var redirectChannel string
+	var info *snap.Info
+	if localSnap != nil {
+		info, err = infoFromPathSideInfo(localSnap)
+		if err != nil {
+			return nil, fmt.Errorf("install with device context local snap: %v", err)
+		}
+	} else {
+		sar, err := installInfo(ctx, st, name, opts, userID, flags, deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		info = sar.Info
+		redirectChannel = sar.RedirectChannel
 	}
-	info := sar.Info
 
 	if flags.RequireTypeBase && info.Type() != snap.TypeBase && info.Type() != snap.TypeOS {
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
@@ -1288,11 +1301,24 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		snapsup.SnapPath = localSnap.TmpPath
 	}
 
-	if sar.RedirectChannel != "" {
-		snapsup.Channel = sar.RedirectChannel
+	if redirectChannel != "" {
+		snapsup.Channel = redirectChannel
 	}
 
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
+}
+
+func infoFromPathSideInfo(localSnap *snap.PathSideInfo) (*snap.Info, error) {
+	var info *snap.Info
+	snapc, err := snapfile.Open(localSnap.TmpPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open snap file: %v", err)
+	}
+	info, err = snap.ReadInfoFromSnapFile(snapc, &localSnap.SideInfo)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read info from snap file: %v", err)
+	}
+	return info, nil
 }
 
 // InstallPathMany returns a set of tasks for installing snaps from a file paths
@@ -2364,21 +2390,26 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	var updates []*snap.Info
-	info, infoErr := infoForUpdate(st, &snapst, name, opts, userID, flags, deviceCtx)
-	switch infoErr {
-	case nil:
-		updates = append(updates, info)
-	case store.ErrNoUpdateAvailable:
-		// there may be some new auto-aliases
-	default:
-		return nil, infoErr
-	}
-
+	var infoErr error
 	toUpdate := []minimalInstallInfo{}
 	if localSnap != nil {
+		info, err := infoFromPathSideInfo(localSnap)
+		if err != nil {
+			return nil, fmt.Errorf("update with device context local snap: %v", err)
+		}
 		installInfo := pathInfo{Info: info, path: localSnap.TmpPath, sideInfo: &localSnap.SideInfo}
 		toUpdate = append(toUpdate, installInfo)
 	} else {
+		var info *snap.Info
+		info, infoErr = infoForUpdate(st, &snapst, name, opts, userID, flags, deviceCtx)
+		switch infoErr {
+		case nil:
+			updates = append(updates, info)
+		case store.ErrNoUpdateAvailable:
+			// there may be some new auto-aliases
+		default:
+			return nil, infoErr
+		}
 		// Slice might be len 0 or 1
 		for _, up := range updates {
 			toUpdate = append(toUpdate, installSnapInfo{up})
