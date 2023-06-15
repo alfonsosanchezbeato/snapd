@@ -23,9 +23,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -499,4 +503,115 @@ func (s *userSuite) TestPostSerialForgetError(c *check.C) {
 
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.InternalError(`forgetting serial failed: boom`))
+}
+
+func multipartBody(c *check.C, model, snap, assertion string) (bytes.Buffer, string) {
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+
+	err := w.WriteField("new-model", model)
+	c.Assert(err, check.IsNil)
+	part, err := w.CreateFormFile("snap", "snap_1.snap")
+	c.Assert(err, check.IsNil)
+	_, err = part.Write([]byte(snap))
+	c.Assert(err, check.IsNil)
+	err = w.WriteField("assertion", assertion)
+	c.Assert(err, check.IsNil)
+	err = w.Close()
+	c.Assert(err, check.IsNil)
+
+	return b, w.Boundary()
+}
+
+func (s *modelSuite) TestPostOfflineRemodel(c *check.C) {
+	s.expectRootAccess()
+
+	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
+	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
+		"revision": "2",
+	})
+
+	d := s.daemonWithOverlordMockAndStore()
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+	st := d.Overlord().State()
+	st.Lock()
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
+	s.mockModel(st, oldModel)
+	st.Unlock()
+
+	soon := 0
+	var origEnsureStateSoon func(*state.State)
+	origEnsureStateSoon, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+		origEnsureStateSoon(st)
+	})
+	defer restore()
+
+	snapName := "snap1"
+	snapRev := 1001
+	var devicestateRemodelGotModel *asserts.Model
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
+		sis []*snap.PathSideInfo) (*state.Change, error) {
+		c.Check(len(sis), check.Equals, 1)
+		c.Check(sis[0].RealName, check.Equals, snapName)
+		c.Check(sis[0].Revision, check.Equals, snap.Revision{N: snapRev})
+		c.Check(strings.HasSuffix(sis[0].TmpPath,
+			"/var/lib/snapd/snaps/"+snapName+"_"+strconv.Itoa(snapRev)+".snap"),
+			check.Equals, true)
+
+		devicestateRemodelGotModel = nm
+		chg := st.NewChange("remodel", "...")
+		return chg, nil
+	})()
+
+	sis := []*snap.SideInfo{{RealName: snapName, Revision: snap.Revision{N: snapRev}}}
+	defer daemon.MockSideloadSnapsInfo(sis)()
+
+	// create a valid model assertion
+	c.Assert(err, check.IsNil)
+	modelEncoded := string(asserts.Encode(newModel))
+
+	// valid revision assertion to make it part of the arguments
+	revAssert := assertstest.FakeAssertion(map[string]interface{}{
+		"type":          "snap-revision",
+		"authority-id":  "can0nical",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": "1111111111111111111111111111111111111111111111111111111111111111",
+		"snap-size":     fmt.Sprintf("%d", 100),
+		"snap-revision": strconv.Itoa(snapRev),
+		"developer-id":  "mydev",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}).(*asserts.SnapRevision)
+
+	// create multipart data
+	body, boundary := multipartBody(c, modelEncoded, "snap_data", string(revAssert.Body()))
+
+	// set it and validate that this is what we passed to devicestateRemodel
+	req, err := http.NewRequest("POST", "/v2/model", &body)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
+
+	rsp := s.asyncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 202)
+	c.Check(rsp.Change, check.DeepEquals, "1")
+	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
+
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Assert(st.Changes(), check.HasLen, 1)
+	chg1 := st.Changes()[0]
+	c.Assert(chg, check.DeepEquals, chg1)
+	c.Assert(chg.Kind(), check.Equals, "remodel")
+	c.Assert(chg.Err(), check.IsNil)
+
+	c.Assert(soon, check.Equals, 1)
 }

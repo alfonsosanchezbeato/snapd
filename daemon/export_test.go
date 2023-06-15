@@ -275,6 +275,28 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 	return func() { reboot = boot.Reboot }
 }
 
+func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
+	oldf := sideloadSnapsInfo
+	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
+		flags sideloadFlags) (pathSideInfos []*snap.PathSideInfo, names []string,
+		origPaths []string, apiError *apiError) {
+
+		names = make([]string, len(snapFiles))
+		pathSideInfos = make([]*snap.PathSideInfo, len(snapFiles))
+		origPaths = make([]string, len(snapFiles))
+		for i, snapFile := range snapFiles {
+			pathSideInfos[i] = &snap.PathSideInfo{
+				SideInfo: *sis[i], TmpPath: snapFile.tmpPath}
+			names[i] = sis[i].RealName
+			origPaths[i] = snapFile.filename
+		}
+		return pathSideInfos, names, origPaths, nil
+	}
+	return func() {
+		sideloadSnapsInfo = oldf
+	}
+}
+
 type (
 	RespJSON        = respJSON
 	FileResponse    = fileResponse

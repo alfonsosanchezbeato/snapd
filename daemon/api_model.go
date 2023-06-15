@@ -57,7 +57,10 @@ var (
 	}
 )
 
-var devicestateRemodel = devicestate.Remodel
+var (
+	devicestateRemodel = devicestate.Remodel
+	sideloadSnapsInfo  = sideloadInfo
+)
 
 type postModelData struct {
 	NewModel string `json:"new-model"`
@@ -168,7 +171,7 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 	defer st.Unlock()
 
 	// Include assertions in the DB, we need them as soon as
-	// we create the snap.SideInfo struct in sideloadInfo.
+	// we create the snap.SideInfo struct in sideloadSnapsInfo.
 	if err := assertstate.AddBatch(st, batch,
 		&asserts.CommitOptions{Precheck: true}); err != nil {
 		return BadRequest("error committing assertions: %v", err)
@@ -176,7 +179,7 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 
 	// Build snaps information
 	// TODO should flags be considered in this case?
-	pathSis, _, _, apiErr := sideloadInfo(st, snapFiles, sideloadFlags{})
+	pathSis, _, _, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
 	if apiErr != nil {
 		return apiErr
 	}
