@@ -339,8 +339,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	logger.Debugf("checking volume compatibility between gadget volume %s (partial: %v) and disk %s",
 		gadgetVolume.Name, gadgetVolume.Partial, diskVolume.Device)
 
-	eq := func(ds *OnDiskStructure, gv *Volume, vssIdx int) (bool, string) {
-		gs := &gv.Structure[vssIdx]
+	eq := func(ds *OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
+		gs := &vss[vssIdx]
 		// name mismatch
 		if gs.Name != ds.Name {
 			// partitions have no names in MBR so bypass the name check
@@ -351,7 +351,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 
 		// start offset mismatch
-		if err := CheckValidStartOffset(ds.StartOffset, gadgetVolume.Structure, vssIdx); err != nil {
+		if err := CheckValidStartOffset(ds.StartOffset, vss, vssIdx); err != nil {
 			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
@@ -451,10 +451,10 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return true, ""
 	}
 
-	gadgetContains := func(gv *Volume, ds *OnDiskStructure) (bool, string) {
+	gadgetContains := func(vss []VolumeStructure, ds *OnDiskStructure) (bool, string) {
 		reasonAbsent := ""
-		for vssIdx := range gv.Structure {
-			matches, reasonNotMatches := eq(ds, gv, vssIdx)
+		for vssIdx := range vss {
+			matches, reasonNotMatches := eq(ds, vss, vssIdx)
 			if matches {
 				return true, ""
 			}
@@ -497,12 +497,12 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		return false, reasonAbsent
 	}
 
-	onDiskContains := func(dss []OnDiskStructure, gv *Volume, vssIdx int) (bool, string) {
+	onDiskContains := func(dss []OnDiskStructure, vss []VolumeStructure, vssIdx int) (bool, string) {
 		reasonAbsent := ""
 		for _, ds := range dss {
-			matches, reasonNotMatches := eq(&ds, gv, vssIdx)
+			matches, reasonNotMatches := eq(&ds, vss, vssIdx)
 			if matches {
-				gadgetStructIdxToOnDiskStruct[gv.Structure[vssIdx].YamlIndex] = &ds
+				gadgetStructIdxToOnDiskStruct[vss[vssIdx].YamlIndex] = &ds
 				return true, ""
 			}
 			// this has the effect of only returning the last non-empty reason
@@ -546,7 +546,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	// (unless partial strucuture).
 	if !gadgetVolume.HasPartial(PartialStructure) {
 		for _, ds := range diskVolume.Structure {
-			present, reasonAbsent := gadgetContains(gadgetVolume, &ds)
+			present, reasonAbsent := gadgetContains(gadgetVolume.Structure, &ds)
 			if !present {
 				if reasonAbsent != "" {
 					// use the right format so that it can be
@@ -565,7 +565,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		// structure that didn't match something in the YAML, we would have
 		// caught it above, this loop can only ever identify structures in the
 		// YAML that are not on disk at all
-		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume, vssIdx); present {
+		if present, _ := onDiskContains(diskVolume.Structure, gadgetVolume.Structure, vssIdx); present {
 			continue
 		}
 

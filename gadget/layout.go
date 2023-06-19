@@ -288,7 +288,7 @@ func LayoutVolume(volume *Volume, opts *LayoutOptions) (*LaidOutVolume, error) {
 		// has a size so even without the structure content the layout
 		// can be calculated.
 		if !opts.IgnoreContent && !structures[idx].HasFilesystem() {
-			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx], volume)
+			content, err := layOutStructureContent(opts.GadgetRootDir, &structures[idx])
 			if err != nil {
 				return nil, err
 			}
@@ -417,7 +417,7 @@ func getImageSize(path string) (quantity.Size, error) {
 	return quantity.Size(stat.Size()), nil
 }
 
-func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure, vol *Volume) ([]LaidOutContent, error) {
+func layOutStructureContent(gadgetRootDir string, ps *LaidOutStructure) ([]LaidOutContent, error) {
 	if ps.HasFilesystem() {
 		// structures with a filesystem do not need any extra layout
 		return nil, nil
