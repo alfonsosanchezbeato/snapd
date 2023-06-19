@@ -145,8 +145,11 @@ func buildPartitionList(dl *gadget.OnDiskVolume, lov *gadget.LaidOutVolume, opts
 
 	// The partition / disk index - we find the current max number
 	// currently on the disk and we start from there for the partitions we
-	// create (this is necessary as some partitions might not be defined by
-	// the gadget).
+	// create. This is necessary as some partitions might not be defined by
+	// the gadget if we have a gadget with PartialStructure set. Note that
+	// this condition is checked by EnsureVolumeCompatibility, which is
+	// called before this function. muinstaller also checks for
+	// PartialStructure before this is run.
 	pIndex := 0
 
 	// Keep track what partitions we already have on disk - the keys to this map
