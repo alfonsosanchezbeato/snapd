@@ -535,7 +535,8 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 	}
 
 	// Check if top level properties match
-	if !gadgetVolume.HasPartial(PartialSchema) && !isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
+	if (!gadgetVolume.HasPartial(PartialSchema) || gadgetVolume.Schema != "") &&
+		!isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
 		return nil, fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
 	}
 	if gadgetVolume.ID != "" && gadgetVolume.ID != diskVolume.ID {
@@ -1495,14 +1496,10 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		if !fromV.HasPartial(PartialFilesystem) {
-			if toV.HasPartial(PartialFilesystem) {
-				return fmt.Errorf("changing from defined to undefined filesystem is not allowed")
-			}
-			if from.Filesystem != to.Filesystem {
-				return fmt.Errorf("cannot change filesystem from %q to %q",
-					from.Filesystem, to.Filesystem)
-			}
+		// Note that if partial filesystem this will compare empty strings
+		if from.Filesystem != to.Filesystem {
+			return fmt.Errorf("cannot change filesystem from %q to %q",
+				from.Filesystem, to.Filesystem)
 		}
 		if from.Label != to.Label {
 			return fmt.Errorf("cannot change filesystem label from %q to %q",
