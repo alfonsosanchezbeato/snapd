@@ -355,10 +355,7 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 			return false, fmt.Sprintf("disk partition %q %v", ds.Name, err)
 		}
 
-		maxSz := gs.Size
-		if gs.hasPartialSize() {
-			maxSz = UnboundedStructureSize
-		}
+		maxSz := effectivePartSize(gs)
 		switch {
 		// on disk size too small
 		case ds.Size < gs.MinSize:
