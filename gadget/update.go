@@ -1432,6 +1432,14 @@ func isLegacyMBRTransition(from *VolumeStructure, to *VolumeStructure) bool {
 	return from.Type == schemaMBR && to.Role == schemaMBR
 }
 
+func effectivePartSize(part *VolumeStructure) quantity.Size {
+	// Partitions with partial size are set as unbounded (their Size field is 0)
+	if part.hasPartialSize() {
+		return UnboundedStructureSize
+	}
+	return part.Size
+}
+
 func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool {
 	// Check if [from.MinSize,from.Size], the interval of sizes allowed in
 	// "from", intersects with [to.MinSize,to.Size] (the interval of sizes
@@ -1440,7 +1448,7 @@ func arePossibleSizesCompatible(from *VolumeStructure, to *VolumeStructure) bool
 	// visualized by sliding a segment over the abscissa while the other is
 	// fixed, for a moving segment either smaller or bigger than the fixed
 	// one).
-	return from.Size >= to.MinSize && from.MinSize <= to.Size
+	return effectivePartSize(from) >= to.MinSize && from.MinSize <= effectivePartSize(to)
 }
 
 func arePossibleOffsetsCompatible(vss1 []VolumeStructure, idx1 int, vss2 []VolumeStructure, idx2 int) bool {
@@ -1465,15 +1473,13 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 		return fmt.Errorf("cannot change structure name from %q to %q",
 			from.Name, to.Name)
 	}
-	if !toV.HasPartial(PartialSize) {
-		if !arePossibleSizesCompatible(from, to) {
-			return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
-				to.MinSize, to.Size, from.MinSize, from.Size)
-		}
-		if !arePossibleOffsetsCompatible(fromV.Structure, fromIdx, toV.Structure, toIdx) {
-			return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
-				minStructureOffset(toV.Structure, toIdx), maxStructureOffset(toV.Structure, toIdx), minStructureOffset(fromV.Structure, fromIdx), maxStructureOffset(fromV.Structure, fromIdx))
-		}
+	if !arePossibleSizesCompatible(from, to) {
+		return fmt.Errorf("new valid structure size range [%v, %v] is not compatible with current ([%v, %v])",
+			to.MinSize, effectivePartSize(to), from.MinSize, effectivePartSize(from))
+	}
+	if !arePossibleOffsetsCompatible(fromV.Structure, fromIdx, toV.Structure, toIdx) {
+		return fmt.Errorf("new valid structure offset range [%v, %v] is not compatible with current ([%v, %v])",
+			minStructureOffset(toV.Structure, toIdx), maxStructureOffset(toV.Structure, toIdx), minStructureOffset(fromV.Structure, fromIdx), maxStructureOffset(fromV.Structure, fromIdx))
 	}
 	// TODO: should this limitation be lifted?
 	if !isSameRelativeOffset(from.OffsetWrite, to.OffsetWrite) {
@@ -1496,8 +1502,10 @@ func canUpdateStructure(fromV *Volume, fromIdx int, toV *Volume, toIdx int) erro
 		if !from.HasFilesystem() {
 			return fmt.Errorf("cannot change a bare structure to filesystem one")
 		}
-		// Note that if partial filesystem this will compare empty strings
-		if from.Filesystem != to.Filesystem {
+		// If partial filesystem we have an empty string. Here we allow
+		// moving from undefined filesystem to defined one, but not from
+		// defined to undefined, or changing defined filesystem.
+		if from.Filesystem != "" && from.Filesystem != to.Filesystem {
 			return fmt.Errorf("cannot change filesystem from %q to %q",
 				from.Filesystem, to.Filesystem)
 		}
