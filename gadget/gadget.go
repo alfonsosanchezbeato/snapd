@@ -995,6 +995,15 @@ func asOffsetPtr(offs quantity.Offset) *quantity.Offset {
 
 func setImplicitForVolume(vol *Volume, model Model) error {
 	rs := whichVolRuleset(model)
+	if vol.HasPartial(PartialSchema) {
+		if vol.Schema != "" {
+			return fmt.Errorf("partial schema is set but schema is still specified as %q", vol.Schema)
+		}
+	} else if vol.Schema == "" {
+		// default for schema is gpt
+		vol.Schema = schemaGPT
+	}
+
 	if vol.Schema == "" && !vol.HasPartial(PartialSchema) {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
