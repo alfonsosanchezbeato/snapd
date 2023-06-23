@@ -1004,11 +1004,6 @@ func setImplicitForVolume(vol *Volume, model Model) error {
 		vol.Schema = schemaGPT
 	}
 
-	if vol.Schema == "" && !vol.HasPartial(PartialSchema) {
-		// default for schema is gpt
-		vol.Schema = schemaGPT
-	}
-
 	// for uniqueness of filesystem labels
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	knownVfatFsLabels := make(map[string]bool, len(vol.Structure))
