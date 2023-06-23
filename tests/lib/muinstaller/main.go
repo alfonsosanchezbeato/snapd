@@ -418,14 +418,18 @@ func detectStorageEncryption(seedLabel string) (bool, error) {
 	return details.StorageEncryption.Support == client.StorageEncryptionSupportAvailable, nil
 }
 
+// fillPartiallyDefinedVolume fills partial gadget information by
+// looking at the provided disk. Schema, filesystems, and sizes are
+// filled. If partial structure is set, to remove it we would need to
+// add to the volume the existing partitions present on the disk but
+// not in the gadget. But as snapd is fine with these partitions as
+// far as partial strucuture is defined, we just do nothing.
 func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	if len(vol.Partial) == 0 {
 		return nil
 	}
 
 	logger.Noticef("partial gadget for: %q", vol.Partial)
-
-	// TODO: partial structure, as it is not clear what will be possible when set
 
 	if vol.HasPartial(gadget.PartialSchema) && vol.Schema == "" {
 		vol.Schema = "gpt"
