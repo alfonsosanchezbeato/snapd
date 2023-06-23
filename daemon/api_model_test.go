@@ -197,7 +197,7 @@ func (s *modelSuite) TestPostRemodelWrongContentType(c *check.C) {
 	c.Assert(rspe.Status, check.Equals, 400)
 	c.Assert(rspe.Kind, check.Equals, client.ErrorKind(""))
 	c.Assert(rspe.Value, check.IsNil)
-	c.Assert(rspe.Message, check.Equals, `media type "multipart/form-data" not implemented yet`)
+	c.Assert(rspe.Message, check.Equals, `cannot read POST form: multipart: boundary is empty`)
 }
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
