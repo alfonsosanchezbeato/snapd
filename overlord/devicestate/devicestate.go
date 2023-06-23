@@ -433,7 +433,11 @@ func (ms *modelSnapsForRemodel) canHaveUC18PinnedTrack() bool {
 		(ms.newModelSnap.SnapType == "kernel" || ms.newModelSnap.SnapType == "gadget")
 }
 
-func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
+type remodelTasksFlags struct {
+	localSnapsRequired bool
+}
+
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string, flags remodelTasksFlags, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
@@ -461,6 +465,9 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 		if changed {
+			if flags.localSnapsRequired && localSnap == nil {
+				return nil, fmt.Errorf("no file provided for %q snap (track changed)", ms.newModelSnap.SnapName())
+			}
 			logger.Debugf("essential snap %s track changed", ms.newModelSnap.Name)
 			// new modes specifies the same snap, but with a new channel
 			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
@@ -477,6 +484,9 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 	}
 	if needsInstall {
 		// which needs to be installed
+		if flags.localSnapsRequired && localSnap == nil {
+			return nil, fmt.Errorf("no file provided for %q snap", ms.newModelSnap.SnapName())
+		}
 		logger.Debugf("essential snap %s needs install", ms.newModelSnap.Name)
 		return snapstateInstallWithDeviceContext(ctx, st, ms.newSnap,
 			&snapstate.RevisionOptions{Channel: newModelSnapChannel},
@@ -588,6 +598,12 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		return nil
 	}
 
+	// If local snaps are provided, all needed snaps must be locally
+	// provided. We check this flag whenever a snap installation/update is
+	// found needed for the remodel.
+	localSnapsRequired := len(localSnaps) > 0
+	remodelFlags := remodelTasksFlags{localSnapsRequired: localSnapsRequired}
+
 	// kernel
 	kms := modelSnapsForRemodel{
 		currentSnap:      current.Kernel(),
@@ -597,7 +613,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newModelSnap:     new.KernelSnap(),
 	}
 	localKernel := sideInfoFromID(localSnaps, new.KernelSnap().SnapID)
-	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange, localKernel)
+	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange, remodelFlags, localKernel)
 	if err != nil {
 		return nil, err
 	}
@@ -618,7 +634,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	if new.BaseSnap() != nil {
 		localBase = sideInfoFromID(localSnaps, new.BaseSnap().SnapID)
 	}
-	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange, localBase)
+	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange, remodelFlags, localBase)
 	if err != nil {
 		return nil, err
 	}
@@ -635,7 +651,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newModelSnap:     new.GadgetSnap(),
 	}
 	localGadget := sideInfoFromID(localSnaps, new.GadgetSnap().SnapID)
-	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange, localGadget)
+	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange, remodelFlags, localGadget)
 	if err != nil {
 		return nil, err
 	}
@@ -674,6 +690,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 
 		var ts *state.TaskSet
 		if needsInstall {
+			if localSnapsRequired && localSnap == nil {
+				return nil, fmt.Errorf("no file provided for %q snap", modelSnap.SnapName())
+			}
 			// If the snap is not installed we need to install it now.
 			logger.Debugf("%s snap needs install", modelSnap.Name)
 			ts, err = snapstateInstallWithDeviceContext(ctx, st,
@@ -695,6 +714,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			if changed {
+				if localSnapsRequired && localSnap == nil {
+					return nil, fmt.Errorf("no file provided for %q snap (track changed)", modelSnap.SnapName())
+				}
 				logger.Debugf("%s snap changed track", modelSnap.Name)
 				ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
 					&snapstate.RevisionOptions{Channel: newModelSnapChannel},

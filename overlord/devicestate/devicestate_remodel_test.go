@@ -376,20 +376,81 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 	c.Assert(tss, HasLen, 4)
 }
 
+func createLocalSnap(c *C, name, id string) *snap.PathSideInfo {
+	yaml := fmt.Sprintf(`name: %s
+version: 1.0
+epoch: 1
+`, name)
+	psi := &snap.PathSideInfo{
+		SideInfo: snap.SideInfo{
+			RealName: name,
+			Revision: snap.R("3"),
+			SnapID:   id,
+		},
+		TmpPath: snaptest.MakeTestSnapWithFiles(c, yaml, nil),
+	}
+	return psi
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
-	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
-		"gadget": "other-gadget=18",
-	})
+	newTrack := map[string]string{"other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"gadget": "other-gadget=18"}, nil, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalGadget(c *C) {
+	newTrack := map[string]string{"other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"gadget": "other-gadget=18"},
+		[]*snap.PathSideInfo{createLocalSnap(c, "pc", "pcididididididididididididididid")}, "")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
-	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
-		"kernel": "other-kernel=18",
-	})
+	newTrack := map[string]string{"other-kernel": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"kernel": "other-kernel=18"}, nil, "")
 }
 
-func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTrack string, newModelOverrides map[string]interface{}) {
-	c.Check(newModelOverrides, HasLen, 1, Commentf("test expects a single model property to change"))
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernel(c *C) {
+	newTrack := map[string]string{"other-kernel": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{"kernel": "other-kernel=18"},
+		[]*snap.PathSideInfo{createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid")}, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernelAndGadget(c *C) {
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"}, nil, "")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadget(c *C) {
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"},
+		[]*snap.PathSideInfo{
+			createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid"),
+			createLocalSnap(c, "pc", "pcididididididididididididididid")},
+		"")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadgetFails(c *C) {
+	// Fails as if we use local files, all need to be provided to the API.
+	newTrack := map[string]string{"other-kernel": "18", "other-gadget": "18"}
+	s.testRemodelSwitchTasks(c, newTrack,
+		map[string]interface{}{
+			"kernel": "other-kernel=18",
+			"gadget": "other-gadget=18"},
+		[]*snap.PathSideInfo{
+			createLocalSnap(c, "pc-kernel", "pckernelidididididididididididid")},
+		`no file provided for "other-gadget" snap`)
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[string]string, newModelOverrides map[string]interface{}, localSnaps []*snap.PathSideInfo, expectedErr string) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -400,9 +461,19 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 	var snapstateInstallWithDeviceContextCalled int
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
-		c.Check(name, Equals, whatsNew)
-		if whatNewTrack != "" {
-			c.Check(opts.Channel, Equals, whatNewTrack)
+		newTrack, ok := whatNewTrack[name]
+		c.Check(ok, Equals, true)
+		c.Check(opts.Channel, Equals, newTrack)
+		if localSnaps != nil {
+			found := false
+			for i := range localSnaps {
+				if localSnap.RealName == localSnaps[i].RealName {
+					found = true
+				}
+			}
+			c.Check(found, Equals, true)
+		} else {
+			c.Check(localSnap, IsNil)
 		}
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
@@ -428,6 +499,8 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	current.KernelSnap().SnapID = "pckernelidididididididididididid"
+	current.GadgetSnap().SnapID = "pcididididididididididididididid"
 	err := assertstate.Add(s.state, current)
 	c.Assert(err, IsNil)
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
@@ -446,15 +519,21 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatsNew, whatNewTr
 		headers[k] = v
 	}
 	new := s.brands.Model("canonical", "pc-model", headers)
+	new.KernelSnap().SnapID = "pckernelidididididididididididid"
+	new.GadgetSnap().SnapID = "pcididididididididididididididid"
 
 	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true}
 
-	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", nil)
-	c.Assert(err, IsNil)
-	// 1 of switch-kernel/base/gadget plus the remodel task
-	c.Assert(tss, HasLen, 2)
-	// API was hit
-	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", localSnaps)
+	if expectedErr == "" {
+		c.Assert(err, IsNil)
+		// 1 per switch-kernel/base/gadget plus the remodel task
+		c.Assert(tss, HasLen, len(whatNewTrack)+1)
+		// API was hit
+		c.Assert(snapstateInstallWithDeviceContextCalled, Equals, len(whatNewTrack))
+	} else {
+		c.Assert(err.Error(), Equals, expectedErr)
+	}
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
