@@ -190,9 +190,9 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 		dest := filepath.Join(dirs.SnapBlobDir,
 			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
 		os.Rename(psi.TmpPath, dest)
-		psi.TmpPath = dest
 		// Avoid trying to remove a file that does not exist anymore
 		pathsToNotRemove[i] = psi.TmpPath
+		psi.TmpPath = dest
 	}
 
 	// Now create and start the remodel change
