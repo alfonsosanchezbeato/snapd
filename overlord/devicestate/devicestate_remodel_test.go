@@ -2052,6 +2052,18 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnapsLocalSnaps(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{localSnaps: true})
+}
+
+type prepareRemodelFlags struct {
+	localSnaps bool
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C, testFlags *prepareRemodelFlags) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
@@ -2061,7 +2073,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
+		if testFlags.localSnaps {
+			c.Check(localSnap, NotNil)
+			c.Check(localSnap.RealName, Equals, name)
+		}
 
+		// This task would not really be added if we have a local snap,
+		// but we keep it anyway to simplify the checks we do at the end.
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
 		tDownload.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -2180,7 +2198,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 			},
 		},
 	})
-	chg, err := devicestate.Remodel(s.state, new, nil)
+
+	var localSnaps []*snap.PathSideInfo
+	if testFlags.localSnaps {
+		localSnaps = []*snap.PathSideInfo{
+			{SideInfo: *siModelGadget, TmpPath: "pc_101.snap"},
+			{SideInfo: *siModelKernel, TmpPath: "pc-kernel_101.snap"},
+			{SideInfo: *siModelBase, TmpPath: "core20"},
+		}
+	}
+
+	chg, err := devicestate.Remodel(s.state, new, localSnaps)
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
