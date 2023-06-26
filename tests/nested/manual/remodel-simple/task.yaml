@@ -74,16 +74,17 @@ execute: |
     if [ "$OFFLINE_REMODEL" = true ]; then
         remote.exec "snap download --basename=hello-world hello-world"
         remote.exec "snap download --basename=core core"
-        # We need core22 and pc-kernel too as the active track on the device is
-        # {latest,22}/edge while the model assertion requires
-        # {latest,22}/stable. Therefore a track change is detected. Note that
+        # We need coreXX and pc-kernel too as the active track on the device is
+        # {latest,XX}/edge while the model assertion requires
+        # {latest,XX}/stable. Therefore a track change is detected. Note that
         # snapd and the gadget are on local revisions (x1).
-        remote.exec "snap download --basename=core22 core22"
+        base=core$variant
+        remote.exec "snap download --basename=$base $base"
         remote.exec "snap download --basename=pc-kernel --channel=$variant/stable pc-kernel"
         # TODO provide serial assertion so no connection is needed
         remodel_options="$remodel_options --snap hello-world.snap --assertion hello-world.assert \
             --snap core.snap --assertion core.assert \
-            --snap core22.snap --assertion core22.assert \
+            --snap $base.snap --assertion $base.assert \
             --snap pc-kernel.snap --assertion pc-kernel.assert"
     fi
     CHANGE_ID="$(remote.exec "sudo snap remodel $remodel_options \
