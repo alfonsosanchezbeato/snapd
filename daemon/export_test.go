@@ -206,7 +206,7 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string, *snapstate.Remove
 	}
 }
 
-func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.PathSideInfo, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
+func MockSnapstateInstallPathMany(f func(context.Context, *state.State, []*snap.SideInfo, []string, int, *snapstate.Flags) ([]*state.TaskSet, error)) func() {
 	old := snapstateInstallPathMany
 	snapstateInstallPathMany = f
 	return func() {
@@ -278,19 +278,20 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 	oldf := sideloadSnapsInfo
 	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
-		flags sideloadFlags) (pathSideInfos []*snap.PathSideInfo, names []string,
-		origPaths []string, apiError *apiError) {
+		flags sideloadFlags) (sideInfos []*snap.SideInfo, names []string,
+		origPaths, tmpPaths []string, apiError *apiError) {
 
 		names = make([]string, len(snapFiles))
-		pathSideInfos = make([]*snap.PathSideInfo, len(snapFiles))
+		sideInfos = make([]*snap.SideInfo, len(snapFiles))
 		origPaths = make([]string, len(snapFiles))
+		tmpPaths = make([]string, len(snapFiles))
 		for i, snapFile := range snapFiles {
-			pathSideInfos[i] = &snap.PathSideInfo{
-				SideInfo: *sis[i], TmpPath: snapFile.tmpPath}
+			sideInfos[i] = sis[i]
 			names[i] = sis[i].RealName
 			origPaths[i] = snapFile.filename
+			tmpPaths[i] = snapFile.tmpPath
 		}
-		return pathSideInfos, names, origPaths, nil
+		return sideInfos, names, origPaths, tmpPaths, nil
 	}
 	return func() {
 		sideloadSnapsInfo = oldf

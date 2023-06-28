@@ -116,7 +116,7 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	chg, err := devicestateRemodel(st, newModel, nil)
+	chg, err := devicestateRemodel(st, newModel, nil, nil)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}
@@ -179,7 +179,7 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 
 	// Build snaps information
 	// TODO should flags be considered in this case?
-	pathSis, _, _, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
+	pathSis, _, _, tmpPaths, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
 	if apiErr != nil {
 		return apiErr
 	}
@@ -189,14 +189,14 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 		// Move file to the same name of what a downloaded one would have
 		dest := filepath.Join(dirs.SnapBlobDir,
 			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
-		os.Rename(psi.TmpPath, dest)
+		os.Rename(tmpPaths[i], dest)
 		// Avoid trying to remove a file that does not exist anymore
-		pathsToNotRemove[i] = psi.TmpPath
-		psi.TmpPath = dest
+		pathsToNotRemove[i] = tmpPaths[i]
+		tmpPaths[i] = dest
 	}
 
 	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, pathSis)
+	chg, err := devicestateRemodel(st, newModel, pathSis, tmpPaths)
 	if err != nil {
 		return BadRequest("cannot remodel device: %v", err)
 	}

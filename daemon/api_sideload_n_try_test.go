@@ -704,13 +704,13 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	s.markSeeded(d)
 	expectedFlags := &snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.PathSideInfo, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, tmpPaths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(flags, check.DeepEquals, expectedFlags)
 		c.Check(userID, check.Not(check.Equals), 0)
 
 		var tss []*state.TaskSet
-		for _, si := range infos {
-			c.Check(si.TmpPath, testutil.FileEquals, si.RealName)
+		for i, si := range infos {
+			c.Check(tmpPaths[i], testutil.FileEquals, si.RealName)
 
 			ts := state.NewTaskSet(s.NewTask("fake-install-snap", fmt.Sprintf("Doing a fake install of %q", si.RealName)))
 			tss = append(tss, ts)
@@ -768,7 +768,7 @@ func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 
 func (s *sideloadSuite) TestSideloadManyFailInstallPathMany(c *check.C) {
 	s.daemon(c)
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.PathSideInfo, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		return nil, errors.New("expected")
 	})
 	defer restore()
@@ -876,12 +876,12 @@ func (s *sideloadSuite) TestSideloadManySnapsAsserted(c *check.C) {
 
 	expectedFlags := snapstate.Flags{RemoveSnapPath: true, Transaction: client.TransactionPerSnap}
 
-	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.PathSideInfo, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
+	restore := daemon.MockSnapstateInstallPathMany(func(_ context.Context, s *state.State, infos []*snap.SideInfo, paths []string, userID int, flags *snapstate.Flags) ([]*state.TaskSet, error) {
 		c.Check(*flags, check.DeepEquals, expectedFlags)
 
 		var tss []*state.TaskSet
 		for i, si := range infos {
-			c.Check(si.SideInfo, check.DeepEquals, snap.SideInfo{
+			c.Check(*si, check.DeepEquals, snap.SideInfo{
 				RealName: snaps[i],
 				SnapID:   snaps[i] + "-id",
 				Revision: snap.R(41),

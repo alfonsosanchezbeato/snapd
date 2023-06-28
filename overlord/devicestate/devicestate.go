@@ -53,8 +53,10 @@ import (
 )
 
 var (
-	snapstateInstallWithDeviceContext = snapstate.InstallWithDeviceContext
-	snapstateUpdateWithDeviceContext  = snapstate.UpdateWithDeviceContext
+	snapstateInstallWithDeviceContext     = snapstate.InstallWithDeviceContext
+	snapstateInstallPathWithDeviceContext = snapstate.InstallPathWithDeviceContext
+	snapstateUpdateWithDeviceContext      = snapstate.UpdateWithDeviceContext
+	snapstateUpdatePathWithDeviceContext  = snapstate.UpdatePathWithDeviceContext
 )
 
 // findModel returns the device model assertion.
@@ -437,7 +439,7 @@ type remodelTasksFlags struct {
 	localSnapsRequired bool
 }
 
-func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string, flags remodelTasksFlags, localSnap *snap.PathSideInfo) (*state.TaskSet, error) {
+func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string, flags remodelTasksFlags, localSi *snap.SideInfo, path string) (*state.TaskSet, error) {
 	userID := 0
 	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
@@ -465,14 +467,19 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 		if changed {
-			if flags.localSnapsRequired && localSnap == nil {
-				return nil, fmt.Errorf("no file provided for %q snap (track changed)", ms.newModelSnap.SnapName())
-			}
 			logger.Debugf("essential snap %s track changed", ms.newModelSnap.Name)
+			if flags.localSnapsRequired {
+				if localSi == nil {
+					return nil, fmt.Errorf("no file provided for %q snap (track changed)", ms.newModelSnap.SnapName())
+				}
+				return snapstateUpdatePathWithDeviceContext(st, ms.newSnap,
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange, localSi, path)
+			}
 			// new modes specifies the same snap, but with a new channel
 			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
 				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange, localSnap)
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 		}
 		return nil, nil
 	}
@@ -483,14 +490,19 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 		return nil, err
 	}
 	if needsInstall {
-		// which needs to be installed
-		if flags.localSnapsRequired && localSnap == nil {
-			return nil, fmt.Errorf("no file provided for %q snap", ms.newModelSnap.SnapName())
-		}
 		logger.Debugf("essential snap %s needs install", ms.newModelSnap.Name)
+		// which needs to be installed
+		if flags.localSnapsRequired {
+			if localSi == nil {
+				return nil, fmt.Errorf("no file provided for %q snap", ms.newModelSnap.SnapName())
+			}
+			return snapstateInstallPathWithDeviceContext(st, ms.newSnap,
+				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+				userID, snapstate.Flags{}, deviceCtx, fromChange, localSi, path)
+		}
 		return snapstateInstallWithDeviceContext(ctx, st, ms.newSnap,
 			&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-			userID, snapstate.Flags{}, deviceCtx, fromChange, localSnap)
+			userID, snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
 	if ms.new.Grade() != asserts.ModelGradeUnset {
@@ -502,9 +514,19 @@ func remodelEssentialSnapTasks(ctx context.Context, st *state.State, ms modelSna
 			return nil, err
 		}
 		if changed {
-			ts, err := snapstateUpdateWithDeviceContext(st, ms.newSnap,
-				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange, localSnap)
+			var ts *state.TaskSet
+			if flags.localSnapsRequired {
+				if localSi == nil {
+					return nil, fmt.Errorf("no file provided for %q snap", ms.newModelSnap.SnapName())
+				}
+				ts, err = snapstateUpdatePathWithDeviceContext(st, ms.newSnap,
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange, localSi, path)
+			} else {
+				ts, err = snapstateUpdateWithDeviceContext(st, ms.newSnap,
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -568,18 +590,18 @@ func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
 	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
 }
 
-func sideInfoFromID(sis []*snap.PathSideInfo, id string) *snap.PathSideInfo {
-	for _, si := range sis {
+func sideInfoAndPathFromID(sis []*snap.SideInfo, paths []string, id string) (*snap.SideInfo, string) {
+	for i, si := range sis {
 		if si.SnapID == id {
-			return si
+			return sis[i], paths[i]
 		}
 	}
-	return nil
+	return nil, ""
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
 	deviceCtx snapstate.DeviceContext, fromChange string,
-	localSnaps []*snap.PathSideInfo) ([]*state.TaskSet, error) {
+	localSnaps []*snap.SideInfo, paths []string) ([]*state.TaskSet, error) {
 
 	userID := 0
 	var tss []*state.TaskSet
@@ -612,8 +634,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Kernel(),
 		newModelSnap:     new.KernelSnap(),
 	}
-	localKernel := sideInfoFromID(localSnaps, new.KernelSnap().SnapID)
-	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange, remodelFlags, localKernel)
+	kernSnap, path := sideInfoAndPathFromID(localSnaps, paths, new.KernelSnap().SnapID)
+	ts, err := remodelEssentialSnapTasks(ctx, st, kms, deviceCtx, fromChange, remodelFlags, kernSnap, path)
 	if err != nil {
 		return nil, err
 	}
@@ -629,12 +651,12 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Base(),
 		newModelSnap:     new.BaseSnap(),
 	}
-	var localBase *snap.PathSideInfo
+	var localBase *snap.SideInfo
 	// base might not set on UC16 models
 	if new.BaseSnap() != nil {
-		localBase = sideInfoFromID(localSnaps, new.BaseSnap().SnapID)
+		localBase, path = sideInfoAndPathFromID(localSnaps, paths, new.BaseSnap().SnapID)
 	}
-	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange, remodelFlags, localBase)
+	ts, err = remodelEssentialSnapTasks(ctx, st, bms, deviceCtx, fromChange, remodelFlags, localBase, path)
 	if err != nil {
 		return nil, err
 	}
@@ -650,8 +672,8 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		newSnap:          new.Gadget(),
 		newModelSnap:     new.GadgetSnap(),
 	}
-	localGadget := sideInfoFromID(localSnaps, new.GadgetSnap().SnapID)
-	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange, remodelFlags, localGadget)
+	localGadget, path := sideInfoAndPathFromID(localSnaps, paths, new.GadgetSnap().SnapID)
+	ts, err = remodelEssentialSnapTasks(ctx, st, gms, deviceCtx, fromChange, remodelFlags, localGadget, path)
 	if err != nil {
 		return nil, err
 	}
@@ -686,21 +708,30 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 
-		localSnap := sideInfoFromID(localSnaps, modelSnap.ID())
+		localSnap, path := sideInfoAndPathFromID(localSnaps, paths, modelSnap.ID())
 
 		var ts *state.TaskSet
 		if needsInstall {
-			if localSnapsRequired && localSnap == nil {
-				return nil, fmt.Errorf("no file provided for %q snap", modelSnap.SnapName())
-			}
-			// If the snap is not installed we need to install it now.
 			logger.Debugf("%s snap needs install", modelSnap.Name)
-			ts, err = snapstateInstallWithDeviceContext(ctx, st,
-				modelSnap.SnapName(),
-				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-				userID,
-				snapstate.Flags{Required: true},
-				deviceCtx, fromChange, localSnap)
+			if localSnapsRequired {
+				if localSnap == nil {
+					return nil, fmt.Errorf("no file provided for %q snap", modelSnap.SnapName())
+				}
+				ts, err = snapstateInstallPathWithDeviceContext(st,
+					modelSnap.SnapName(),
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID,
+					snapstate.Flags{Required: true},
+					deviceCtx, fromChange, localSnap, path)
+			} else {
+				// If the snap is not installed we need to install it now.
+				ts, err = snapstateInstallWithDeviceContext(ctx, st,
+					modelSnap.SnapName(),
+					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+					userID,
+					snapstate.Flags{Required: true},
+					deviceCtx, fromChange)
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -714,14 +745,21 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 				return nil, err
 			}
 			if changed {
-				if localSnapsRequired && localSnap == nil {
-					return nil, fmt.Errorf("no file provided for %q snap (track changed)", modelSnap.SnapName())
-				}
 				logger.Debugf("%s snap changed track", modelSnap.Name)
-				ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
-					&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-					userID, snapstate.Flags{NoReRefresh: true},
-					deviceCtx, fromChange, localSnap)
+				if localSnapsRequired {
+					if localSnap == nil {
+						return nil, fmt.Errorf("no file provided for %q snap (track changed)", modelSnap.SnapName())
+					}
+					ts, err = snapstateUpdatePathWithDeviceContext(st, modelSnap.SnapName(),
+						&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+						userID, snapstate.Flags{NoReRefresh: true},
+						deviceCtx, fromChange, localSnap, path)
+				} else {
+					ts, err = snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
+						&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+						userID, snapstate.Flags{NoReRefresh: true},
+						deviceCtx, fromChange)
+				}
 				if err != nil {
 					return nil, err
 				}
@@ -914,7 +952,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 //     (need to check that even unchanged snaps are accessible)
 //   - Make sure this works with Core 20 as well, in the Core 20 case
 //     we must enforce the default-channels from the model as well
-func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.PathSideInfo) (*state.Change, error) {
+func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, paths []string) (*state.Change, error) {
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -998,6 +1036,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.PathSideInf
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
 		prepare.WaitFor(requestSerial)
 		prepare.Set("local-snaps", localSnaps)
+		prepare.Set("local-paths", paths)
 		ts := state.NewTaskSet(requestSerial, prepare)
 		tss = []*state.TaskSet{ts}
 	case StoreSwitchRemodel:
@@ -1015,7 +1054,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.PathSideInf
 		fallthrough
 	case UpdateRemodel:
 		var err error
-		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps)
+		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths)
 		if err != nil {
 			return nil, err
 		}

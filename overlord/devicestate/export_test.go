@@ -160,7 +160,7 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	}
 }
 
-func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallWithDeviceContext
 	snapstateInstallWithDeviceContext = f
 	return func() {
@@ -168,11 +168,27 @@ func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state
 	}
 }
 
-func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, localSnap *snap.PathSideInfo) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateInstallPathWithDeviceContext
+	snapstateInstallPathWithDeviceContext = f
+	return func() {
+		snapstateInstallPathWithDeviceContext = old
+	}
+}
+
+func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateUpdateWithDeviceContext
 	snapstateUpdateWithDeviceContext = f
 	return func() {
 		snapstateUpdateWithDeviceContext = old
+	}
+}
+
+func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error)) (restore func()) {
+	old := snapstateUpdatePathWithDeviceContext
+	snapstateUpdatePathWithDeviceContext = f
+	return func() {
+		snapstateUpdatePathWithDeviceContext = old
 	}
 }
 

@@ -215,35 +215,36 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 }
 
 func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (
-	pathSideInfos []*snap.PathSideInfo, names []string, origPaths []string,
+	sideInfos []*snap.SideInfo, names []string, origPaths, tmpPaths []string,
 	apiError *apiError) {
 
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
-		return nil, nil, nil, InternalError(err.Error())
+		return nil, nil, nil, nil, InternalError(err.Error())
 	}
 
 	names = make([]string, len(snapFiles))
 	origPaths = make([]string, len(snapFiles))
-	pathSideInfos = make([]*snap.PathSideInfo, len(snapFiles))
+	tmpPaths = make([]string, len(snapFiles))
+	sideInfos = make([]*snap.SideInfo, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
 		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 		if apiError != nil {
-			return nil, nil, nil, apiError
+			return nil, nil, nil, nil, apiError
 		}
 
-		pathSideInfos[i] = &snap.PathSideInfo{
-			SideInfo: *si, TmpPath: snapFile.tmpPath}
+		sideInfos[i] = si
 		names[i] = si.RealName
 		origPaths[i] = snapFile.filename
+		tmpPaths[i] = snapFile.tmpPath
 	}
 
-	return pathSideInfos, names, origPaths, nil
+	return sideInfos, names, origPaths, tmpPaths, nil
 }
 
 func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
-	pathSideInfos, names, origPaths, apiErr := sideloadInfo(st, snapFiles, flags)
+	pathSideInfos, names, origPaths, tmpPaths, apiErr := sideloadInfo(st, snapFiles, flags)
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -253,7 +254,7 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, pathSideInfos, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, pathSideInfos, tmpPaths, userID, &flags.Flags)
 	if err != nil {
 		return nil, errToResponse(err, names, InternalError, "cannot install snap files: %v")
 	}

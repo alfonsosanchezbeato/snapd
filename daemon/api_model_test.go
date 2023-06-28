@@ -105,7 +105,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	defer restore()
 
 	var devicestateRemodelGotModel *asserts.Model
-	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, sis []*snap.PathSideInfo) (*state.Change, error) {
+	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model, sis []*snap.SideInfo, paths []string) (*state.Change, error) {
 		devicestateRemodelGotModel = nm
 		chg := st.NewChange("remodel", "...")
 		return chg, nil
@@ -556,11 +556,11 @@ func (s *modelSuite) TestPostOfflineRemodel(c *check.C) {
 	snapRev := 1001
 	var devicestateRemodelGotModel *asserts.Model
 	defer daemon.MockDevicestateRemodel(func(st *state.State, nm *asserts.Model,
-		sis []*snap.PathSideInfo) (*state.Change, error) {
+		sis []*snap.SideInfo, paths []string) (*state.Change, error) {
 		c.Check(len(sis), check.Equals, 1)
 		c.Check(sis[0].RealName, check.Equals, snapName)
 		c.Check(sis[0].Revision, check.Equals, snap.Revision{N: snapRev})
-		c.Check(strings.HasSuffix(sis[0].TmpPath,
+		c.Check(strings.HasSuffix(paths[0],
 			"/var/lib/snapd/snaps/"+snapName+"_"+strconv.Itoa(snapRev)+".snap"),
 			check.Equals, true)
 
