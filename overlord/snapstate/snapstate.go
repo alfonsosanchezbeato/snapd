@@ -339,7 +339,6 @@ func isCoreSnap(snapName string) bool {
 }
 
 func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int, fromChange string, inUseCheck func(snap.Type) (boot.InUseFunc, error)) (*state.TaskSet, error) {
-	logger.Debugf("doing install for %s", snapsup.SideInfo.RealName)
 	// NB: we should strive not to need or propagate deviceCtx
 	// here, the resulting effects/changes were not pleasant at
 	// one point
@@ -1225,7 +1224,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 }
 
 // InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
-// It will query the store for the snap with the given deviceCtx.
 // Note that the state must be locked by the caller.
 //
 // The returned TaskSet will contain a LastBeforeLocalModificationsEdge
