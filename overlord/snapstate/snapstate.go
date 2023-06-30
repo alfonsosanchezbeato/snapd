@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
@@ -1138,16 +1137,9 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 
 	// It is ok do open the snap file here because we either
 	// have side info or the user passed --dangerous
-	info, container, err := backend.OpenSnapFile(path, si)
+	info, err := validatedInfoFromPathAndSideInfo(instanceName, path, si)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	if err := validateContainer(container, info, logger.Noticef); err != nil {
-		return nil, nil, err
-	}
-	if err := snap.ValidateInstanceName(instanceName); err != nil {
-		return nil, nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
 	snapName, instanceKey := snap.SplitInstanceName(instanceName)
@@ -1232,7 +1224,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 func InstallPathWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
 	logger.Debugf("installing from local file with device context %s", name)
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
-		info, err := infoFromSideInfoAndPath(si, path)
+		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
 			return nil, "", "", fmt.Errorf("install with device context local snap: %v", err)
 		}
@@ -1330,15 +1322,17 @@ func installWithDeviceContext(st *state.State, name string, opts *RevisionOption
 	return doInstall(st, &snapst, snapsup, 0, fromChange, nil)
 }
 
-func infoFromSideInfoAndPath(si *snap.SideInfo, path string) (*snap.Info, error) {
+func validatedInfoFromPathAndSideInfo(snapName, path string, si *snap.SideInfo) (*snap.Info, error) {
 	var info *snap.Info
-	snapc, err := snapfile.Open(path)
+	info, cont, err := backend.OpenSnapFile(path, si)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open snap file: %v", err)
 	}
-	info, err = snap.ReadInfoFromSnapFile(snapc, si)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read info from snap file: %v", err)
+	if err := validateContainer(cont, info, logger.Noticef); err != nil {
+		return nil, err
+	}
+	if err := snap.ValidateInstanceName(snapName); err != nil {
+		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 	return info, nil
 }
@@ -1368,16 +1362,9 @@ func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.Sid
 	for i, si := range sideInfos {
 		name := si.RealName
 
-		info, container, err := backend.OpenSnapFile(paths[i], si)
+		info, err := validatedInfoFromPathAndSideInfo(name, paths[i], si)
 		if err != nil {
 			return nil, err
-		}
-
-		if err := validateContainer(container, info, logger.Noticef); err != nil {
-			return nil, err
-		}
-		if err := snap.ValidateInstanceName(name); err != nil {
-			return nil, fmt.Errorf("invalid instance name: %v", err)
 		}
 
 		var snapst SnapState
@@ -2391,7 +2378,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 func UpdatePathWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
-		info, err := infoFromSideInfoAndPath(si, path)
+		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
 			return nil, fmt.Errorf("update with device context local snap: %v", err)
 		}
