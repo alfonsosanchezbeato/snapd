@@ -589,6 +589,9 @@ func prereqsFromSnapTaskSet(ts *state.TaskSet) ([]string, error) {
 	return nil, fmt.Errorf("internal error: cannot identify task-snap-setup in taskset")
 }
 
+// sideInfoAndPathFromID returns the SideInfo/path for a given snap ID. Note
+// that this will work only for asserted snaps, that is the only case we
+// support for remodeling at the moment.
 func sideInfoAndPathFromID(sis []*snap.SideInfo, paths []string, id string) (*snap.SideInfo, string) {
 	for i, si := range sis {
 		if si.SnapID == id {
