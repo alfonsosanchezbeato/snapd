@@ -2656,7 +2656,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7/stable"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+	c.Assert(err.Error(), Equals, "trying to update to the installed revision")
 }
 
 func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
@@ -4272,6 +4272,37 @@ version: 1.0
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "", si, mockSnap)
+	c.Assert(err, IsNil)
+	c.Check(ts.Tasks(), HasLen, 1)
+	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
@@ -6500,7 +6531,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap has no updates available`)
+	c.Assert(err, ErrorMatches, `trying to update to the installed revision`)
 }
 
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequiredRevision(c *C) {
