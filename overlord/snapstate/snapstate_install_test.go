@@ -74,11 +74,19 @@ func expectedDoInstallTasks(typ snap.Type, opts, discards int, startTasks []stri
 		}
 	}
 	if startTasks == nil {
-		startTasks = []string{
-			"prerequisites",
-			"download-snap",
-			"validate-snap",
-			"mount-snap",
+		if opts&localSnap != 0 {
+			startTasks = []string{
+				"prerequisites",
+				"prepare-snap",
+				"mount-snap",
+			}
+		} else {
+			startTasks = []string{
+				"prerequisites",
+				"download-snap",
+				"validate-snap",
+				"mount-snap",
+			}
 		}
 	}
 	expected := startTasks
@@ -155,7 +163,11 @@ func verifyInstallTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskS
 	if opts&noLastBeforeModificationsEdge == 0 {
 		te := ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge)
 		c.Assert(te, NotNil)
-		c.Assert(te.Kind(), Equals, "validate-snap")
+		if opts&localSnap != 0 {
+			c.Assert(te.Kind(), Equals, "prepare-snap")
+		} else {
+			c.Assert(te.Kind(), Equals, "validate-snap")
+		}
 	}
 }
 
@@ -322,6 +334,48 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 
 	verifyInstallTasks(c, snap.TypeApp, 0, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithDeviceContext(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	mockSnap := makeTestSnap(c, `name: some-snap
+version: 1.0
+`)
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.InstallPathWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", si, mockSnap)
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, snap.TypeApp, localSnap, 0, ts)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextBadFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	path := filepath.Join(c.MkDir(), "some-snap_7.snap")
+	err := os.WriteFile(path, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.InstallPathWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", si, path)
+	c.Assert(err, ErrorMatches, `install with device context local snap: cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
+	c.Assert(ts, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {

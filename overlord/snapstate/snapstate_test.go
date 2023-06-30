@@ -502,6 +502,7 @@ const (
 	updatesBootConfig
 	noConfigure
 	noLastBeforeModificationsEdge
+	localSnap
 )
 
 func taskKinds(tasks []*state.Task) []string {
