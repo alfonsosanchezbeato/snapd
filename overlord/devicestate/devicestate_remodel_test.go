@@ -995,6 +995,50 @@ func (s *deviceMgrRemodelSuite) TestRemodelRereg(c *C) {
 	c.Assert(tPrepareRemodeling.WaitTasks(), DeepEquals, []*state.Task{tRequestSerial})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelReregLocalFails(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base":         "core18",
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "orig-serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:           "canonical",
+		Model:           "pc-model",
+		Serial:          "orig-serial",
+		SessionMacaroon: "old-session",
+	})
+
+	new := s.brands.Model("canonical", "rereg-model", map[string]interface{}{
+		"architecture":   "amd64",
+		"kernel":         "pc-kernel",
+		"gadget":         "pc",
+		"base":           "core18",
+		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+	})
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		mod, err := devBE.Model()
+		c.Check(err, IsNil)
+		if err == nil {
+			c.Check(mod, DeepEquals, new)
+		}
+		return nil
+	}
+
+	sis := []*snap.SideInfo{{RealName: "pc-kernel"}, {RealName: "pc"}}
+	paths := []string{"pc-kernel_1.snap", "pc_1.snap"}
+	chg, err := devicestate.Remodel(s.state, new, sis, paths)
+	c.Assert(err.Error(), Equals, "offline change of brand ID / model is not possible yet")
+	c.Assert(chg, IsNil)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

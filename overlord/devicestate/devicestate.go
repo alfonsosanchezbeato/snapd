@@ -1004,12 +1004,17 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
+		if len(localSnaps) > 0 {
+			// TODO support this in the future if a serial
+			// assertion has been provided by a file. To support
+			// this case, we will pass the snaps/paths by setting
+			// local-{snaps,paths} in the task.
+			return nil, fmt.Errorf("offline change of brand ID / model is not possible yet")
+		}
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
 		prepare.WaitFor(requestSerial)
-		prepare.Set("local-snaps", localSnaps)
-		prepare.Set("local-paths", paths)
 		ts := state.NewTaskSet(requestSerial, prepare)
 		tss = []*state.TaskSet{ts}
 	case StoreSwitchRemodel:
