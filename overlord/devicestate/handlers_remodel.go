@@ -188,7 +188,7 @@ func (m *DeviceManager) doPrepareRemodeling(t *state.Task, tmb *tomb.Tomb) error
 
 	chgID := t.Change().ID()
 
-	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), remodCtx, chgID, nil, nil)
+	tss, err := remodelTasks(tmb.Context(nil), st, current, remodCtx.Model(), nil, nil, remodCtx, chgID)
 	if err != nil {
 		return err
 	}

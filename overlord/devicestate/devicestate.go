@@ -602,8 +602,8 @@ func sideInfoAndPathFromID(sis []*snap.SideInfo, paths []string, id string) (*sn
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
-	deviceCtx snapstate.DeviceContext, fromChange string,
-	localSnaps []*snap.SideInfo, paths []string) ([]*state.TaskSet, error) {
+	localSnaps []*snap.SideInfo, paths []string,
+	deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 
 	userID := 0
 	var tss []*state.TaskSet
@@ -1032,7 +1032,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 		fallthrough
 	case UpdateRemodel:
 		var err error
-		tss, err = remodelTasks(context.TODO(), st, current, new, remodCtx, "", localSnaps, paths)
+		tss, err = remodelTasks(context.TODO(), st, current, new, localSnaps, paths, remodCtx, "")
 		if err != nil {
 			return nil, err
 		}
