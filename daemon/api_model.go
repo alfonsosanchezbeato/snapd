@@ -177,8 +177,9 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 		return BadRequest("error committing assertions: %v", err)
 	}
 
-	// Build snaps information
-	// TODO should flags be considered in this case?
+	// Build snaps information. Note that here we do not set flags as we
+	// expect all snaps to have assertions (although maybe we will need to
+	// consider the classic snaps case in the future).
 	pathSis, _, _, tmpPaths, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
 	if apiErr != nil {
 		return apiErr

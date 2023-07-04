@@ -523,7 +523,19 @@ func multipartBody(c *check.C, model, snap, assertion string) (bytes.Buffer, str
 	return b, w.Boundary()
 }
 
-func (s *modelSuite) TestPostOfflineRemodel(c *check.C) {
+func (s *modelSuite) TestPostOfflineRemodelOk(c *check.C) {
+	s.testPostOfflineRemodel(c, &testPostOfflineRemodelParams{badModel: false})
+}
+
+func (s *modelSuite) TestPostOfflineRemodelBadModel(c *check.C) {
+	s.testPostOfflineRemodel(c, &testPostOfflineRemodelParams{badModel: true})
+}
+
+type testPostOfflineRemodelParams struct {
+	badModel bool
+}
+
+func (s *modelSuite) testPostOfflineRemodel(c *check.C, params *testPostOfflineRemodelParams) {
 	s.expectRootAccess()
 
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
@@ -574,7 +586,12 @@ func (s *modelSuite) TestPostOfflineRemodel(c *check.C) {
 
 	// create a valid model assertion
 	c.Assert(err, check.IsNil)
-	modelEncoded := string(asserts.Encode(newModel))
+	var modelEncoded string
+	if params.badModel {
+		modelEncoded = "garbage"
+	} else {
+		modelEncoded = string(asserts.Encode(newModel))
+	}
 
 	// valid revision assertion to make it part of the arguments
 	revAssert := assertstest.FakeAssertion(map[string]interface{}{
@@ -597,21 +614,27 @@ func (s *modelSuite) TestPostOfflineRemodel(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
 	req.Header.Set("Content-Length", strconv.Itoa(body.Len()))
 
-	rsp := s.asyncReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 202)
-	c.Check(rsp.Change, check.DeepEquals, "1")
-	c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
+	if params.badModel {
+		rsp := s.errorReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Error(), check.Equals, "cannot decode new model assertion: assertion content/signature separator not found (api)")
+	} else {
+		rsp := s.asyncReq(c, req, nil)
+		c.Assert(rsp.Status, check.Equals, 202)
+		c.Check(rsp.Change, check.DeepEquals, "1")
+		c.Check(devicestateRemodelGotModel, check.DeepEquals, newModel)
 
-	st.Lock()
-	defer st.Unlock()
-	chg := st.Change(rsp.Change)
-	c.Assert(chg, check.NotNil)
+		st.Lock()
+		defer st.Unlock()
+		chg := st.Change(rsp.Change)
+		c.Assert(chg, check.NotNil)
 
-	c.Assert(st.Changes(), check.HasLen, 1)
-	chg1 := st.Changes()[0]
-	c.Assert(chg, check.DeepEquals, chg1)
-	c.Assert(chg.Kind(), check.Equals, "remodel")
-	c.Assert(chg.Err(), check.IsNil)
+		c.Assert(st.Changes(), check.HasLen, 1)
+		chg1 := st.Changes()[0]
+		c.Assert(chg, check.DeepEquals, chg1)
+		c.Assert(chg.Kind(), check.Equals, "remodel")
+		c.Assert(chg.Err(), check.IsNil)
 
-	c.Assert(soon, check.Equals, 1)
+		c.Assert(soon, check.Equals, 1)
+	}
 }
