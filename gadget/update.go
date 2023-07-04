@@ -531,11 +531,13 @@ func EnsureVolumeCompatibility(gadgetVolume *Volume, diskVolume *OnDiskVolume, o
 		}
 	}
 
-	// Check if top level properties match
+	// Check if gadget schema is compatible with the disk, when defined
 	if (!gadgetVolume.HasPartial(PartialSchema) || gadgetVolume.Schema != "") &&
 		!isCompatibleSchema(gadgetVolume.Schema, diskVolume.Schema) {
 		return nil, fmt.Errorf("disk partitioning schema %q doesn't match gadget schema %q", diskVolume.Schema, gadgetVolume.Schema)
 	}
+
+	// Check disk ID if defined in gadget
 	if gadgetVolume.ID != "" && gadgetVolume.ID != diskVolume.ID {
 		return nil, fmt.Errorf("disk ID %q doesn't match gadget volume ID %q", diskVolume.ID, gadgetVolume.ID)
 	}
