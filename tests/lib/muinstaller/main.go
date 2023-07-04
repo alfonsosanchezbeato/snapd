@@ -184,7 +184,7 @@ func createPartitions(bootDevice string, volumes map[string]*gadget.Volume, encT
 	opts := &install.CreateOptions{CreateAllMissingPartitions: true}
 	created, err := install.CreateMissingPartitions(diskLayout, lvol, opts)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create partitons: %v", err)
+		return nil, fmt.Errorf("cannot create partitions: %v", err)
 	}
 	logger.Noticef("created %v partitions", created)
 
