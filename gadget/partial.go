@@ -78,17 +78,20 @@ func applyPartialFilesystem(insVol *Volume, lov *LaidOutVolume, volName string) 
 		// Two structures to modify due to copies inside LaidOutVolume
 		vs := &lov.Structure[sidx]
 		vsLos := lov.LaidOutStructure[sidx].VolumeStructure
+		if vs.Filesystem != "" || !vs.HasFilesystem() {
+			continue
+		}
+
 		insStr, err := structureByName(insVol.Structure, vs.Name)
 		if err != nil {
 			return err
 		}
-		if vs.Filesystem == "" && vs.HasFilesystem() {
-			if insStr.Filesystem == "" {
-				return fmt.Errorf("installer did not provide filesystem for structure %q in volume %q", vs.Name, volName)
-			}
-			vs.Filesystem = insStr.Filesystem
-			vsLos.Filesystem = insStr.Filesystem
+		if insStr.Filesystem == "" {
+			return fmt.Errorf("installer did not provide filesystem for structure %q in volume %q", vs.Name, volName)
 		}
+
+		vs.Filesystem = insStr.Filesystem
+		vsLos.Filesystem = insStr.Filesystem
 	}
 	return nil
 }
@@ -98,23 +101,26 @@ func applyPartialSize(insVol *Volume, lov *LaidOutVolume, volName string) error 
 		// Two structures to modify due to copies inside LaidOutVolume
 		vs := &lov.Structure[sidx]
 		vsLos := lov.LaidOutStructure[sidx].VolumeStructure
+		if !vs.hasPartialSize() {
+			continue
+		}
+
 		insStr, err := structureByName(insVol.Structure, vs.Name)
 		if err != nil {
 			return err
 		}
-		if vs.hasPartialSize() {
-			if insStr.Size == 0 {
-				return fmt.Errorf("installer did not provide size for structure %q in volume %q", vs.Name, volName)
-			}
-			if insStr.Offset == nil {
-				return fmt.Errorf("installer did not provide offset for structure %q in volume %q", vs.Name, volName)
-			}
-			vs.Size = insStr.Size
-			vsLos.Size = insStr.Size
-			vs.Offset = insStr.Offset
-			vsLos.Offset = insStr.Offset
-			lov.LaidOutStructure[sidx].StartOffset = *insStr.Offset
+		if insStr.Size == 0 {
+			return fmt.Errorf("installer did not provide size for structure %q in volume %q", vs.Name, volName)
 		}
+		if insStr.Offset == nil {
+			return fmt.Errorf("installer did not provide offset for structure %q in volume %q", vs.Name, volName)
+		}
+
+		vs.Size = insStr.Size
+		vsLos.Size = insStr.Size
+		vs.Offset = insStr.Offset
+		vsLos.Offset = insStr.Offset
+		lov.LaidOutStructure[sidx].StartOffset = *insStr.Offset
 	}
 	return nil
 }
