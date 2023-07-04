@@ -168,7 +168,7 @@ func MockSnapstateInstallWithDeviceContext(f func(ctx context.Context, st *state
 	}
 }
 
-func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateInstallPathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateInstallPathWithDeviceContext
 	snapstateInstallPathWithDeviceContext = f
 	return func() {
@@ -184,7 +184,7 @@ func MockSnapstateUpdateWithDeviceContext(f func(st *state.State, name string, o
 	}
 }
 
-func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error)) (restore func()) {
+func MockSnapstateUpdatePathWithDeviceContext(f func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error)) (restore func()) {
 	old := snapstateUpdatePathWithDeviceContext
 	snapstateUpdatePathWithDeviceContext = f
 	return func() {

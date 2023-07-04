@@ -351,7 +351,7 @@ version: 1.0
 `)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallPathWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", si, mockSnap)
+	ts, err := snapstate.InstallPathWithDeviceContext(s.state, si, mockSnap, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, snap.TypeApp, localSnap, 0, ts)
@@ -373,7 +373,7 @@ func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextBadFile(c *C) {
 	c.Assert(err, IsNil)
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallPathWithDeviceContext(s.state, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "", si, path)
+	ts, err := snapstate.InstallPathWithDeviceContext(s.state, si, path, "some-snap", opts, 0, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, ErrorMatches, `install with device context local snap: cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
 	c.Assert(ts, IsNil)
 }

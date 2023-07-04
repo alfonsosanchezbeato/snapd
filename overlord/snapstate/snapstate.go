@@ -1224,7 +1224,9 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 // The returned TaskSet will contain a LastBeforeLocalModificationsEdge
 // identifying the last task before the first task that introduces system
 // modifications.
-func InstallPathWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
+func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
+	opts *RevisionOptions, userID int, flags Flags,
+	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	logger.Debugf("installing from local file with device context %s", name)
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
@@ -2379,7 +2381,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 // identifying the last task before the first task that introduces system
 // modifications. If no such edge is set, then none of the tasks introduce
 // system modifications.
-func UpdatePathWithDeviceContext(st *state.State, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
+func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string, opts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
 	snapUpdateInfo := func(dc DeviceContext, ro *RevisionOptions, fl Flags, snapst *SnapState) ([]minimalInstallInfo, error) {
 		toUpdate := []minimalInstallInfo{}
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)

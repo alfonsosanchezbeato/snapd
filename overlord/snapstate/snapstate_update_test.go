@@ -4268,7 +4268,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContext(c *C) {
 version: 1.0
 `)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "", si, mockSnap)
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 	verifyUpdateTasks(c, snap.TypeApp, doesReRefresh|localSnap, 0, ts)
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
@@ -4299,7 +4299,7 @@ func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextSwitchChannel(c *C) {
 version: 1.0
 `)
 
-	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "", si, mockSnap)
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, mockSnap, "some-snap", &snapstate.RevisionOptions{Channel: "22/edge"}, s.user.ID, snapstate.Flags{}, deviceCtx, "")
 	c.Assert(err, IsNil)
 	c.Check(ts.Tasks(), HasLen, 1)
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")

@@ -466,7 +466,7 @@ func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[st
 	var testDeviceCtx snapstate.DeviceContext
 
 	var snapstateInstallWithDeviceContextCalled int
-	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallPathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		snapstateInstallWithDeviceContextCalled++
 		newTrack, ok := whatNewTrack[name]
 		c.Check(ok, Equals, true)
@@ -2165,7 +2165,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	})
 	defer restore()
 
-	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string, si *snap.SideInfo, path string) (*state.TaskSet, error) {
+	restore = devicestate.MockSnapstateUpdatePathWithDeviceContext(func(st *state.State, si *snap.SideInfo, path, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
