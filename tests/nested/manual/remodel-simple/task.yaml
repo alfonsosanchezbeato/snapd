@@ -88,7 +88,15 @@ execute: |
             --snap pc-kernel.snap --assertion pc-kernel.assert"
     fi
     CHANGE_ID="$(remote.exec "sudo snap remodel $remodel_options \
-                 test-snapd-remodel-pc-just-model-$variant.model")"
+                 test-snapd-remodel-pc-just-model-$variant.model" 2> error.log)"
+    if [ "$OFFLINE_REMODEL" = true ]; then
+        # We cannot change offline the model yet, check the error and
+        # consider successful the test for the moment.
+        # TODO as a first step we need to provide the new serial assertion from a file
+        MATCH "offline change of brand ID / model is not possible yet" < error.log
+        exit 0
+    fi
+
     test -n "$CHANGE_ID"
     # very long retry wait for the change to be in stable state, where stable
     # means that it's done or failed in which case we fail the test on the next
