@@ -312,7 +312,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetReturnsFalse(c *C) {
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
 	err := configcore.Run(coreDev, rt)
-	c.Assert(err, ErrorMatches, "cannot set netplan config: no specific reason returned from netplan")
+	c.Assert(err, ErrorMatches, "cannot clean netplan config 0-snapd-defaults: no specific reason returned from netplan")
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
@@ -327,7 +327,7 @@ func (s *netplanSuite) TestNetplanWriteConfigSetFailsDBusErr(c *C) {
 	rt.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
 
 	err := configcore.Run(coreDev, rt)
-	c.Assert(err, ErrorMatches, "cannot set netplan config: netplan failed with some error")
+	c.Assert(err, ErrorMatches, "cannot clean netplan config 0-snapd-defaults: netplan failed with some error")
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigTryReturnsFalse(c *C) {
@@ -360,17 +360,8 @@ func (s *netplanSuite) TestNetplanWriteConfigTryFailsDBusErr(c *C) {
 	c.Assert(err, ErrorMatches, "cannot try netplan config: netplan failed with some error")
 }
 
-func (s *netplanSuite) TestNetplanWriteConfigHappyAfterSeeding(c *C) {
-	s.testNetplanWriteConfigHappy(c, true, "90-snapd-config")
-}
-
-func (s *netplanSuite) TestNetplanWriteConfigHappyDuringSeeding(c *C) {
-	s.testNetplanWriteConfigHappy(c, false, "0-snapd-defaults")
-}
-
-func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOriginHint string) {
+func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	s.state.Lock()
-	s.state.Set("seeded", seeded)
 	s.state.Unlock()
 
 	// export the V2 api, things work with that
@@ -392,8 +383,10 @@ func (s *netplanSuite) testNetplanWriteConfigHappy(c *C, seeded bool, expectedOr
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		fmt.Sprintf(`network=null/%s`, expectedOriginHint),
-		fmt.Sprintf(`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/%s`, expectedOriginHint),
+		`network=null/0-snapd-defaults`,
+		`network=null/90-snapd-config`,
+		`network=null/00-snapd-config`,
+		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/00-snapd-config`,
 	})
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
@@ -555,8 +548,10 @@ network:
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+		`network=null/0-snapd-defaults`,
 		`network=null/90-snapd-config`,
-		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-config`,
+		`network=null/00-snapd-config`,
+		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/00-snapd-config`,
 	})
 }
 
