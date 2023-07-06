@@ -2131,8 +2131,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnapsLocalS
 	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{localSnaps: true})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnapsLocalSnapsFails(c *C) {
+	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c,
+		&prepareRemodelFlags{localSnaps: true, missingSnap: true})
+}
+
 type prepareRemodelFlags struct {
-	localSnaps bool
+	localSnaps  bool
+	missingSnap bool
 }
 
 func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C, testFlags *prepareRemodelFlags) {
@@ -2169,10 +2175,8 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 		c.Check(flags.Required, Equals, false)
 		c.Check(flags.NoReRefresh, Equals, true)
 		c.Check(deviceCtx, NotNil)
-		if testFlags.localSnaps {
-			c.Check(si, NotNil)
-			c.Check(si.RealName, Equals, name)
-		}
+		c.Check(si, NotNil)
+		c.Check(si.RealName, Equals, name)
 
 		// This task would not really be added if we have a local snap,
 		// but we keep it anyway to simplify the checks we do at the end.
@@ -2298,11 +2302,20 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	var localSnaps []*snap.SideInfo
 	var paths []string
 	if testFlags.localSnaps {
-		localSnaps = []*snap.SideInfo{siModelGadget, siModelKernel, siModelBase}
-		paths = []string{"pc_101.snap", "pc-kernel_101.snap", "core20"}
+		localSnaps = []*snap.SideInfo{siModelKernel, siModelBase}
+		paths = []string{"pc-kernel_101.snap", "core20"}
+		if !testFlags.missingSnap {
+			localSnaps = append(localSnaps, siModelGadget)
+			paths = append(paths, "pc_101.snap")
+		}
 	}
 
 	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
+	if testFlags.missingSnap {
+		c.Assert(chg, IsNil)
+		c.Assert(err.Error(), Equals, `no file provided for "pc" snap (track changed)`)
+		return
+	}
 	c.Assert(err, IsNil)
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
