@@ -2656,7 +2656,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-7/stable"}, s.user.ID, snapstate.Flags{})
-	c.Assert(err.Error(), Equals, "trying to update to the installed revision")
+	c.Assert(err.Error(), Equals, "snap has no updates available")
 }
 
 func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
@@ -6531,7 +6531,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `trying to update to the installed revision`)
+	c.Assert(err, ErrorMatches, `snap has no updates available`)
 }
 
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequiredRevision(c *C) {

@@ -81,10 +81,7 @@ const (
 
 const snapdDesktopIntegrationSnapID = "IrwRHakqtzhFRHJOOPxKVPU0Kk7Erhcu"
 
-var (
-	ErrNothingToDo         = errors.New("nothing to do")
-	errUpdatingToInstalled = errors.New("trying to update to the installed revision")
-)
+var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
@@ -2364,7 +2361,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 			toUpdate = append(toUpdate, installSnapInfo{info})
 		case store.ErrNoUpdateAvailable:
 			// there may be some new auto-aliases
-			return toUpdate, errUpdatingToInstalled
+			return toUpdate, infoErr
 		default:
 			return nil, infoErr
 		}
@@ -2388,9 +2385,11 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		if err != nil {
 			return nil, fmt.Errorf("update with device context local snap: %v", err)
 		}
-		// Trying to update to the same revision that is already installed
+		// Trying to update to the same revision that is already installed.
+		// We abuse here store.ErrNoUpdateAvailable to keep behavior
+		// consistent with when we try to update from the store.
 		if snapst.CurrentSideInfo().Revision == info.Revision {
-			return toUpdate, errUpdatingToInstalled
+			return toUpdate, store.ErrNoUpdateAvailable
 		}
 		installInfo := pathInfo{Info: info, path: path, sideInfo: si}
 		toUpdate = append(toUpdate, installInfo)
@@ -2449,7 +2448,7 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	}
 
 	toUpdate, infoErr := snapUpdateInfo(deviceCtx, opts, flags, &snapst)
-	if infoErr != nil && infoErr != errUpdatingToInstalled {
+	if infoErr != nil && infoErr != store.ErrNoUpdateAvailable {
 		return nil, infoErr
 	}
 
@@ -2473,7 +2472,7 @@ func updateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	switchChannel := snapst.TrackingChannel != opts.Channel
 	switchCohortKey := snapst.CohortKey != opts.CohortKey
 	toggleIgnoreValidation := snapst.IgnoreValidation != flags.IgnoreValidation
-	if infoErr == errUpdatingToInstalled && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
+	if infoErr == store.ErrNoUpdateAvailable && (switchChannel || switchCohortKey || toggleIgnoreValidation) {
 		if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
 			return nil, err
 		}
