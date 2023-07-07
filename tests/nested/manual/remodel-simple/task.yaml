@@ -93,7 +93,7 @@ execute: |
             # We cannot change offline the model yet, check the error and
             # consider successful the test for the moment.
             # TODO as a first step we need to provide the new serial assertion from a file
-            MATCH "offline change of brand ID / model is not possible yet" < error.log
+            MATCH "cannot remodel offline to different brand ID / model yet" < error.log
             exit 0
         fi
         printf "Error while running snap remodel command\n"
