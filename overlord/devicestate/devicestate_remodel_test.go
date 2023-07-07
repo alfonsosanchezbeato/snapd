@@ -4204,8 +4204,23 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdate(c *C) {
 		&uc20RemodelLocalNonEssentialCase{isUpdate: true})
 }
 
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialInstallExtraSnap(c *C) {
+	// We check that it is fine to pass down a snap that is not used,
+	// although we might change the behavior in the future.
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: false, notUsedSnap: true})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelLocalNonEssentialUpdateExtraSnap(c *C) {
+	// We check that it is fine to pass down a snap that is not used,
+	// although we might change the behavior in the future.
+	s.testUC20RemodelLocalNonEssential(c,
+		&uc20RemodelLocalNonEssentialCase{isUpdate: true, notUsedSnap: true})
+}
+
 type uc20RemodelLocalNonEssentialCase struct {
-	isUpdate bool
+	isUpdate    bool
+	notUsedSnap bool
 }
 
 func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20RemodelLocalNonEssentialCase) {
@@ -4346,6 +4361,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		installWithDeviceContextCalled++
 		c.Check(si, NotNil)
 		c.Check(si.RealName, Equals, name)
+		c.Check(si.RealName, Not(Equals), "not-used-snap")
 
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup",
@@ -4366,6 +4382,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 		c.Check(deviceCtx, NotNil)
 		c.Check(si, NotNil)
 		c.Check(si.RealName, Equals, name)
+		c.Check(si.RealName, Not(Equals), "not-used-snap")
 
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.Set("snap-setup",
@@ -4412,6 +4429,11 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelLocalNonEssential(c *C, tc *uc20R
 	siSomeSnapNew, path := createLocalSnap(c, "some-snap", snaptest.AssertedSnapID("some-snap"), 3)
 	localSnaps := []*snap.SideInfo{siSomeSnapNew}
 	paths := []string{path}
+	if tc.notUsedSnap {
+		siNotUsed, pathNotUsed := createLocalSnap(c, "not-used-snap", snaptest.AssertedSnapID("not-used-snap"), 3)
+		localSnaps = append(localSnaps, siNotUsed)
+		paths = append(paths, pathNotUsed)
+	}
 
 	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
 	c.Assert(err, IsNil)
