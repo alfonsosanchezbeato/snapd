@@ -1228,7 +1228,7 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 	snapInstallInfo := func(DeviceContext, *RevisionOptions) (info *snap.Info, snapPath, redirectChannel string, e error) {
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
-			return nil, "", "", fmt.Errorf("install with device context local snap: %v", err)
+			return nil, "", "", err
 		}
 		return info, path, "", nil
 	}
@@ -2383,7 +2383,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		toUpdate := []minimalInstallInfo{}
 		info, err := validatedInfoFromPathAndSideInfo(name, path, si)
 		if err != nil {
-			return nil, fmt.Errorf("update with device context local snap: %v", err)
+			return nil, err
 		}
 		// Trying to update to the same revision that is already installed.
 		// We abuse here store.ErrNoUpdateAvailable to keep behavior

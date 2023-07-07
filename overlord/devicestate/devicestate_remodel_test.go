@@ -454,7 +454,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchLocalKernelAndGadgetFails(
 			"kernel": "other-kernel=18",
 			"gadget": "other-gadget=18"},
 		sis, paths,
-		`no file provided for "other-gadget" snap`)
+		`no snap file provided for "other-gadget"`)
 }
 
 func (s *deviceMgrRemodelSuite) testRemodelSwitchTasks(c *C, whatNewTrack map[string]string, newModelOverrides map[string]interface{}, localSnaps []*snap.SideInfo, paths []string, expectedErr string) {
@@ -1035,7 +1035,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelReregLocalFails(c *C) {
 	sis := []*snap.SideInfo{{RealName: "pc-kernel"}, {RealName: "pc"}}
 	paths := []string{"pc-kernel_1.snap", "pc_1.snap"}
 	chg, err := devicestate.Remodel(s.state, new, sis, paths)
-	c.Assert(err.Error(), Equals, "offline change of brand ID / model is not possible yet")
+	c.Assert(err.Error(), Equals, "cannot remodel offline to different brand ID / model yet")
 	c.Assert(chg, IsNil)
 }
 
@@ -2313,7 +2313,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	chg, err := devicestate.Remodel(s.state, new, localSnaps, paths)
 	if testFlags.missingSnap {
 		c.Assert(chg, IsNil)
-		c.Assert(err.Error(), Equals, `no file provided for "pc" snap (track changed)`)
+		c.Assert(err.Error(), Equals, `no snap file provided for "pc" (track changed)`)
 		return
 	}
 	c.Assert(err, IsNil)

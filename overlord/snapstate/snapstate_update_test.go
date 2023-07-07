@@ -4305,6 +4305,38 @@ version: 1.0
 	c.Check(ts.Tasks()[0].Kind(), Equals, "switch-snap-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdatePathWithDeviceContextBadFile(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// unset the global store, it will need to come via the device context
+	snapstate.ReplaceStore(s.state, nil)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		CtxStore:    s.fakeStore,
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
+	path := filepath.Join(c.MkDir(), "some-snap_7.snap")
+	err := os.WriteFile(path, []byte(""), 0644)
+	c.Assert(err, IsNil)
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.UpdatePathWithDeviceContext(s.state, si, path, "some-snap", opts, s.user.ID, snapstate.Flags{}, deviceCtx, "")
+
+	c.Assert(err, ErrorMatches, `cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithDeviceContextToRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

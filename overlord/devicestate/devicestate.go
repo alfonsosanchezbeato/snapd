@@ -446,7 +446,7 @@ func (ro *remodelOptions) UpdateWithDeviceContext(st *state.State,
 	logger.Debugf("snap %s track changed", snapName)
 	if ro.localSnapsRequired {
 		if localSi == nil {
-			return nil, fmt.Errorf("no file provided for %q snap (track changed)", snapName)
+			return nil, fmt.Errorf("no snap file provided for %q (track changed)", snapName)
 		}
 		return snapstateUpdatePathWithDeviceContext(st, localSi, path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
@@ -464,7 +464,7 @@ func (ro *remodelOptions) InstallWithDeviceContext(ctx context.Context, st *stat
 	logger.Debugf("snap %s needs install", snapName)
 	if ro.localSnapsRequired {
 		if localSi == nil {
-			return nil, fmt.Errorf("no file provided for %q snap", snapName)
+			return nil, fmt.Errorf("no snap file provided for %q", snapName)
 		}
 		return snapstateInstallPathWithDeviceContext(st, localSi, path, snapName,
 			&snapstate.RevisionOptions{Channel: channel},
@@ -1028,7 +1028,7 @@ func Remodel(st *state.State, new *asserts.Model, localSnaps []*snap.SideInfo, p
 			// assertion has been provided by a file. To support
 			// this case, we will pass the snaps/paths by setting
 			// local-{snaps,paths} in the task.
-			return nil, fmt.Errorf("offline change of brand ID / model is not possible yet")
+			return nil, fmt.Errorf("cannot remodel offline to different brand ID / model yet")
 		}
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
