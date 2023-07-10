@@ -80,6 +80,13 @@ execute: |
         remote.exec "cat /etc/hostname" | MATCH "foo"
         remote.exec "hostname" | MATCH "foo"
 
+        # save netplan config
+        remote.exec "sudo cp /etc/netplan/00-snapd-config.yaml ."
+
+        # Should not have all-* snippets from the base
+        not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-en"
+        not remote.exec "sudo snap get system system.network.netplan.network.ethernets.all-eth"
+
         # netplan config defaults are applied
         remote.exec "sudo cat /etc/netplan/00-snapd-config.yaml" | MATCH br54
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH true
@@ -89,8 +96,15 @@ execute: |
         remote.exec "sudo snap set system system.network.netplan.network.bridges.br54.dhcp4=false"
         remote.exec "sudo netplan get bridges.br54.dhcp4" | MATCH false
         remote.exec "sudo snap get system system.network.netplan.network.bridges.br54.dhcp4" | MATCH false
+        # unsetting cleans the snapd configuration, but not the one from cloud-init
+        remote.exec sudo snap unset system system.network.netplan.network
+        for net in all-en all-eth ens3; do
+            not remote.exec "sudo snap get system system.network.netplan.network.ethernets.$net"
+        done
+        not remote.exec "sudo snap get system system.network.netplan.network.bridges"
+        remote.exec "sudo snap get system system.network.netplan.network.ethernets.enp0s2"
         # ensure the test can be repeated
-        remote.exec "sudo rm -f /etc/netplan/00-snapd-config.yaml"
+        remote.exec "sudo cp 00-snapd-config.yaml /etc/netplan/"
 
         echo "Check the ssh port file is correct"
         remote.exec "sudo cat /etc/ssh/sshd_config.d/listen.conf" | MATCH "ListenAddress 0\.0\.0\.0:8023"
