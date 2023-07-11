@@ -115,6 +115,10 @@ var setGetTests = [][]setGetOp{{
 	`get doc={"one":1,"two":2}`,
 	`changes core.doc.one core.doc.two`,
 }, {
+	// netplan special ones
+	`set system.network.netplan.NM-234-4adf=test`,
+	`set system.network.netplan.a234-4adf-XXX=test`,
+}, {
 	// Nulls via dotted path
 	`set doc={"one":1,"two":2}`,
 	`commit`,
@@ -356,6 +360,7 @@ var setGetTests = [][]setGetOp{{
 	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
 	`set one.-bad.two=1 => invalid option name: "-bad"`,
 	`set one.bad-.two=1 => invalid option name: "bad-"`,
+	`set system.network.netplan.O&-c=test => invalid option name: "O&-c"`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {

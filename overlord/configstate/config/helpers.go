@@ -34,14 +34,23 @@ import (
 )
 
 var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
+var validNetplanKey = regexp.MustCompile("^(?:[a-zA-Z0-9]+-?)*[a-zA-Z](?:-?[a-zA-Z0-9])*$")
 
 func ParseKey(key string) (subkeys []string, err error) {
 	if key == "" {
 		return []string{}, nil
 	}
 	subkeys = strings.Split(key, ".")
+	validRE := validKey
+	// netplan settings have different restrictions
+	// TODO unfortunately this will not be enough yet, there are fields
+	// with dots or underscores coming from NM, like ipv6.ip6-privacy,
+	// proxy._, or vpn.timeout.
+	if strings.HasPrefix(key, "system.network.netplan") {
+		validRE = validNetplanKey
+	}
 	for _, subkey := range subkeys {
-		if !validKey.MatchString(subkey) {
+		if !validRE.MatchString(subkey) {
 			return nil, fmt.Errorf("invalid option name: %q", subkey)
 		}
 	}
