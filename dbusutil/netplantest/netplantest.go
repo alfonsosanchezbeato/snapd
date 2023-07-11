@@ -49,9 +49,9 @@ type NetplanServer struct {
 	ConfigApiGetCalls int
 	ConfigApiGetErr   *dbus.Error
 
-	ConfigApiSetCalls []string
-	ConfigApiSetRet   bool
-	ConfigApiSetErr   *dbus.Error
+	ConfigApiSetCalls              []string
+	ConfigApiSetRetFailAfterNCalls int
+	ConfigApiSetErr                *dbus.Error
 
 	ConfigApiApplyCalls int
 	ConfigApiApplyRet   bool
@@ -61,9 +61,9 @@ type NetplanServer struct {
 	ConfigApiTryRet   bool
 	ConfigApiTryErr   *dbus.Error
 
-	ConfigApiCancelCalls int
-	ConfigApiCancelRet   bool
-	ConfigApiCancelErr   *dbus.Error
+	ConfigApiCancelCalls              int
+	ConfigApiCancelRetFailAfterNCalls int
+	ConfigApiCancelErr                *dbus.Error
 }
 
 func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
@@ -146,7 +146,7 @@ func (c netplanConfigApi) Get() (string, *dbus.Error) {
 
 func (c netplanConfigApi) Set(value, originHint string) (bool, *dbus.Error) {
 	c.server.ConfigApiSetCalls = append(c.server.ConfigApiSetCalls, fmt.Sprintf("%s/%s", value, originHint))
-	return c.server.ConfigApiSetRet, c.server.ConfigApiSetErr
+	return len(c.server.ConfigApiSetCalls) < c.server.ConfigApiSetRetFailAfterNCalls, c.server.ConfigApiSetErr
 }
 
 func (c netplanConfigApi) Apply() (bool, *dbus.Error) {
@@ -156,7 +156,7 @@ func (c netplanConfigApi) Apply() (bool, *dbus.Error) {
 
 func (c netplanConfigApi) Cancel() (bool, *dbus.Error) {
 	c.server.ConfigApiCancelCalls++
-	return c.server.ConfigApiCancelRet, c.server.ConfigApiCancelErr
+	return c.server.ConfigApiCancelCalls < c.server.ConfigApiCancelRetFailAfterNCalls, c.server.ConfigApiCancelErr
 }
 
 func (c netplanConfigApi) Try(timeout int) (bool, *dbus.Error) {
