@@ -183,6 +183,11 @@ func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err err
 		}
 	}()
 
+	seeded, err := alreadySeeded(tr)
+	if err != nil {
+		return err
+	}
+
 	// This is the origin used by the defaults settings established from
 	// the base, and it is also modified by console-conf if it runs. We
 	// really want to clean it if console-conf is disabled, as we want to
@@ -191,6 +196,13 @@ func handleNetplanConfiguration(tr RunTransaction, opts *fsOnlyContext) (err err
 	// is a manual configuration and the defaults might even conflict with
 	// it.
 	originHint := "00-snapd-config"
+	if seeded {
+		// After seeding, we let netplan decide which file or files
+		// are best to modify. This will ensure that unsets do the
+		// right thing and will modify files that have already the
+		// setting.
+		originHint = ""
+	}
 
 	// First clean-up legacy files (if not present netplan will return
 	// successfully while doing nothing).
