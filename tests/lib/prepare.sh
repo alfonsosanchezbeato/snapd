@@ -1279,10 +1279,12 @@ EOF
     umount /mnt
     kpartx -d "$IMAGE_HOME/$IMAGE"
 
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
+                                   dracut-core busybox-initramfs
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
     cat > "$IMAGE_HOME/reflash.sh" << EOF
-#!/tmp/busybox sh
+#!/bin/busybox sh
 set -e
 set -x
 
@@ -1293,24 +1295,22 @@ if [ -e /dev/vda ]; then
 elif [ -e /dev/nvme0n1 ]; then
     OF=/dev/nvme0n1
 fi
-dd if=/tmp/$IMAGE of=\$OF bs=4M
+/bin/dd if=$IMAGE of=\$OF bs=4M
 # and reboot
-sync
+/bin/sync
 echo b > /proc/sysrq-trigger
-
 EOF
 
     cat > "$IMAGE_HOME/prep-reflash.sh" << EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
-cp /bin/busybox /tmp
+/usr/lib/dracut/dracut-install --ldd -D/tmp -a busybox dd sync
 cp $IMAGE_HOME/reflash.sh /tmp
 cp $IMAGE_HOME/$IMAGE /tmp
 sync
 
 # re-exec using busybox from /tmp
-exec /tmp/reflash.sh
-
+exec chroot /tmp /reflash.sh
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
     chmod +x "$IMAGE_HOME/prep-reflash.sh"
