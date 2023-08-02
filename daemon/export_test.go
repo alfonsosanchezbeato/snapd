@@ -276,7 +276,7 @@ func MockReboot(f func(boot.RebootAction, time.Duration, *boot.RebootInfo) error
 }
 
 func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
-	oldf := sideloadSnapsInfo
+	r := testutil.Backup(&sideloadSnapsInfo)
 	sideloadSnapsInfo = func(st *state.State, snapFiles []*uploadedSnap,
 		flags sideloadFlags) (*sideloadedInfo, *apiError) {
 
@@ -293,9 +293,7 @@ func MockSideloadSnapsInfo(sis []*snap.SideInfo) (restore func()) {
 		return &sideloadedInfo{sideInfos: sideInfos, names: names,
 			origPaths: origPaths, tmpPaths: tmpPaths}, nil
 	}
-	return func() {
-		sideloadSnapsInfo = oldf
-	}
+	return r
 }
 
 type (
