@@ -214,24 +214,27 @@ func sideloadOrTrySnap(c *Command, body io.ReadCloser, boundary string, user *au
 	return AsyncResponse(nil, chg.ID())
 }
 
-func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (
-	sideInfos []*snap.SideInfo, names []string, origPaths, tmpPaths []string,
-	apiError *apiError) {
+// sideloadedInfo contains information from a bunch of sideloaded snaps
+type sideloadedInfo struct {
+	sideInfos                  []*snap.SideInfo
+	names, origPaths, tmpPaths []string
+}
 
+func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags) (*sideloadedInfo, *apiError) {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
-		return nil, nil, nil, nil, InternalError(err.Error())
+		return nil, InternalError(err.Error())
 	}
 
-	names = make([]string, len(snapFiles))
-	origPaths = make([]string, len(snapFiles))
-	tmpPaths = make([]string, len(snapFiles))
-	sideInfos = make([]*snap.SideInfo, len(snapFiles))
+	names := make([]string, len(snapFiles))
+	origPaths := make([]string, len(snapFiles))
+	tmpPaths := make([]string, len(snapFiles))
+	sideInfos := make([]*snap.SideInfo, len(snapFiles))
 
 	for i, snapFile := range snapFiles {
 		si, apiError := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 		if apiError != nil {
-			return nil, nil, nil, nil, apiError
+			return nil, apiError
 		}
 
 		sideInfos[i] = si
@@ -240,11 +243,12 @@ func sideloadInfo(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlag
 		tmpPaths[i] = snapFile.tmpPath
 	}
 
-	return sideInfos, names, origPaths, tmpPaths, nil
+	return &sideloadedInfo{sideInfos: sideInfos, names: names,
+		origPaths: origPaths, tmpPaths: tmpPaths}, nil
 }
 
 func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloadFlags, user *auth.UserState) (*state.Change, *apiError) {
-	pathSideInfos, names, origPaths, tmpPaths, apiErr := sideloadInfo(st, snapFiles, flags)
+	slInfo, apiErr := sideloadInfo(st, snapFiles, flags)
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -254,14 +258,14 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 		userID = user.ID
 	}
 
-	tss, err := snapstateInstallPathMany(context.TODO(), st, pathSideInfos, tmpPaths, userID, &flags.Flags)
+	tss, err := snapstateInstallPathMany(context.TODO(), st, slInfo.sideInfos, slInfo.tmpPaths, userID, &flags.Flags)
 	if err != nil {
-		return nil, errToResponse(err, names, InternalError, "cannot install snap files: %v")
+		return nil, errToResponse(err, slInfo.names, InternalError, "cannot install snap files: %v")
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(names), strutil.Quoted(origPaths))
-	chg := newChange(st, "install-snap", msg, tss, names)
-	chg.Set("api-data", map[string][]string{"snap-names": names})
+	msg := fmt.Sprintf(i18n.G("Install snaps %s from files %s"), strutil.Quoted(slInfo.names), strutil.Quoted(slInfo.origPaths))
+	chg := newChange(st, "install-snap", msg, tss, slInfo.names)
+	chg.Set("api-data", map[string][]string{"snap-names": slInfo.names})
 
 	return chg, nil
 }

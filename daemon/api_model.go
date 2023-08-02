@@ -125,6 +125,80 @@ func storeRemodel(c *Command, r *http.Request) Response {
 	return AsyncResponse(nil, chg.ID())
 }
 
+func readOfflineRemodelForm(form *Form) (*asserts.Model, []*uploadedSnap, *asserts.Batch, *apiError) {
+	// New model
+	model := form.Values["new-model"]
+	if len(model) != 1 {
+		return nil, nil, nil,
+			BadRequest("one model assertion is expected (%d found)", len(model))
+	}
+	newModel, err := modelFromData([]byte(model[0]))
+	if err != nil {
+		return nil, nil, nil, BadRequest(err.Error())
+	}
+
+	// Snap files
+	snapFiles, errRsp := form.GetSnapFiles()
+	if errRsp != nil {
+		return nil, nil, nil, errRsp
+	}
+
+	// Assertions
+	formAsserts := form.Values["assertion"]
+	batch := asserts.NewBatch(nil)
+	for _, a := range formAsserts {
+		_, err := batch.AddStream(strings.NewReader(a))
+		if err != nil {
+			return nil, nil, nil, BadRequest("cannot decode assertion: %v", err)
+		}
+	}
+
+	return newModel, snapFiles, batch, nil
+}
+
+func startOfflineRemodelChange(st *state.State, newModel *asserts.Model,
+	snapFiles []*uploadedSnap, batch *asserts.Batch, pathsToNotRemove *[]string) (
+	*state.Change, *apiError) {
+
+	st.Lock()
+	defer st.Unlock()
+
+	// Include assertions in the DB, we need them as soon as
+	// we create the snap.SideInfo struct in sideloadSnapsInfo.
+	if err := assertstate.AddBatch(st, batch,
+		&asserts.CommitOptions{Precheck: true}); err != nil {
+		return nil, BadRequest("error committing assertions: %v", err)
+	}
+
+	// Build snaps information. Note that here we do not set flags as we
+	// expect all snaps to have assertions (although maybe we will need to
+	// consider the classic snaps case in the future).
+	slInfo, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
+	if apiErr != nil {
+		return nil, apiErr
+	}
+
+	*pathsToNotRemove = make([]string, len(slInfo.sideInfos))
+	for i, psi := range slInfo.sideInfos {
+		// Move file to the same name of what a downloaded one would have
+		dest := filepath.Join(dirs.SnapBlobDir,
+			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
+		os.Rename(slInfo.tmpPaths[i], dest)
+		// Avoid trying to remove a file that does not exist anymore
+		(*pathsToNotRemove)[i] = slInfo.tmpPaths[i]
+		slInfo.tmpPaths[i] = dest
+	}
+
+	// Now create and start the remodel change
+	chg, err := devicestateRemodel(st, newModel, slInfo.sideInfos, slInfo.tmpPaths)
+	if err != nil {
+		return nil, BadRequest("cannot remodel device: %v", err)
+	}
+	ensureStateSoon(st)
+
+	return chg, nil
+}
+
 func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]string) Response {
 	boundary := contentTypeParams["boundary"]
 	mpReader := multipart.NewReader(r.Body, boundary)
@@ -139,69 +213,18 @@ func offlineRemodel(c *Command, r *http.Request, contentTypeParams map[string]st
 		form.RemoveAllExcept(pathsToNotRemove)
 	}()
 
-	// New model
-	model := form.Values["new-model"]
-	if len(model) != 1 {
-		return BadRequest("one model assertion is expected (%d found)", len(model))
-	}
-	newModel, err := modelFromData([]byte(model[0]))
-	if err != nil {
-		return BadRequest(err.Error())
-	}
-
-	// Snap files
-	snapFiles, errRsp := form.GetSnapFiles()
+	// Read needed form data
+	newModel, snapFiles, batch, errRsp := readOfflineRemodelForm(form)
 	if errRsp != nil {
 		return errRsp
 	}
 
-	// Assertions
-	formAsserts := form.Values["assertion"]
-	batch := asserts.NewBatch(nil)
-	for _, a := range formAsserts {
-		_, err := batch.AddStream(strings.NewReader(a))
-		if err != nil {
-			return BadRequest("cannot decode assertion: %v", err)
-		}
+	// Create and start the change using the form data
+	chg, errRsp := startOfflineRemodelChange(c.d.overlord.State(),
+		newModel, snapFiles, batch, &pathsToNotRemove)
+	if errRsp != nil {
+		return errRsp
 	}
-
-	// State lock neeed for the rest of the function
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
-	// Include assertions in the DB, we need them as soon as
-	// we create the snap.SideInfo struct in sideloadSnapsInfo.
-	if err := assertstate.AddBatch(st, batch,
-		&asserts.CommitOptions{Precheck: true}); err != nil {
-		return BadRequest("error committing assertions: %v", err)
-	}
-
-	// Build snaps information. Note that here we do not set flags as we
-	// expect all snaps to have assertions (although maybe we will need to
-	// consider the classic snaps case in the future).
-	pathSis, _, _, tmpPaths, apiErr := sideloadSnapsInfo(st, snapFiles, sideloadFlags{})
-	if apiErr != nil {
-		return apiErr
-	}
-
-	pathsToNotRemove = make([]string, len(pathSis))
-	for i, psi := range pathSis {
-		// Move file to the same name of what a downloaded one would have
-		dest := filepath.Join(dirs.SnapBlobDir,
-			fmt.Sprintf("%s_%s.snap", psi.RealName, psi.Revision))
-		os.Rename(tmpPaths[i], dest)
-		// Avoid trying to remove a file that does not exist anymore
-		pathsToNotRemove[i] = tmpPaths[i]
-		tmpPaths[i] = dest
-	}
-
-	// Now create and start the remodel change
-	chg, err := devicestateRemodel(st, newModel, pathSis, tmpPaths)
-	if err != nil {
-		return BadRequest("cannot remodel device: %v", err)
-	}
-	ensureStateSoon(st)
 
 	return AsyncResponse(nil, chg.ID())
 }
