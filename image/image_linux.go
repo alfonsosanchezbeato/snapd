@@ -159,8 +159,7 @@ func Prepare(opts *Options) error {
 	}
 
 	if opts.Preseed {
-		// TODO: support UC22
-		if model.Classic() {
+		if model.Grade() == asserts.ModelGradeUnset {
 			return fmt.Errorf("cannot preseed the image for a classic model")
 		}
 

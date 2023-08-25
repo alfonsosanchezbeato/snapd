@@ -401,18 +401,16 @@ func (m *DeviceManager) importAssertionsFromSeed(isCoreBoot bool) (seed.Seed, er
 	}
 	modelAssertion := deviceSeed.Model()
 
-	classicModel := modelAssertion.Classic()
-	// FIXME this will not be correct on classic with modes system when
-	// mode is not "run".
-	if release.OnClassic != classicModel {
-		var msg string
-		if classicModel {
-			msg = "cannot seed an all-snaps system with a classic model"
-		} else {
-			msg = "cannot seed a classic system with an all-snaps model"
-		}
-		return nil, fmt.Errorf(msg)
-	}
+	// classicModel := modelAssertion.Classic()
+	// if release.OnClassic != classicModel && !isCoreBoot {
+	// 	var msg string
+	// 	if classicModel {
+	// 		msg = "cannot seed an all-snaps system with a classic model"
+	// 	} else {
+	// 		msg = "cannot seed a classic system with an all-snaps model"
+	// 	}
+	// 	return nil, fmt.Errorf(msg)
+	// }
 
 	// set device,model from the model assertion
 	if err := setDeviceFromModelAssertion(st, device, modelAssertion); err != nil {
