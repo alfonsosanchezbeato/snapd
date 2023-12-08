@@ -270,6 +270,48 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 	return chg, nil
 }
 
+// readContainerInfo reads information from a container, which might be a snap
+// or a snap component. If it is a snap it will create a SideInfo for it, and
+// return nil for ComponentInfo, if it is a component it will return the
+// SideInfo of the matching installed snap and the read ComponentInfo.
+func readContainerInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags,
+	model *asserts.Model) (si *snap.SideInfo, ci *snap.ComponentInfo, apiErr *apiError) {
+	si, apiErr = readSideInfo(st, tempPath, origPath, flags, model)
+	if apiErr != nil {
+		// Try now as a component
+		var err error
+
+		compf, err := snapfile.Open(tempPath)
+		if err != nil {
+			return nil, nil, apiErr
+		}
+		ci, err = snap.ReadComponentInfoFromContainer(compf)
+		if err != nil {
+			return nil, nil, apiErr
+		}
+		// It is a component, find if it is for an installed snap
+		if si, err = installedSnapSideInfo(st, ci.Component.SnapName); err != nil {
+			return nil, nil, BadRequest("snap for component not installed: %v", err)
+		}
+	}
+
+	return si, ci, nil
+}
+
+func installedSnapSideInfo(st *state.State, name string) (*snap.SideInfo, error) {
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, name, &snapst); err != nil {
+		return nil, err
+	}
+
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	return &snapInfo.SideInfo, nil
+}
+
 func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
 	var instanceName string
 	if snapFile.instanceName != "" {
@@ -285,7 +327,7 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		return nil, InternalError(err.Error())
 	}
 
-	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
+	sideInfo, compInfo, apiErr := readContainerInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -299,7 +341,12 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 		instanceName = sideInfo.RealName
 	}
 
-	tset, _, err := snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+	var tset *state.TaskSet
+	if compInfo == nil {
+		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
+	} else {
+		tset, err = snapstateInstallComponentPath(st, sideInfo, compInfo, snapFile.tmpPath, instanceName, "", flags.Flags)
+	}
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install snap file: %v")
 	}
