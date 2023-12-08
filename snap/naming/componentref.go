@@ -65,3 +65,7 @@ func (cid *ComponentRef) UnmarshalYAML(unmarshall func(interface{}) error) error
 
 	return nil
 }
+
+func (cid *ComponentRef) MarshalYAML() (interface{}, error) {
+	return cid.String(), nil
+}

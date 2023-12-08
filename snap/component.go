@@ -19,7 +19,11 @@ package snap
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap/naming"
 	"gopkg.in/yaml.v2"
 )
@@ -61,10 +65,55 @@ func ReadComponentInfoFromContainer(compf Container) (*ComponentInfo, error) {
 	return &ci, nil
 }
 
+func ReadComponentInfoFromMountPoint(mountPoint string, csi *ComponentSideInfo) (*ComponentInfo, error) {
+	yamlFn := filepath.Join(mountPoint, "meta", "component.yaml")
+	yamlData, err := ioutil.ReadFile(yamlFn)
+	if os.IsNotExist(err) {
+		return nil, &NotFoundError{Snap: csi.Component.String(),
+			Revision: csi.Revision, Path: yamlFn}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var ci ComponentInfo
+
+	if err := yaml.UnmarshalStrict(yamlData, &ci); err != nil {
+		return nil, fmt.Errorf("cannot parse component.yaml: %s", err)
+	}
+
+	if err := ci.validate(); err != nil {
+		return nil, err
+	}
+
+	return &ci, nil
+}
+
 // FullName returns the full name of the component, which is composed
 // by snap name and component name.
 func (ci *ComponentInfo) FullName() string {
 	return ci.Component.String()
+}
+
+// ComponentMountDir returns the directory where a component gets mounted, which
+// will be of the form:
+// /snaps/<snap_instance>/components/<snap_revision>/<component_name>
+func ComponentMountDir(compName, snapInstance string, snapRevision Revision) string {
+	return filepath.Join(BaseDir(snapInstance), "components",
+		snapRevision.String(), compName)
+}
+
+// MountDir returns the directory where the component gets mounted. It requires
+// the instance name and revision of the owner to find the snap mount root dir.
+func (ci *ComponentInfo) MountDir(snapInstance string, snapRevision Revision) string {
+	return filepath.Join(BaseDir(snapInstance), "components",
+		snapRevision.String(), ci.Component.ComponentName)
+}
+
+// MountFile returns the path of the file to be mounted for a component.
+func (ci *ComponentInfo) MountFile(csi *ComponentSideInfo) string {
+	return filepath.Join(dirs.SnapBlobDir,
+		fmt.Sprintf("%s_%s.snap", ci.Component, csi.Revision))
 }
 
 // Validate performs some basic validations on component.yaml values.
