@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
@@ -181,6 +182,30 @@ func (snapsup *SnapSetup) MountFile() string {
 		blobDir = dirs.SnapBlobDir
 	}
 	return snap.MountFileInDir(blobDir, snapsup.InstanceName(), snapsup.Revision())
+}
+
+// ComponentSetup holds the necessary component details to perform
+// most component related tasks.
+type ComponentSetup struct {
+	// CompSideInfo for metadata not coming from the component
+	CompSideInfo *snap.ComponentSideInfo `json:"comp-side-info,omitempty"`
+	//
+	CompPath string `json:"comp-path,omitempty"`
+
+	// Following fields are information related to the owner snap
+	// that we need in the tasks.
+
+	// SnapInstanceKey is set by the user during installation and
+	// differs for each instance of component owner snap.
+	SnapInstanceKey string `json:"instance-key,omitempty"`
+	// SnapType is the type of the owner snap
+	SnapType snap.Type `json:"snap-type,omitempty"`
+	// SnapRevision is the revision of the owner snap
+	SnapRevision snap.Revision `json:"snap-revision,omitempty"`
+}
+
+func (compsu *ComponentSetup) Revision() snap.Revision {
+	return compsu.CompSideInfo.Revision
 }
 
 // RevertStatus is a status of a snap revert; anything other than DefaultStatus
@@ -380,6 +405,23 @@ func (snapst *SnapState) IsInstalled() bool {
 	return true
 }
 
+// IsInstalled returns whether a give component is installed, i.e.
+// snapst represents an installed snap with Current revision set.
+func (snapst *SnapState) IsComponentInstalled(cref naming.ComponentRef) bool {
+	if !snapst.IsInstalled() {
+		return false
+	}
+
+	idx := snapst.LastIndex(snapst.Current)
+	for _, seqComp := range snapst.Sequence[idx].CompSideInfo {
+		if seqComp.Component == cref {
+			return true
+		}
+	}
+
+	return false
+}
+
 // LocalRevision returns the "latest" local revision. Local revisions
 // start at -1 and are counted down.
 func (snapst *SnapState) LocalRevision() snap.Revision {
@@ -425,6 +467,24 @@ func (snapst *SnapState) LastIndex(revision snap.Revision) int {
 		}
 	}
 	return -1
+}
+
+// IsComponentRevInstalled tells us if a given component revision is
+// installed in the system.
+func (snapst *SnapState) IsComponentRevInstalled(snapSi *snap.SideInfo,
+	compSi *snap.ComponentSideInfo) bool {
+	snIdx := snapst.LastIndex(snapSi.Revision)
+	if snIdx < 0 {
+		return false
+	}
+
+	for _, csi := range snapst.Sequence[snIdx].CompSideInfo {
+		if csi == compSi {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Block returns revisions that should be blocked on refreshes,
@@ -644,6 +704,14 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// no undo for now since it's last task in valset auto-resolution change
 	runner.AddHandler("enforce-validation-sets", m.doEnforceValidationSets, nil)
 	runner.AddHandler("pre-download-snap", m.doPreDownloadSnap, nil)
+
+	// component tasks
+	runner.AddHandler("prepare-component", m.doPrepareComponent, nil)
+	// XXX
+	runner.AddHandler("download-component", m.doNothingComponent, nil)
+	runner.AddHandler("mount-component", m.doMountComponent, m.undoMountComponent)
+	runner.AddHandler("unlink-current-component", m.doNothingComponent, nil)
+	runner.AddHandler("link-component", m.doNothingComponent, nil)
 
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
