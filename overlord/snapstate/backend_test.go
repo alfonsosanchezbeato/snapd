@@ -901,6 +901,18 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 	return snapType, &backend.InstallRecord{}, nil
 }
 
+func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compSi *snap.ComponentSideInfo, snapInstance string, snapRev snap.Revision, dev snap.Device, meter progress.Meter) (installRecord *backend.InstallRecord, err error) {
+	return nil, nil
+}
+
+func (f *fakeSnappyBackend) UndoSetupComponent(compFilePath, mountDir string, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
+	return nil
+}
+
+func (f *fakeSnappyBackend) RemoveComponentDir(compMountDir string) error {
+	return nil
+}
+
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	if name == "borken" && si.Revision == snap.R(2) {
 		return nil, errors.New(`cannot read info for "borken" snap`)
