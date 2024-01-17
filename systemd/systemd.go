@@ -301,7 +301,21 @@ func MockJournalctl(f func(svcs []string, n int, follow, namespaces bool) (io.Re
 	}
 }
 
+// MountUnitType is an enum for the supported mount unit types.
+type MountUnitType int
+
+const (
+	// NormalMountUnit is a mount with the usual dependencies
+	NormalMountUnit MountUnitType = iota
+	// KernelModulesMountUnit is to mount kernel-modules components early
+	KernelModulesMountUnit
+	// KernelTreeMountUnit is to creates mounts in the kernel modules/firmware tree
+	KernelTreeMountUnit
+)
+
 type MountUnitOptions struct {
+	// MountUnitType is the type of mount unit we want
+	MountUnitType MountUnitType
 	// Whether the unit is transient or persistent across reboots
 	Lifetime    UnitLifetime
 	Description string
@@ -1368,7 +1382,7 @@ var squashfsFsType = squashfs.FsType
 
 // Note that WantedBy=multi-user.target and Before=local-fs.target are
 // only used to allow downgrading to an older version of snapd.
-const mountUnitTemplate = `[Unit]
+const normalMountUnitTmpl = `[Unit]
 Description={{.Description}}
 After=snapd.mounts-pre.target
 Before=snapd.mounts.target
@@ -1389,8 +1403,74 @@ X-SnapdOrigin={{.}}
 {{- end}}
 `
 
+// We want kernel-modules components to be mounted before modules are
+// loaded (that is before systemd-{udevd,modules-load}).
+const kernelModulesMountUnitTmpl = `[Unit]
+Description={{.Description}}
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
+LazyUnmount=yes
+
+[Install]
+WantedBy=sysinit.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
+`
+
+// These units form the kernel modules/firmware trees and same as
+// kernel-modules need to be mounted early, but after kernel-modules
+// as they use their content.
+const kernelTreeMountUnitTmpl = `[Unit]
+Description={{.Description}}
+DefaultDependencies=no
+After=systemd-remount-fs.service
+After={{mountedComp .What}}
+Before=systemd-udevd.service systemd-modules-load.service
+Before=umount.target
+Conflicts=umount.target
+
+[Mount]
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
+LazyUnmount=yes
+
+[Install]
+WantedBy=sysinit.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
+`
+
 var templateFuncs = template.FuncMap{"join": strings.Join}
-var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
+var parsedNormalMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(normalMountUnitTmpl))
+var parsedKernelModulesMountUnitTmpl = template.Must(template.New("unit").Funcs(templateFuncs).Parse(kernelModulesMountUnitTmpl))
+
+var kernelTreeTemplateFuncs = template.FuncMap{
+	"join": strings.Join,
+	"mountedComp": func(what string) (string, error) {
+		// First 5 elements need to match
+		// /run/mnt/kernel-modules/<kernel_ver>/<component>
+		dirs := strings.FieldsFunc(what,
+			func(c rune) bool { return c == os.PathSeparator })
+		if len(dirs) < 5 {
+			return "", fmt.Errorf("unexpected mount point for kernel modules: %s", what)
+		}
+		return EscapeUnitNamePath(filepath.Join(dirs[0:5]...)) + ".mount", nil
+	},
+}
+var parsedKernelTreeMountUnitTmpl = template.Must(template.New("unit").Funcs(kernelTreeTemplateFuncs).Parse(kernelTreeMountUnitTmpl))
 
 const (
 	snappyOriginModule = "X-SnapdOrigin"
@@ -1404,7 +1484,19 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
 	var unitContent bytes.Buffer
 
-	if err := parsedMountUnitTemplate.Execute(&unitContent, &u); err != nil {
+	var mntUnitTmpl *template.Template
+	switch u.MountUnitType {
+	case NormalMountUnit:
+		mntUnitTmpl = parsedNormalMountUnitTmpl
+	case KernelModulesMountUnit:
+		mntUnitTmpl = parsedKernelModulesMountUnitTmpl
+	case KernelTreeMountUnit:
+		mntUnitTmpl = parsedKernelTreeMountUnitTmpl
+	default:
+		return "", mountUnchanged, fmt.Errorf("internal error, unknown mount unit type")
+	}
+
+	if err := mntUnitTmpl.Execute(&unitContent, &u); err != nil {
 		return "", mountUnchanged, fmt.Errorf("cannot generate mount unit: %v", err)
 	}
 
