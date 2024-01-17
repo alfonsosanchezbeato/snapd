@@ -1425,6 +1425,7 @@ func (s *SystemdTestSuite) TestAddKernelModulesMountUnit(c *C) {
 Description=Mount unit for wifi kernel modules component
 DefaultDependencies=no
 After=systemd-remount-fs.service
+Before=sysinit.target
 Before=systemd-udevd.service systemd-modules-load.service
 Before=umount.target
 Conflicts=umount.target
@@ -1434,7 +1435,6 @@ What=%s
 Where=/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/
 Type=squashfs
 Options=nodev,ro,x-gdu.hide,x-gvfs-hide
-LazyUnmount=yes
 
 [Install]
 WantedBy=sysinit.target
@@ -1472,6 +1472,7 @@ Description=Mount unit for kernel modules in kernel tree
 DefaultDependencies=no
 After=systemd-remount-fs.service
 After=run-mnt-kernel\x2dmodules-5.15.0\x2d91\x2dgeneric-mykmod.mount
+Before=sysinit.target
 Before=systemd-udevd.service systemd-modules-load.service
 Before=umount.target
 Conflicts=umount.target
@@ -1481,7 +1482,6 @@ What=/run/mnt/kernel-modules/5.15.0-91-generic/mykmod/modules/5.15.0-91-generic
 Where=/usr/lib/modules/5.15.0-91-generic/updates/mykmod/
 Type=none
 Options=bind
-LazyUnmount=yes
 
 [Install]
 WantedBy=sysinit.target
@@ -1494,7 +1494,7 @@ WantedBy=sysinit.target
 	})
 }
 
-func (s *SystemdTestSuite) TestAddKernelTreeMountUnitBadComponent(c *C) {
+func (s *SystemdTestSuite) TestAddKernelTreeMountUnitBadMountPrefix(c *C) {
 	rootDir := dirs.GlobalRootDir
 
 	restore := squashfs.MockNeedsFuse(false)
@@ -1511,7 +1511,29 @@ func (s *SystemdTestSuite) TestAddKernelTreeMountUnitBadComponent(c *C) {
 		Origin:        "",
 	}
 	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
-	c.Assert(err, ErrorMatches, `.* unexpected mount point for kernel modules: /run/mykmod/modules/5\.15\.0-91-generic`)
+	c.Assert(err, ErrorMatches, `.* unexpected mount point prefix for kernel modules: /run/mykmod/modules/5\.15\.0-91-generic`)
+	c.Assert(mountUnitName, Equals, "")
+	c.Assert(s.argses, IsNil)
+}
+
+func (s *SystemdTestSuite) TestAddKernelTreeMountUnitBadMountPoint(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	addMountUnitOptions := &MountUnitOptions{
+		MountUnitType: KernelTreeMountUnit,
+		Lifetime:      Persistent,
+		Description:   "Mount unit for kernel modules in kernel tree",
+		What:          "/run/mnt/kernel-modules/5.15.0-91-generic",
+		Where:         "/usr/lib/modules/5.15.0-91-generic/updates/mykmod/",
+		Fstype:        "none",
+		Options:       []string{"bind"},
+		Origin:        "",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).EnsureMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, ErrorMatches, `.* unexpected mount point for kernel modules: /run/mnt/kernel-modules/5\.15\.0-91-generic`)
 	c.Assert(mountUnitName, Equals, "")
 	c.Assert(s.argses, IsNil)
 }

@@ -1409,6 +1409,7 @@ const kernelModulesMountUnitTmpl = `[Unit]
 Description={{.Description}}
 DefaultDependencies=no
 After=systemd-remount-fs.service
+Before=sysinit.target
 Before=systemd-udevd.service systemd-modules-load.service
 Before=umount.target
 Conflicts=umount.target
@@ -1418,7 +1419,6 @@ What={{.What}}
 Where={{.Where}}
 Type={{.Fstype}}
 Options={{join .Options ","}}
-LazyUnmount=yes
 
 [Install]
 WantedBy=sysinit.target
@@ -1435,6 +1435,7 @@ Description={{.Description}}
 DefaultDependencies=no
 After=systemd-remount-fs.service
 After={{mountedComp .What}}
+Before=sysinit.target
 Before=systemd-udevd.service systemd-modules-load.service
 Before=umount.target
 Conflicts=umount.target
@@ -1444,7 +1445,6 @@ What={{.What}}
 Where={{.Where}}
 Type={{.Fstype}}
 Options={{join .Options ","}}
-LazyUnmount=yes
 
 [Install]
 WantedBy=sysinit.target
@@ -1462,6 +1462,9 @@ var kernelTreeTemplateFuncs = template.FuncMap{
 	"mountedComp": func(what string) (string, error) {
 		// First 5 elements need to match
 		// /run/mnt/kernel-modules/<kernel_ver>/<component>
+		if !strings.HasPrefix(what, "/run/mnt/kernel-modules/") {
+			return "", fmt.Errorf("unexpected mount point prefix for kernel modules: %s", what)
+		}
 		dirs := strings.FieldsFunc(what,
 			func(c rune) bool { return c == os.PathSeparator })
 		if len(dirs) < 5 {
@@ -1493,7 +1496,7 @@ func ensureMountUnitFile(u *MountUnitOptions) (mountUnitName string, modified mo
 	case KernelTreeMountUnit:
 		mntUnitTmpl = parsedKernelTreeMountUnitTmpl
 	default:
-		return "", mountUnchanged, fmt.Errorf("internal error, unknown mount unit type")
+		return "", mountUnchanged, fmt.Errorf("internal error: unknown mount unit type")
 	}
 
 	if err := mntUnitTmpl.Execute(&unitContent, &u); err != nil {
