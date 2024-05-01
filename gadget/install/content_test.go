@@ -88,6 +88,7 @@ func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 	return &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Filesystem: "vfat",
+			Role:       gadget.SystemSeed,
 			Content: []gadget.VolumeContent{
 				{
 					UnresolvedSource: "grubx64.efi",
@@ -104,6 +105,16 @@ func mockOnDiskStructureSystemSeed(gadgetRoot string) *gadget.LaidOutStructure {
 				},
 				ResolvedSource: filepath.Join(gadgetRoot, "grubx64.efi"),
 			},
+		},
+	}
+}
+
+func mockOnDiskStructureSystemData() *gadget.LaidOutStructure {
+	return &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Filesystem: "ext4",
+			Role:       gadget.SystemData,
+			YamlIndex:  1000, // to demonstrate we do not use the laid out index
 		},
 	}
 }
@@ -233,6 +244,48 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			})
 		}
 	}
+}
+
+func (s *contentTestSuite) TestWriteFilesystemContentDriversTree(c *C) {
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(c.MkDir())
+
+	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
+		c.Check(source, Equals, "/dev/node2")
+		c.Check(fstype, Equals, "ext4")
+		c.Check(target, Equals, filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2"))
+		return nil
+	})
+	defer restore()
+
+	restore = install.MockSysUnmount(func(target string, flags int) error {
+		return nil
+	})
+	defer restore()
+
+	// copy existing mock
+	m := mockOnDiskStructureSystemData()
+	obs := &mockWriteObserver{
+		c:            c,
+		observeErr:   nil,
+		expectedRole: m.Role(),
+	}
+	// mock drivers tree
+	treesDir := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
+	modsSubDir := "pc-kernel/111/lib/modules/6.8.0-31-generic"
+	modsDir := filepath.Join(treesDir, modsSubDir)
+	c.Assert(os.MkdirAll(modsDir, 0755), IsNil)
+	someFile := filepath.Join(modsDir, "modules.alias")
+	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
+
+	err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+	c.Assert(err, IsNil)
+
+	// the target file system is mounted on a directory named after the structure index
+	content, err := os.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2",
+		"system-data/var/lib/snapd/kernel", modsSubDir, "modules.alias"))
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, "blah")
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {

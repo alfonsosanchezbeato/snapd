@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/mkfs"
 )
 
@@ -108,6 +109,23 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, fsDevice string, o
 	var noFilesToPreserve []string
 	if err := fs.Write(mountpoint, noFilesToPreserve); err != nil {
 		return fmt.Errorf("cannot create filesystem image: %v", err)
+	}
+
+	// For data partition, copy drivers tree if it has been created, so
+	// kernel drivers are available on first boot of installed system.
+	if laidOut.Role() == gadget.SystemData {
+		src := dirs.SnapKernelDriversTreesDirUnder(dirs.GlobalRootDir)
+		exists, isDir, _ := osutil.DirExists(src)
+		if exists && isDir {
+			dst := dirs.SnapKernelDriversTreesDirUnder(filepath.Join(mountpoint, "system-data"))
+			logger.Noticef("copying drivers tree to %s", laidOut.Name())
+			if err := os.MkdirAll(dst, 0755); err != nil {
+				return err
+			}
+			if output, stderr, err := osutil.RunSplitOutput("cp", "-aT", src, dst); err != nil {
+				return osutil.OutputErrCombine(output, stderr, err)
+			}
+		}
 	}
 
 	return nil
