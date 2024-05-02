@@ -210,27 +210,40 @@ type KernelDriversTreeOptions struct {
 	KernelInstall bool
 }
 
+// KernelSnapInfo includes information from the kernel snap that is
+// needed to build a drivers tree.
+type KernelSnapInfo struct {
+	Name     string
+	Revision snap.Revision
+	// MountPoint is the root of the files from the kernel snap
+	MountPoint string
+}
+
 // EnsureKernelDriversTree creates a drivers tree that can include modules/fw
 // from kernel-modules components. opts.KernelInstall tells the function if
 // this is a kernel install (which might be installing components at the same
 // time) or an only components install.
 //
 // For kernel installs, this function creates a tree in
-// /var/lib/snapd/kernel/<ksnapName>/<rev>, which is bind-mounted after a
-// reboot to /usr/lib/{modules,firmware} (the currently active kernel is using
-// a different path as it has a different revision). This tree contains files
-// from the kernel snap mounted on kernelMount, as well as symlinks to it.
+// /var/lib/snapd/kernel/<kSnapInfo.Name>/<kSnapInfo.Revision>, which
+// is bind-mounted after a reboot to /usr/lib/{modules,firmware} (the
+// currently active kernel is using a different path as it has a
+// different revision). This tree contains files from the kernel snap
+// mounted on kSnapInfo.MountPoint, as well as symlinks to it.
 //
 // For components-only install, we want the components to be available without
 // rebooting. For this, we work on a temporary tree, and after finishing it we
 // swap atomically the affected modules/firmware folders with those of the
 // currently active kernel drivers tree.
-func EnsureKernelDriversTree(ksnapName string, rev snap.Revision, kernelMount string, kmodsInfos []*snap.ComponentSideInfo, opts *KernelDriversTreeOptions) (err error) {
+func EnsureKernelDriversTree(kSnapInfo *KernelSnapInfo, kmodsInfos []*snap.ComponentSideInfo, opts *KernelDriversTreeOptions) (err error) {
 	// The temporal dir when installing only components can be fixed as a
 	// task installing/updating a kernel-modules component must conflict
 	// with changes containing this same task. This helps with clean-ups if
 	// something goes wrong. Note that this folder needs to be in the same
 	// filesystem as the final one so we can atomically switch the folders.
+	ksnapName := kSnapInfo.Name
+	rev := kSnapInfo.Revision
+	kernelMount := kSnapInfo.MountPoint
 	ksnapDir := ksnapName + "_tmp"
 	if opts.KernelInstall {
 		ksnapDir = ksnapName

@@ -163,7 +163,12 @@ func testBuildKernelDriversTree(c *C) {
 	createKernelSnapFiles(c, kversion, mountDir)
 
 	// Now build the tree
-	c.Assert(kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, nil,
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	c.Assert(kernel.EnsureKernelDriversTree(kSnapInfo, nil,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true}), IsNil)
 
 	// Check content is as expected
@@ -215,8 +220,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 	c.Assert(os.MkdirAll(mountDir, 0755), IsNil)
 
 	// Build the tree should not fail
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir,
-		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
 	// but log should warn about this
@@ -242,7 +252,12 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
 
 	// Build the tree should not fail
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, nil,
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
@@ -274,8 +289,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
 	createKernelSnapFilesOnlyFw(c, mountDir)
 
 	// Build the tree should not fail
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir,
-		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
 	// check link
@@ -296,8 +316,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {
 	os.Symlink("/absdir/blob3", filepath.Join(fwDir, "ln_to_abs"))
 
 	// Fails on the absolute path in the link
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir,
-		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, `symlink \".*lib/firmware/ln_to_abs\" points to absolute path \"/absdir/blob3\"`)
 
 	// Make sure the tree has been deleted
@@ -316,8 +341,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCleanup(c *C) {
 	defer restore()
 
 	// Now build the tree
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir,
-		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, "mocked symlink error")
 
 	// Make sure the tree has been deleted
@@ -335,8 +365,13 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
 	c.Assert(syscall.Mkfifo(filepath.Join(fwDir, "fifo"), 0666), IsNil)
 
 	// Now build the tree
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir,
-		nil, &kernel.KernelDriversTreeOptions{KernelInstall: true})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, nil,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
 	// Make sure the tree has been deleted
@@ -406,7 +441,12 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
 	}
 
 	// Now build the tree, will fail as no kernel was installed previously
-	err := kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, kmods, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	err := kernel.EnsureKernelDriversTree(kSnapInfo, kmods, &kernel.KernelDriversTreeOptions{KernelInstall: false})
 	c.Assert(err, ErrorMatches, `while swapping .*: no such file or directory`)
 }
 
@@ -438,7 +478,12 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 	c.Assert(err, IsNil)
 
 	// Now build the tree
-	c.Assert(kernel.EnsureKernelDriversTree("pc-kernel", snap.R(1), mountDir, kmods, opts), IsNil)
+	kSnapInfo := &kernel.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(1),
+		MountPoint: mountDir,
+	}
+	c.Assert(kernel.EnsureKernelDriversTree(kSnapInfo, kmods, opts), IsNil)
 
 	if exists {
 		c.Assert(isDir, Equals, true)
