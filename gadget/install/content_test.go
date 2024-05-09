@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/gadget/gadgettest"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -222,7 +224,7 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			observeErr:   tc.observeErr,
 			expectedRole: m.Role(),
 		}
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		err := install.WriteFilesystemContent(m, nil, "/dev/node2", obs)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -250,6 +252,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTree(c *C) {
 	defer dirs.SetRootDir(dirs.GlobalRootDir)
 	dirs.SetRootDir(c.MkDir())
 
+	dataMntPoint := filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2")
 	restore := install.MockSysMount(func(source, target, fstype string, flags uintptr, data string) error {
 		c.Check(source, Equals, "/dev/node2")
 		c.Check(fstype, Equals, "ext4")
@@ -278,14 +281,23 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTree(c *C) {
 	someFile := filepath.Join(modsDir, "modules.alias")
 	c.Assert(os.WriteFile(someFile, []byte("blah"), 0644), IsNil)
 
-	err := install.WriteFilesystemContent(m, "/dev/node2", obs)
-	c.Assert(err, IsNil)
+	kMntPoint := filepath.Join(dirs.GlobalRootDir, "snap/pc-kernel/111")
+	kInfo := &install.KernelSnapInfo{
+		Name:       "pc-kernel",
+		Revision:   snap.R(111),
+		MountPoint: kMntPoint,
+	}
 
-	// the target file system is mounted on a directory named after the structure index
-	content, err := os.ReadFile(filepath.Join(dirs.SnapRunDir, "gadget-install/dev-node2",
-		"system-data/var/lib/snapd/kernel", modsSubDir, "modules.alias"))
+	restore = install.MockKernelEnsureKernelDriversTree(func(kSnapRoot, destDir string, kmodsConts []snap.ContainerPlaceInfo, opts *kernel.KernelDriversTreeOptions) (err error) {
+		c.Check(kSnapRoot, Equals, kMntPoint)
+		c.Check(destDir, Equals, filepath.Join(dataMntPoint,
+			"system-data/var/lib/snapd/kernel/pc-kernel/111"))
+		return nil
+	})
+	defer restore()
+
+	err := install.WriteFilesystemContent(m, kInfo, "/dev/node2", obs)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, "blah")
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
@@ -348,7 +360,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentUnmountErrHandling(c *C) {
 		})
 		defer restore()
 
-		err := install.WriteFilesystemContent(m, "/dev/node2", obs)
+		err := install.WriteFilesystemContent(m, nil, "/dev/node2", obs)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 		} else {
