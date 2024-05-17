@@ -6,6 +6,8 @@ base: core22
 components:
   comp1:
     type: test
+  comp2:
+    type: test
 apps:
   test:
     command: test

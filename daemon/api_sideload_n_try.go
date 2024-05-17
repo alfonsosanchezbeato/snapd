@@ -273,64 +273,21 @@ func sideloadManySnaps(st *state.State, snapFiles []*uploadedSnap, flags sideloa
 }
 
 func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (*state.Change, *apiError) {
-	var instanceName string
-	if snapFile.instanceName != "" {
-		// caller has specified desired instance name
-		instanceName = snapFile.instanceName
-		if err := snap.ValidateInstanceName(instanceName); err != nil {
-			return nil, BadRequest(err.Error())
-		}
-	}
-
-	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
-	if err != nil {
-		return nil, InternalError(err.Error())
-	}
-
-	// These two are filled only for components
-	var compInfo *snap.ComponentInfo
-	var snapInfo *snap.Info
-
-	sideInfo, apiErr := readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
+	// compOwnerInfo and compInfo are filled only for components
+	instanceName, sideInfo, compInfo, compOwnerInfo, apiErr := readContainerInfo(st, snapFile, flags)
 	if apiErr != nil {
-		// TODO installation of local but asserted components
-		// needs to addressed yet. This will also help with
-		// deciding whether we are dealing with a snap or a
-		// component. try to load as a component
-		var compErr *apiError
-		compInfo, snapInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
-		if compErr != nil {
-			logger.Noticef("cannot sideload as a snap: %v", apiErr)
-			logger.Noticef("cannot sideload as a component: %v", compErr)
-			// If the snap owning the component was not found, we already read
-			// the component information, so this is a valid component and we
-			// report the snap not found error. Otherwise, we don't know and
-			// we report the error while trying to read the file as a snap.
-			if compErr.Kind == client.ErrorKindSnapNotInstalled {
-				return nil, compErr
-			}
-			return nil, apiErr
-		}
-		sideInfo = &snapInfo.SideInfo
-	}
-
-	if instanceName != "" {
-		requestedSnapName := snap.InstanceSnap(instanceName)
-		if requestedSnapName != sideInfo.RealName {
-			return nil, BadRequest(fmt.Sprintf("instance name %q does not match snap name %q", instanceName, sideInfo.RealName))
-		}
-	} else {
-		instanceName = sideInfo.RealName
+		return nil, apiErr
 	}
 
 	var tset *state.TaskSet
+	var err error
 	container := "snap"
 	if compInfo == nil {
 		tset, _, err = snapstateInstallPath(st, sideInfo, snapFile.tmpPath, instanceName, "", flags.Flags, nil)
 	} else {
 		// It is a component
 		container = "component"
-		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
+		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), compOwnerInfo, snapFile.tmpPath, flags.Flags)
 	}
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", container)
@@ -348,6 +305,60 @@ func sideloadSnap(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) 
 	chg.Set("api-data", apiData)
 
 	return chg, nil
+}
+
+// readContainerInfo returns information from the received snapFile, which
+// might be a snap or a component. If it is a component, additional information
+// from the owner snap is read from the state and returned in compOwnerInfo.
+func readContainerInfo(st *state.State, snapFile *uploadedSnap, flags sideloadFlags) (instanceName string, sideInfo *snap.SideInfo, compInfo *snap.ComponentInfo, compOwnerInfo *snap.Info, apiErr *apiError) {
+	if snapFile.instanceName != "" {
+		// caller has specified desired instance name
+		instanceName = snapFile.instanceName
+		if err := snap.ValidateInstanceName(instanceName); err != nil {
+			return "", nil, nil, nil, BadRequest(err.Error())
+		}
+	}
+
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return "", nil, nil, nil, InternalError(err.Error())
+	}
+
+	sideInfo, apiErr = readSideInfo(st, snapFile.tmpPath, snapFile.filename, flags, deviceCtx.Model())
+	if apiErr != nil {
+		// TODO installation of local but asserted components
+		// needs to addressed yet. This will also help with
+		// deciding whether we are dealing with a snap or a
+		// component. try to load as a component
+		var compErr *apiError
+		compInfo, compOwnerInfo, compErr = readComponentInfo(st, snapFile.tmpPath, instanceName, flags)
+		if compErr != nil {
+			logger.Noticef("cannot sideload as a snap: %v", apiErr)
+			logger.Noticef("cannot sideload as a component: %v", compErr)
+			// If the snap owning the component was not found, we already read
+			// the component information, so this is a valid component and we
+			// report the snap not found error. Otherwise, we don't know and
+			// we report the error while trying to read the file as a snap.
+			if compErr.Kind == client.ErrorKindSnapNotInstalled {
+				return "", nil, nil, nil, compErr
+			}
+			return "", nil, nil, nil, apiErr
+		}
+		sideInfo = &compOwnerInfo.SideInfo
+	}
+
+	if instanceName != "" {
+		requestedSnapName := snap.InstanceSnap(instanceName)
+		if requestedSnapName != sideInfo.RealName {
+			return "", nil, nil, nil, BadRequest(fmt.Sprintf(
+				"instance name %q does not match snap name %q",
+				instanceName, sideInfo.RealName))
+		}
+	} else {
+		instanceName = sideInfo.RealName
+	}
+
+	return instanceName, sideInfo, compInfo, compOwnerInfo, nil
 }
 
 func readSideInfo(st *state.State, tempPath string, origPath string, flags sideloadFlags, model *asserts.Model) (*snap.SideInfo, *apiError) {
