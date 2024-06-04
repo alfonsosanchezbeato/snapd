@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/naming"
 )
 
 // For testing purposes
@@ -73,8 +72,8 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 	return kversion, nil
 }
 
-func createFirmwareSymlinks(fwMount, fwDest string) error {
-	fwOrig := filepath.Join(fwMount, "firmware")
+func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
+	fwOrig := filepath.Join(fwMount.CurrentMntPt, "firmware")
 	if err := os.MkdirAll(fwDest, 0755); err != nil {
 		return err
 	}
@@ -92,20 +91,26 @@ func createFirmwareSymlinks(fwMount, fwDest string) error {
 		return err
 	}
 
+	fwTarget := filepath.Join(fwMount.TargetMntPt, "firmware")
 	for _, node := range entries {
-		lpath := filepath.Join(fwDest, node.Name())
-		origPath := filepath.Join(fwOrig, node.Name())
 		switch node.Type() {
 		case 0, fs.ModeDir:
+			// "updates" is included in (latest) kernel snaps but
+			// is empty, and we use if for firmware shipped in
+			// components, so we ignore it.
+			if node.Name() == "updates" {
+				continue
+			}
 			// Create link for regular files or directories
-			if err := os.Symlink(origPath, lpath); err != nil {
+			lpath := filepath.Join(fwDest, node.Name())
+			if err := os.Symlink(filepath.Join(fwTarget, node.Name()), lpath); err != nil {
 				return err
 			}
 		case fs.ModeSymlink:
 			// Replicate link (it should be relative)
 			// TODO check this in snap pack
 			lpath := filepath.Join(fwDest, node.Name())
-			dest, err := os.Readlink(origPath)
+			dest, err := os.Readlink(filepath.Join(fwOrig, node.Name()))
 			if err != nil {
 				return err
 			}
@@ -124,7 +129,7 @@ func createFirmwareSymlinks(fwMount, fwDest string) error {
 	return nil
 }
 
-func createModulesSubtree(kernelMount, kernelTree, kversion string, kmodsConts []snap.ContainerPlaceInfo) error {
+func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comps []ModulesCompInfo) error {
 	// Although empty we need "lib" because "depmod" always appends
 	// "/lib/modules/<kernel_version>" to the directory passed with option
 	// "-b".
@@ -135,7 +140,7 @@ func createModulesSubtree(kernelMount, kernelTree, kversion string, kmodsConts [
 
 	// Copy modinfo files from the snap (these might be overwritten if
 	// kernel-modules components are installed).
-	modsGlob := filepath.Join(kernelMount, "modules", kversion, "modules.*")
+	modsGlob := filepath.Join(kMntPts.CurrentMntPt, "modules", kversion, "modules.*")
 	modFiles, err := filepath.Glob(modsGlob)
 	if err != nil {
 		// Should not really happen (only possible error is ErrBadPattern)
@@ -148,21 +153,43 @@ func createModulesSubtree(kernelMount, kernelTree, kversion string, kmodsConts [
 		}
 	}
 
-	// Symbolic links to early mount kernel snap
-	earlyMntDir := filepath.Join(kernelMount, "modules", kversion)
+	// Symbolic links to current mount of the kernel snap
+	currentMntDir := filepath.Join(kMntPts.CurrentMntPt, "modules", kversion)
+	if err := createKernelModulesSymlinks(modsRoot, currentMntDir); err != nil {
+		return err
+	}
+
+	// If necessary, add modules from components and run depmod
+	if err := setupModsFromComp(kernelTree, kversion, comps); err != nil {
+		return err
+	}
+
+	// Change symlinks to target ones when needed
+	if kMntPts.CurrentMntPt != kMntPts.TargetMntPt {
+		targetMntDir := filepath.Join(kMntPts.TargetMntPt, "modules", kversion)
+		if err := createKernelModulesSymlinks(modsRoot, targetMntDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
 	for _, d := range []string{"kernel", "vdso"} {
 		lname := filepath.Join(modsRoot, d)
-		to := filepath.Join(earlyMntDir, d)
+		to := filepath.Join(kMntPt, d)
+		// We might be re-creating, first remove
+		os.Remove(lname)
 		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
 	}
 
-	// If necessary, add modules from components and run depmod
-	return setupModsFromComp(kernelTree, kversion, kmodsConts)
+	return nil
 }
 
-func setupModsFromComp(kernelTree, kversion string, kmodsConts []snap.ContainerPlaceInfo) error {
+func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) error {
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
 	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
@@ -170,19 +197,14 @@ func setupModsFromComp(kernelTree, kversion string, kmodsConts []snap.ContainerP
 		return err
 	}
 
-	if len(kmodsConts) == 0 {
+	if len(comps) == 0 {
 		return nil
 	}
 
 	// Symbolic links to components
-	for _, kmc := range kmodsConts {
-		_, comp, err := naming.SplitFullComponentName(kmc.ContainerName())
-		if err != nil {
-			return err
-		}
-
-		lname := filepath.Join(compsRoot, comp)
-		to := filepath.Join(kmc.MountDir(), "modules", kversion)
+	for _, mci := range comps {
+		lname := filepath.Join(compsRoot, mci.Name)
+		to := filepath.Join(mci.CurrentMntPt, "modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
@@ -194,6 +216,20 @@ func setupModsFromComp(kernelTree, kversion string, kmodsConts []snap.ContainerP
 		return osutil.OutputErrCombine(stdout, stderr, err)
 	}
 	logger.Noticef("depmod output:\n%s\n", string(osutil.CombineStdOutErr(stdout, stderr)))
+
+	// Change symlinks to target ones when needed
+	for _, mci := range comps {
+		if mci.CurrentMntPt == mci.TargetMntPt {
+			continue
+		}
+		lname := filepath.Join(compsRoot, mci.Name)
+		to := filepath.Join(mci.TargetMntPt, "modules", kversion)
+		// remove old link
+		os.Remove(lname)
+		if err := osSymlink(to, lname); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -217,6 +253,21 @@ type KernelDriversTreeOptions struct {
 	KernelInstall bool
 }
 
+// MountPoints describes mount points for a snap or a component.
+type MountPoints struct {
+	// CurrentMntPt is where the container to be installed is currently
+	// available
+	CurrentMntPt string
+	// TargetMntPt is where the container will be found in a running system
+	TargetMntPt string
+}
+
+// ModulesCompInfo contains mount points for a component plus its name.
+type ModulesCompInfo struct {
+	Name string
+	MountPoints
+}
+
 // EnsureKernelDriversTree creates a drivers tree that can include modules/fw
 // from kernel-modules components. opts.KernelInstall tells the function if
 // this is a kernel install (which might be installing components at the same
@@ -228,22 +279,21 @@ type KernelDriversTreeOptions struct {
 // active kernel is using a different path as it has a different revision).
 // This tree contains files from the kernel snap content in kSnapRoot, as well
 // as symlinks to it. Information from modules is found by looking at
-// kmodsConts slice.
+// comps slice.
 //
 // For components-only install, we want the components to be available without
 // rebooting. For this, we work on a temporary tree, and after finishing it we
 // swap atomically the affected modules/firmware folders with those of the
 // currently active kernel drivers tree.
 //
-// TODO When adding support to install kernel+components jointly we will need
-// the actual directories where components content can be found, because
-// depending on the installation type (from initramfs, snapd API or ephemeral
-// system) the content might be in a different place to the mount points in a
-// running system. In that case, we need to run depmod with links to the real
-// content, and then replace those links with the expected mounts in the
-// running system. When we do this, consider some clean-up of the function
-// arguments.
-func EnsureKernelDriversTree(kSnapRoot, destDir string, kmodsConts []snap.ContainerPlaceInfo, opts *KernelDriversTreeOptions) (err error) {
+// To make this work in all cases we need to know the current mounts of the
+// kernel snap / components to be installed and the final mounts when the
+// system is run after installation (as the installing system might be classic
+// while the installed system could be hybrid or UC, or we could be installing
+// from the initramfs). To consider all cases, we need to run depmod with links
+// to the currently available content, and then replace those links with the
+// expected mounts in the running system.
+func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destDir string, opts *KernelDriversTreeOptions) (err error) {
 	// The temporal dir when installing only components can be fixed as a
 	// task installing/updating a kernel-modules component must conflict
 	// with changes containing this same task. This helps with clean-ups if
@@ -278,23 +328,23 @@ func EnsureKernelDriversTree(kSnapRoot, destDir string, kmodsConts []snap.Contai
 	}()
 
 	// Create drivers tree
-	kversion, err := KernelVersionFromModulesDir(kSnapRoot)
+	kversion, err := KernelVersionFromModulesDir(kMntPts.CurrentMntPt)
 	if err == nil {
-		if err := createModulesSubtree(kSnapRoot, targetDir,
-			kversion, kmodsConts); err != nil {
+		if err := createModulesSubtree(kMntPts, targetDir,
+			kversion, comps); err != nil {
 			return err
 		}
 	} else {
 		// Bit of a corner case, but maybe possible. Log anyway.
 		// TODO detect this issue in snap pack, should be enforced
 		// if the snap declares kernel-modules components.
-		logger.Noticef("no modules found in %q", kSnapRoot)
+		logger.Noticef("no modules found in %q", kMntPts.CurrentMntPt)
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
 	if opts.KernelInstall {
 		// symlinks in /lib/firmware are not affected by components
-		if err := createFirmwareSymlinks(kSnapRoot, fwDir); err != nil {
+		if err := createFirmwareSymlinks(kMntPts, fwDir); err != nil {
 			return err
 		}
 	}
@@ -304,8 +354,8 @@ func EnsureKernelDriversTree(kSnapRoot, destDir string, kmodsConts []snap.Contai
 	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
 		return err
 	}
-	for _, kmc := range kmodsConts {
-		if err := createFirmwareSymlinks(kmc.MountDir(), updateFwDir); err != nil {
+	for _, cmi := range comps {
+		if err := createFirmwareSymlinks(cmi.MountPoints, updateFwDir); err != nil {
 			return err
 		}
 	}

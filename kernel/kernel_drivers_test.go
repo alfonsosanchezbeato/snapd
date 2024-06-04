@@ -21,6 +21,7 @@ package kernel_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -163,7 +164,11 @@ func testBuildKernelDriversTree(c *C) {
 
 	// Now build the tree
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	c.Assert(kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	c.Assert(kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir},
+		nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true}), IsNil)
 
 	// Check content is as expected
@@ -216,7 +221,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversNoModsOrFw(c *C) {
 
 	// Build the tree should not fail
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
@@ -244,7 +252,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 
 	// Build the tree should not fail
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
@@ -254,6 +265,41 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyMods(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(exists, Equals, true)
 	c.Check(isReg, Equals, true)
+
+	// but log should warn about this
+	c.Assert(buf.String(), testutil.Contains, `no firmware found in "`+mountDir+`/firmware"`)
+}
+
+func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyModsWithTargetDir(c *C) {
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
+	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFilesOnlyModules(c, kversion, mountDir)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  kTargetDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// check created file
+	modPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "modules", kversion)
+	modDepBinPath := filepath.Join(modPath, "modules.dep.bin")
+	exists, isReg, err := osutil.RegularFileExists(modDepBinPath)
+	c.Assert(err, IsNil)
+	c.Check(exists, Equals, true)
+	c.Check(isReg, Equals, true)
+	// Check symlinks points to final target
+	modsPath := filepath.Join(modPath, "kernel")
+	modsTarget, err := os.Readlink(modsPath)
+	c.Assert(err, IsNil)
+	c.Check(modsTarget, Equals, filepath.Join(kTargetDir, "modules", kversion, "kernel"))
 
 	// but log should warn about this
 	c.Assert(buf.String(), testutil.Contains, `no firmware found in "`+mountDir+`/firmware"`)
@@ -277,13 +323,43 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFw(c *C) {
 
 	// Build the tree should not fail
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, IsNil)
 
 	// check link
 	fwPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "firmware", "wifi_fw.bin")
 	c.Assert(osutil.IsSymlink(fwPath), Equals, true)
+
+	// but log should warn about this
+	c.Assert(buf.String(), testutil.Contains, `no modules found in "`+mountDir+`"`)
+}
+
+func (s *kernelDriversTestSuite) TestBuildKernelDriversOnlyFwWithTargetDir(c *C) {
+	buf, restore := logger.MockLogger()
+	defer restore()
+
+	mountDir := filepath.Join(dirs.RunDir, "mnt/tmp-mount")
+	kTargetDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	createKernelSnapFilesOnlyFw(c, mountDir)
+
+	// Build the tree should not fail
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  kTargetDir}, nil, destDir,
+		&kernel.KernelDriversTreeOptions{KernelInstall: true})
+	c.Assert(err, IsNil)
+
+	// check link
+	fwPath := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "firmware", "wifi_fw.bin")
+	fwPathTarget, err := os.Readlink(fwPath)
+	c.Assert(err, IsNil)
+	c.Check(fwPathTarget, Equals, filepath.Join(kTargetDir, "firmware", "wifi_fw.bin"))
 
 	// but log should warn about this
 	c.Assert(buf.String(), testutil.Contains, `no modules found in "`+mountDir+`"`)
@@ -300,7 +376,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversAbsFwSymlink(c *C) {
 
 	// Fails on the absolute path in the link
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, `symlink \".*lib/firmware/ln_to_abs\" points to absolute path \"/absdir/blob3\"`)
 
@@ -321,7 +400,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCleanup(c *C) {
 
 	// Now build the tree
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, "mocked symlink error")
 
@@ -341,7 +423,10 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversBadFileType(c *C) {
 
 	// Now build the tree
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, nil,
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir}, nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 	c.Assert(err, ErrorMatches, `"fifo" has unexpected file type: p---------`)
 
@@ -410,10 +495,18 @@ func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsNoKernel(c *C) {
 		snap.MinimalComponentContainerPlaceInfo("comp1", snap.R(11), "pc-kernel"),
 		snap.MinimalComponentContainerPlaceInfo("comp2", snap.R(22), "pc-kernel"),
 	}
+	kmodsInfo := []kernel.ModulesCompInfo{
+		{"comp1", kernel.MountPoints{kmodsConts[0].MountDir(), kmodsConts[0].MountDir()}},
+		{"comp2", kernel.MountPoints{kmodsConts[1].MountDir(), kmodsConts[1].MountDir()}},
+	}
 
 	// Now build the tree, will fail as no kernel was installed previously
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	err := kernel.EnsureKernelDriversTree(mountDir, destDir, kmodsConts, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir},
+		kmodsInfo, destDir, &kernel.KernelDriversTreeOptions{KernelInstall: false})
 	c.Assert(err, ErrorMatches, `while swapping .*: no such file or directory`)
 }
 
@@ -433,6 +526,10 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 		snap.MinimalComponentContainerPlaceInfo("comp1", snap.R(11), "pc-kernel"),
 		snap.MinimalComponentContainerPlaceInfo("comp2", snap.R(22), "pc-kernel"),
 	}
+	kmodsInfo := []kernel.ModulesCompInfo{
+		{"comp1", kernel.MountPoints{kmodsConts[0].MountDir(), kmodsConts[0].MountDir()}},
+		{"comp2", kernel.MountPoints{kmodsConts[1].MountDir(), kmodsConts[1].MountDir()}},
+	}
 
 	workSubdir := "1_tmp"
 	if opts.KernelInstall {
@@ -446,7 +543,11 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 
 	// Now build the tree
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
-	c.Assert(kernel.EnsureKernelDriversTree(mountDir, destDir, kmodsConts, opts), IsNil)
+	c.Assert(kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir},
+		kmodsInfo, destDir, opts), IsNil)
 
 	if exists {
 		c.Assert(isDir, Equals, true)
@@ -523,4 +624,45 @@ func testBuildKernelDriversTreeWithComps(c *C, opts *kernel.KernelDriversTreeOpt
 		exists, _, _ = osutil.RegularFileExists(tmpDir)
 		c.Check(exists, Equals, false)
 	}
+}
+
+func (s *kernelDriversTestSuite) TestBuildKernelDriversTreeCompsWithTargetDir(c *C) {
+	mockCmd := testutil.MockCommand(c, "depmod", "")
+	defer mockCmd.Restore()
+
+	// Kernel needs to have been installed first
+	testBuildKernelDriversTree(c)
+
+	mountDir := filepath.Join(dirs.RunDir, "mnt/pc-kernel")
+	kversion := "5.15.0-78-generic"
+	createKernelSnapFiles(c, kversion, mountDir)
+
+	compMntDir1 := filepath.Join(dirs.RunDir, "mnt/kernel-snaps/comp1")
+	createKernelModulesCompFiles(c, kversion, compMntDir1, "comp1")
+	kmodCont := snap.MinimalComponentContainerPlaceInfo("comp1", snap.R(11), "pc-kernel")
+	// Current mount is different to the one in the final system
+	kmodsInfo := []kernel.ModulesCompInfo{
+		{"comp1", kernel.MountPoints{
+			CurrentMntPt: compMntDir1,
+			TargetMntPt:  kmodCont.MountDir()}},
+	}
+
+	// Now build the tree, will fail as no kernel was installed previously
+	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, "pc-kernel", snap.R(1))
+	err := kernel.EnsureKernelDriversTree(
+		kernel.MountPoints{
+			CurrentMntPt: mountDir,
+			TargetMntPt:  mountDir},
+		kmodsInfo, destDir, &kernel.KernelDriversTreeOptions{KernelInstall: false})
+	c.Assert(err, IsNil)
+
+	// Check firmware entries from components
+	fwRoot := filepath.Join(dirs.SnapdStateDir(dirs.GlobalRootDir), "kernel", "pc-kernel", "1", "lib", "firmware")
+	fwUpdates := filepath.Join(fwRoot, "updates")
+	expected := []expectInode{
+		{"comp1.bin", fs.ModeSymlink, filepath.Join(kmodCont.MountDir(), "firmware/comp1.bin")},
+	}
+	fmt.Println(fwRoot)
+	//os.Exit(1)
+	doDirChecks(c, fwUpdates, expected)
 }

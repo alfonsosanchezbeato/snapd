@@ -41,7 +41,7 @@ var (
 )
 
 // KernelSnapInfo includes information from the kernel snap that is
-// needed to build a drivers tree. Defin
+// needed to build a drivers tree.
 type KernelSnapInfo struct {
 	Name     string
 	Revision snap.Revision
@@ -139,7 +139,13 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 		destDir := kernel.DriversTreeDir(destRoot, kSnapInfo.Name, kSnapInfo.Revision)
 		logger.Noticef("building drivers tree in %s", destDir)
 
-		if err := kernelEnsureKernelDriversTree(kSnapInfo.MountPoint, destDir, nil,
+		kTargetSysMntPt := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
+		if err := kernelEnsureKernelDriversTree(
+			kernel.MountPoints{
+				CurrentMntPt: kSnapInfo.MountPoint,
+				TargetMntPt:  kTargetSysMntPt.MountDir()},
+			nil,
+			destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
 			return err
 		}
