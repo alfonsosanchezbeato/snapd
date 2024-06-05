@@ -73,7 +73,7 @@ func KernelVersionFromModulesDir(mountPoint string) (string, error) {
 }
 
 func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
-	fwOrig := filepath.Join(fwMount.CurrentMntPt, "firmware")
+	fwOrig := fwMount.UnderCurrentPath("firmware")
 	if err := os.MkdirAll(fwDest, 0755); err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 		return err
 	}
 
-	fwTarget := filepath.Join(fwMount.TargetMntPt, "firmware")
+	fwTarget := fwMount.UnderTargetPath("firmware")
 	for _, node := range entries {
 		switch node.Type() {
 		case 0, fs.ModeDir:
@@ -140,7 +140,7 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 
 	// Copy modinfo files from the snap (these might be overwritten if
 	// kernel-modules components are installed).
-	modsGlob := filepath.Join(kMntPts.CurrentMntPt, "modules", kversion, "modules.*")
+	modsGlob := kMntPts.UnderCurrentPath("modules", kversion, "modules.*")
 	modFiles, err := filepath.Glob(modsGlob)
 	if err != nil {
 		// Should not really happen (only possible error is ErrBadPattern)
@@ -154,7 +154,7 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	}
 
 	// Symbolic links to current mount of the kernel snap
-	currentMntDir := filepath.Join(kMntPts.CurrentMntPt, "modules", kversion)
+	currentMntDir := kMntPts.UnderCurrentPath("modules", kversion)
 	if err := createKernelModulesSymlinks(modsRoot, currentMntDir); err != nil {
 		return err
 	}
@@ -165,8 +165,8 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	}
 
 	// Change symlinks to target ones when needed
-	if kMntPts.CurrentMntPt != kMntPts.TargetMntPt {
-		targetMntDir := filepath.Join(kMntPts.TargetMntPt, "modules", kversion)
+	if !kMntPts.CurrentEqualsTarget() {
+		targetMntDir := kMntPts.UnderTargetPath("modules", kversion)
 		if err := createKernelModulesSymlinks(modsRoot, targetMntDir); err != nil {
 			return err
 		}
@@ -204,7 +204,7 @@ func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) err
 	// Symbolic links to components
 	for _, mci := range comps {
 		lname := filepath.Join(compsRoot, mci.Name)
-		to := filepath.Join(mci.CurrentMntPt, "modules", kversion)
+		to := mci.Mounts.UnderCurrentPath("modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
@@ -219,11 +219,11 @@ func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) err
 
 	// Change symlinks to target ones when needed
 	for _, mci := range comps {
-		if mci.CurrentMntPt == mci.TargetMntPt {
+		if mci.Mounts.CurrentEqualsTarget() {
 			continue
 		}
 		lname := filepath.Join(compsRoot, mci.Name)
-		to := filepath.Join(mci.TargetMntPt, "modules", kversion)
+		to := mci.Mounts.UnderTargetPath("modules", kversion)
 		// remove old link
 		os.Remove(lname)
 		if err := osSymlink(to, lname); err != nil {
@@ -255,17 +255,29 @@ type KernelDriversTreeOptions struct {
 
 // MountPoints describes mount points for a snap or a component.
 type MountPoints struct {
-	// CurrentMntPt is where the container to be installed is currently
+	// Current is where the container to be installed is currently
 	// available
-	CurrentMntPt string
-	// TargetMntPt is where the container will be found in a running system
-	TargetMntPt string
+	Current string
+	// Target is where the container will be found in a running system
+	Target string
+}
+
+func (mp *MountPoints) UnderCurrentPath(dirs ...string) string {
+	return filepath.Join(append([]string{mp.Current}, dirs...)...)
+}
+
+func (mp *MountPoints) UnderTargetPath(dirs ...string) string {
+	return filepath.Join(append([]string{mp.Target}, dirs...)...)
+}
+
+func (mp *MountPoints) CurrentEqualsTarget() bool {
+	return mp.Current == mp.Target
 }
 
 // ModulesCompInfo contains mount points for a component plus its name.
 type ModulesCompInfo struct {
-	Name string
-	MountPoints
+	Name   string
+	Mounts MountPoints
 }
 
 // EnsureKernelDriversTree creates a drivers tree that can include modules/fw
@@ -328,7 +340,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destD
 	}()
 
 	// Create drivers tree
-	kversion, err := KernelVersionFromModulesDir(kMntPts.CurrentMntPt)
+	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
 	if err == nil {
 		if err := createModulesSubtree(kMntPts, targetDir,
 			kversion, comps); err != nil {
@@ -338,7 +350,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destD
 		// Bit of a corner case, but maybe possible. Log anyway.
 		// TODO detect this issue in snap pack, should be enforced
 		// if the snap declares kernel-modules components.
-		logger.Noticef("no modules found in %q", kMntPts.CurrentMntPt)
+		logger.Noticef("no modules found in %q", kMntPts.Current)
 	}
 
 	fwDir := filepath.Join(targetDir, "lib", "firmware")
@@ -355,7 +367,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destD
 		return err
 	}
 	for _, cmi := range comps {
-		if err := createFirmwareSymlinks(cmi.MountPoints, updateFwDir); err != nil {
+		if err := createFirmwareSymlinks(cmi.Mounts, updateFwDir); err != nil {
 			return err
 		}
 	}

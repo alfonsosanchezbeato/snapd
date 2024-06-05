@@ -130,8 +130,8 @@ func (b Backend) SetupKernelSnap(instanceName string, rev snap.Revision, meter p
 
 	return kernel.EnsureKernelDriversTree(
 		kernel.MountPoints{
-			CurrentMntPt: cpi.MountDir(),
-			TargetMntPt:  cpi.MountDir()},
+			Current: cpi.MountDir(),
+			Target:  cpi.MountDir()},
 		nil, destDir,
 		&kernel.KernelDriversTreeOptions{KernelInstall: true})
 }
@@ -353,8 +353,8 @@ func mergeCompSideInfosUpdatingRev(comps1, comps2 []*snap.ComponentSideInfo) (me
 func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, cleanErrMsg string) (err error) {
 	cpi := snap.MinimalSnapContainerPlaceInfo(ksnapName, ksnapRev)
 	kMntPts := kernel.MountPoints{
-		CurrentMntPt: cpi.MountDir(),
-		TargetMntPt:  cpi.MountDir()}
+		Current: cpi.MountDir(),
+		Target:  cpi.MountDir()}
 	destDir := kernel.DriversTreeDir(dirs.GlobalRootDir, ksnapName, ksnapRev)
 	finalCompsInfo := make([]kernel.ModulesCompInfo, len(finalComps))
 	for i, csi := range finalComps {
@@ -362,9 +362,9 @@ func moveKModsComponentsState(currentComps, finalComps []*snap.ComponentSideInfo
 			csi.Revision, ksnapName)
 		finalCompsInfo[i] = kernel.ModulesCompInfo{
 			Name: csi.Component.ComponentName,
-			MountPoints: kernel.MountPoints{
-				CurrentMntPt: compPlaceInfo.MountDir(),
-				TargetMntPt:  compPlaceInfo.MountDir(),
+			Mounts: kernel.MountPoints{
+				Current: compPlaceInfo.MountDir(),
+				Target:  compPlaceInfo.MountDir(),
 			},
 		}
 	}

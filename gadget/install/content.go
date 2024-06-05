@@ -142,8 +142,8 @@ func writeFilesystemContent(laidOut *gadget.LaidOutStructure, kSnapInfo *KernelS
 		kTargetSysMntPt := snap.MinimalSnapContainerPlaceInfo(kSnapInfo.Name, kSnapInfo.Revision)
 		if err := kernelEnsureKernelDriversTree(
 			kernel.MountPoints{
-				CurrentMntPt: kSnapInfo.MountPoint,
-				TargetMntPt:  kTargetSysMntPt.MountDir()},
+				Current: kSnapInfo.MountPoint,
+				Target:  kTargetSysMntPt.MountDir()},
 			nil,
 			destDir,
 			&kernel.KernelDriversTreeOptions{KernelInstall: true}); err != nil {
