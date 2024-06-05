@@ -119,10 +119,14 @@ execute: |
      --kernel-assertion pc-kernel.assert \
      --disk disk.img
 
-  # things look fine
+  # basic things look fine
   remote.exec "cat /etc/os-release" | MATCH 'NAME="Ubuntu"'
   remote.exec "snap changes" | MATCH "Done.* Initialize system state"
   remote.exec "snap list" | MATCH pc-kernel
+  # kernel drivers tree has been created
+  remote.exec test -d /var/lib/snapd/kernel/pc-kernel/x1
+  # TODO check the drivers tree has been mounted (depends on
+  # https://github.com/snapcore/core-initrd/pull/238 being present in initramfs)
 
   # check encryption
   if [ "$NESTED_ENABLE_TPM" = true ]; then
