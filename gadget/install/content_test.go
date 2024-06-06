@@ -290,8 +290,9 @@ func (s *contentTestSuite) testWriteFilesystemContentDriversTree(c *C, isCore bo
 		IsCore:           isCore,
 	}
 
-	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, comps []kernel.ModulesCompInfo, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
-		c.Check(kMntPts.Target, Equals, kMntPoint)
+	restore = install.MockKernelEnsureKernelDriversTree(func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error) {
+		c.Check(kMntPts, Equals,
+			kernel.MountPoints{Current: kMntPoint, Target: kMntPoint})
 		if isCore {
 			c.Check(destDir, Equals, filepath.Join(dataMntPoint,
 				"system-data/var/lib/snapd/kernel/pc-kernel/111"))

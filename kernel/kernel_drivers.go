@@ -129,7 +129,7 @@ func createFirmwareSymlinks(fwMount MountPoints, fwDest string) error {
 	return nil
 }
 
-func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comps []ModulesCompInfo) error {
+func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, compsMntPts []ModulesCompMountPoints) error {
 	// Although empty we need "lib" because "depmod" always appends
 	// "/lib/modules/<kernel_version>" to the directory passed with option
 	// "-b".
@@ -160,7 +160,7 @@ func createModulesSubtree(kMntPts MountPoints, kernelTree, kversion string, comp
 	}
 
 	// If necessary, add modules from components and run depmod
-	if err := setupModsFromComp(kernelTree, kversion, comps); err != nil {
+	if err := setupModsFromComp(kernelTree, kversion, compsMntPts); err != nil {
 		return err
 	}
 
@@ -189,7 +189,7 @@ func createKernelModulesSymlinks(modsRoot, kMntPt string) error {
 	return nil
 }
 
-func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) error {
+func setupModsFromComp(kernelTree, kversion string, compsMntPts []ModulesCompMountPoints) error {
 	// This folder needs to exist always to allow for directory swapping
 	// in the future, even if right now we don't have components.
 	compsRoot := filepath.Join(kernelTree, "lib", "modules", kversion, "updates")
@@ -197,14 +197,14 @@ func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) err
 		return err
 	}
 
-	if len(comps) == 0 {
+	if len(compsMntPts) == 0 {
 		return nil
 	}
 
 	// Symbolic links to components
-	for _, mci := range comps {
-		lname := filepath.Join(compsRoot, mci.Name)
-		to := mci.Mounts.UnderCurrentPath("modules", kversion)
+	for _, cmp := range compsMntPts {
+		lname := filepath.Join(compsRoot, cmp.Name)
+		to := cmp.UnderCurrentPath("modules", kversion)
 		if err := osSymlink(to, lname); err != nil {
 			return err
 		}
@@ -218,12 +218,12 @@ func setupModsFromComp(kernelTree, kversion string, comps []ModulesCompInfo) err
 	logger.Noticef("depmod output:\n%s\n", string(osutil.CombineStdOutErr(stdout, stderr)))
 
 	// Change symlinks to target ones when needed
-	for _, mci := range comps {
-		if mci.Mounts.CurrentEqualsTarget() {
+	for _, cmp := range compsMntPts {
+		if cmp.CurrentEqualsTarget() {
 			continue
 		}
-		lname := filepath.Join(compsRoot, mci.Name)
-		to := mci.Mounts.UnderTargetPath("modules", kversion)
+		lname := filepath.Join(compsRoot, cmp.Name)
+		to := cmp.UnderTargetPath("modules", kversion)
 		// remove old link
 		os.Remove(lname)
 		if err := osSymlink(to, lname); err != nil {
@@ -274,10 +274,10 @@ func (mp *MountPoints) CurrentEqualsTarget() bool {
 	return mp.Current == mp.Target
 }
 
-// ModulesCompInfo contains mount points for a component plus its name.
-type ModulesCompInfo struct {
-	Name   string
-	Mounts MountPoints
+// ModulesCompMountPoints contains mount points for a component plus its name.
+type ModulesCompMountPoints struct {
+	Name string
+	MountPoints
 }
 
 // EnsureKernelDriversTree creates a drivers tree that can include modules/fw
@@ -305,7 +305,7 @@ type ModulesCompInfo struct {
 // from the initramfs). To consider all cases, we need to run depmod with links
 // to the currently available content, and then replace those links with the
 // expected mounts in the running system.
-func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destDir string, opts *KernelDriversTreeOptions) (err error) {
+func EnsureKernelDriversTree(kMntPts MountPoints, compsMntPts []ModulesCompMountPoints, destDir string, opts *KernelDriversTreeOptions) (err error) {
 	// The temporal dir when installing only components can be fixed as a
 	// task installing/updating a kernel-modules component must conflict
 	// with changes containing this same task. This helps with clean-ups if
@@ -343,7 +343,7 @@ func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destD
 	kversion, err := KernelVersionFromModulesDir(kMntPts.Current)
 	if err == nil {
 		if err := createModulesSubtree(kMntPts, targetDir,
-			kversion, comps); err != nil {
+			kversion, compsMntPts); err != nil {
 			return err
 		}
 	} else {
@@ -366,8 +366,8 @@ func EnsureKernelDriversTree(kMntPts MountPoints, comps []ModulesCompInfo, destD
 	if err := os.MkdirAll(updateFwDir, 0755); err != nil {
 		return err
 	}
-	for _, cmi := range comps {
-		if err := createFirmwareSymlinks(cmi.Mounts, updateFwDir); err != nil {
+	for _, cmp := range compsMntPts {
+		if err := createFirmwareSymlinks(cmp.MountPoints, updateFwDir); err != nil {
 			return err
 		}
 	}
