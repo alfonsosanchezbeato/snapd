@@ -5,7 +5,16 @@ show_help() {
     echo "       lxd-state prepare-snap"
 }
 
-prepare_snap(){    
+prepare_snap(){
+    # lxd-installer is in cloud images starting from 24.04. This package
+    # installs lxd when any lxc command is run. This caused problems because if
+    # we install snapcraft & lxd, in the restore step lxd is removed, and after
+    # that snapcraft is removed. However, snapcraft's remove hook calls lxd and
+    # triggers a new installation of lxd, and in turn when we try to remove
+    # core22, it fails as lxd has been re-installed and depends on that base.
+    # Therefore, we remove it to prevent these issues.
+    apt remove -y --purge lxd-installer || true
+
     echo "lxd-state: installing lxd snap"
     snap install lxd --channel="$LXD_SNAP_CHANNEL"
 
