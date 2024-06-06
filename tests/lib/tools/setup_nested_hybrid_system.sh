@@ -58,8 +58,6 @@ run_muinstaller() {
     snap install snapcraft --candidate --classic
     "${TESTSTOOLS}/lxd-state" prepare-snap
     (cd "${TESTSLIB}/muinstaller" && snapcraft)
-    snap remove --purge snapcraft
-    snap remove --purge lxd
 
     local muinstaller_snap
     muinstaller_snap="$(find "${TESTSLIB}/muinstaller/" -maxdepth 1 -name '*.snap')"
