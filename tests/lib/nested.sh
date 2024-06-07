@@ -616,6 +616,14 @@ nested_prepare_snapd() {
     fi
 }
 
+nested_build_initramfs() {
+    if nested_is_core_ge 24; then
+        uc24_build_initramfs_kernel_snap "$@"
+    else
+        uc20_build_initramfs_kernel_snap "$@"
+    fi
+}
+
 nested_prepare_kernel() {
     # allow repacking the kernel
     if [ "$NESTED_REPACK_KERNEL_SNAP" = "true" ]; then
@@ -641,11 +649,7 @@ nested_prepare_kernel() {
                     epochBumpTime="--epoch-bump-time=$epochBumpTime"
                 fi
 
-                if nested_is_core_24_system; then
-                    uc24_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                else
-                    uc20_build_initramfs_kernel_snap "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
-                fi
+                nested_build_initramfs "pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                 rm -f "pc-kernel.snap" "pc-kernel.assert"
 
                 # Prepare the pc kernel snap

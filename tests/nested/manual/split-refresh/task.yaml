@@ -71,7 +71,7 @@ execute: |
   version="$(nested_get_version)"
 
   snap download --basename=pc-kernel --channel="$version/stable" pc-kernel
-  uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+  nested_build_initramfs "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
   mv "${NESTED_ASSETS_DIR}"/pc-kernel_*.snap pc-kernel.snap
 
   # Prepare gadget with the right gadget.yaml
