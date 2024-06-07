@@ -319,7 +319,7 @@ func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCore(c *C) {
 
 func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeCoreUnusualMntPt(c *C) {
 	isCore := true
-	s.testWriteFilesystemContentDriversTree(c, "/somwhere/pc-kernel/111", isCore)
+	s.testWriteFilesystemContentDriversTree(c, "/somewhere/pc-kernel/111", isCore)
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContentDriversTreeHybrid(c *C) {
