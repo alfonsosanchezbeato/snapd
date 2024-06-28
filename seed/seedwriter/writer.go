@@ -66,15 +66,24 @@ func (opts *Options) manifest() *Manifest {
 	return opts.Manifest
 }
 
+// OptionsComponent represents an options-referred snap with its option values.
+// E.g. a component passed to ubuntu-image via --comp <snap_name>+<comp_name>.
+type OptionsComponent struct {
+	Name string
+	// Path is set when a file is passed around.
+	Path string
+}
+
 // OptionsSnap represents an options-referred snap with its option values.
 // E.g. a snap passed to ubuntu-image via --snap.
 // If Name is set the snap is from the store. If Path is set the snap
 // is local at Path location.
 type OptionsSnap struct {
-	Name    string
-	SnapID  string
-	Path    string
-	Channel string
+	Name       string
+	SnapID     string
+	Path       string
+	Channel    string
+	Components []OptionsComponent
 }
 
 func (s *OptionsSnap) SnapName() string {
@@ -83,6 +92,19 @@ func (s *OptionsSnap) SnapName() string {
 
 func (s *OptionsSnap) ID() string {
 	return s.SnapID
+}
+
+func (s *OptionsSnap) Component(compName string) *OptionsComponent {
+	for _, optComp := range s.Components {
+		if optComp.Name == compName {
+			return &optComp
+		}
+	}
+	return nil
+}
+
+func (s *OptionsSnap) HasComponent(compName string) bool {
+	return s.Component(compName) != nil
 }
 
 var _ naming.SnapRef = (*OptionsSnap)(nil)
@@ -105,6 +127,13 @@ type SeedSnap struct {
 	local      bool
 	modelSnap  *asserts.ModelSnap
 	optionSnap *OptionsSnap
+
+	Components []SeedComponent
+}
+
+type SeedComponent struct {
+	naming.ComponentRef
+	Path string
 }
 
 func (sn *SeedSnap) modes() []string {
@@ -199,6 +228,7 @@ type Writer struct {
 
 	localSnaps      map[*OptionsSnap]*SeedSnap
 	byRefLocalSnaps *naming.SnapSet
+	localComponents []*SeedComponent
 
 	availableSnaps  *naming.SnapSet
 	availableByMode map[string]*naming.SnapSet
@@ -380,6 +410,26 @@ func (w *Writer) warningf(format string, a ...interface{}) {
 	w.warnings = append(w.warnings, fmt.Sprintf(format, a...))
 }
 
+func validateComponent(optComp *OptionsComponent) error {
+	if optComp.Name != "" {
+		if optComp.Path != "" {
+			return fmt.Errorf("cannot specify both name and path for component %q",
+				optComp.Name)
+		}
+		if err := snap.ValidateName(optComp.Name); err != nil {
+			return err
+		}
+	} else {
+		if !strings.HasSuffix(optComp.Path, ".comp") {
+			return fmt.Errorf("local option component %q does not end in .comp", optComp.Path)
+		}
+		if !osutil.FileExists(optComp.Path) {
+			return fmt.Errorf("local option component %q does not exist", optComp.Path)
+		}
+	}
+	return nil
+}
+
 // SetOptionsSnaps accepts options-referred snaps represented as OptionsSnap.
 func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	if err := w.checkStep(setOptionsSnapsStep); err != nil {
@@ -428,6 +478,11 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 				return fmt.Errorf("cannot use option channel for snap %q: %v", whichSnap, err)
 			}
 			if err := w.policy.checkSnapChannel(ch, whichSnap); err != nil {
+				return err
+			}
+		}
+		for _, comp := range sn.Components {
+			if err := validateComponent(&comp); err != nil {
 				return err
 			}
 		}
@@ -727,11 +782,22 @@ func (w *Writer) modelSnapToSeed(modSnap *asserts.ModelSnap) (*SeedSnap, error) 
 			// by an OptionsSnap entry is skipped
 			return nil, errSkipOptional
 		}
+		seedComps := make([]SeedComponent, 0, len(modSnap.Components))
+		for comp, modComp := range modSnap.Components {
+			// optional snap not confirmed, skipping
+			if modComp.Presence == "optional" && !optSnap.HasComponent(comp) {
+				continue
+			}
+			seedComps = append(seedComps, SeedComponent{
+				ComponentRef: naming.NewComponentRef(modSnap.Name, comp),
+			})
+		}
 		sn = &SeedSnap{
 			SnapRef: modSnap,
 
 			local:      false,
 			optionSnap: optSnap,
+			Components: seedComps,
 		}
 	} else {
 		optSnap = sn.optionSnap

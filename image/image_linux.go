@@ -479,6 +479,8 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(f seedwriter.SeedAssertionFetcher,
 		snaps[sn] = aRefs
 	}
 
+	// Read local components and assign to local snaps
+
 	// derive info first before verifying the arch
 	if err := s.validateSnapArchs(localSnaps); err != nil {
 		return nil, err
@@ -786,8 +788,20 @@ func (s *imageSeeder) finish() error {
 	return s.finishSeedCore()
 }
 
-func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
+// XXX
+func readComponentInfoFromCont(path string) (*snap.ComponentInfo, error) {
+	compf, err := snapfile.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open container: %w", err)
+	}
+
+	return snap.ReadComponentInfoFromContainer(compf, nil, nil)
+}
+
+func optionSnaps(opts *Options) ([]*seedwriter.OptionsSnap, []seedwriter.OptionsComponent, error) {
 	optSnaps := make([]*seedwriter.OptionsSnap, 0, len(opts.Snaps))
+	localComps := []seedwriter.OptionsComponent{}
+
 	for _, snapName := range opts.Snaps {
 		var optSnap seedwriter.OptionsSnap
 		if strings.HasSuffix(snapName, ".snap") {
@@ -799,7 +813,37 @@ func optionSnaps(opts *Options) []*seedwriter.OptionsSnap {
 		optSnap.Channel = opts.SnapChannels[snapName]
 		optSnaps = append(optSnaps, &optSnap)
 	}
-	return optSnaps
+	for _, compOpt := range opts.Components {
+		if strings.HasSuffix(compOpt, ".comp") {
+			// We need to look inside to know the owner snap, wait until
+			// that can be done for all local snaps/comps
+			localComps = append(localComps, seedwriter.OptionsComponent{Path: compOpt})
+		} else {
+			compName, snapName, err := naming.SplitFullComponentName(compOpt)
+			if err != nil {
+				return nil, nil, err
+			}
+			optComp := seedwriter.OptionsComponent{Name: compName}
+			// Add the component to the matching snap, or create
+			// new otherwise (that is, assume that
+			// --comp <snap>+<comp> implicitly pulls also the snap)
+			snapFound := false
+			for _, optSn := range optSnaps {
+				if optSn.Name == compName {
+					optSn.Components = append(optSn.Components, optComp)
+					snapFound = true
+					break
+				}
+			}
+			if !snapFound {
+				optSnaps = append(optSnaps, &seedwriter.OptionsSnap{
+					Name:       snapName,
+					Components: []seedwriter.OptionsComponent{optComp},
+				})
+			}
+		}
+	}
+	return optSnaps, localComps, nil
 }
 
 func selectAssertionMaxFormats(tsto *tooling.ToolingStore, model *asserts.Model, sysSn, kernSn *seedwriter.SeedSnap) error {
@@ -846,7 +890,11 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	if err := s.start(optionSnaps(opts)); err != nil {
+	snapOpts, _, err := optionSnaps(opts)
+	if err != nil {
+		return err
+	}
+	if err := s.start(snapOpts); err != nil {
 		return err
 	}
 
