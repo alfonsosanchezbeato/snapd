@@ -293,9 +293,6 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			return "", err
 		}
 	}
-	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
-		return "", err
-	}
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
 		fromDB := func(ref *asserts.Ref) (asserts.Assertion, error) {
@@ -318,6 +315,10 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 	sf := seedwriter.MakeSeedAssertionFetcher(newFetcher)
 	if err := w.Start(db, sf); err != nil {
+		return "", err
+	}
+
+	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
 		return "", err
 	}
 	// past this point the system directory is present

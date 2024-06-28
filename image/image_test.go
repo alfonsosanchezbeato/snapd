@@ -2092,26 +2092,42 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 }
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
-	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
-	c.Assert(err, IsNil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
 
-	err = image.Prepare(&image.Options{
-		ModelFile: fn,
-		Snaps:     []string{"foo_instance"},
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
 	})
+
+	opts := &image.Options{
+		Snaps: []string{"foo_instance"},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `cannot use snap "foo_instance", parallel snap instances are unsupported`)
 }
 
 func (s *imageSuite) TestNoInvalidSnapNames(c *C) {
-	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
-	c.Assert(err, IsNil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
 
-	err = image.Prepare(&image.Options{
-		ModelFile: fn,
-		Snaps:     []string{"foo.invalid.name"},
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name":   "my display name",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
 	})
+
+	opts := &image.Options{
+		Snaps: []string{"foo.invalid.name"},
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
 	c.Assert(err, ErrorMatches, `invalid snap name: "foo.invalid.name"`)
 }
 

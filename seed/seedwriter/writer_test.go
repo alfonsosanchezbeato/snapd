@@ -311,10 +311,10 @@ func (s *writerSuite) TestSnapsToDownloadCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -341,10 +341,10 @@ func (s *writerSuite) TestSnapsToDownloadOptionTrack(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "track/edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -372,10 +372,10 @@ func (s *writerSuite) TestDownloadedCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -419,10 +419,10 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -469,10 +469,10 @@ func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc-kernel", Channel: "18.1"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc-kernel", Channel: "18.1"}})
 	c.Assert(err, IsNil)
 
 	_, err = w.SnapsToDownload()
@@ -500,10 +500,10 @@ func (s *writerSuite) TestSnapsToDownloadDefaultChannel(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -527,12 +527,10 @@ func (s *writerSuite) upToDownloaded(c *C, model *asserts.Model, fill func(c *C,
 	w, err = seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	if len(optSnaps) != 0 {
-		err := w.SetOptionsSnaps(optSnaps)
-		c.Assert(err, IsNil)
-	}
-
 	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	err = w.SetOptionsSnaps(optSnaps)
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -604,7 +602,7 @@ func (s *writerSuite) TestOutOfOrder(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 	_, err = w.Downloaded(nil)
-	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected SnapToDownload|LocalSnaps to be invoked on it at this point, not Downloaded")
+	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer expected Start|SetOptionsSnaps to be invoked on it at this point, not Downloaded")
 
 	_, err = w.BootSnaps()
 	c.Check(err, ErrorMatches, "internal error: seedwriter.Writer cannot query seed snaps before Downloaded signaled complete")
@@ -628,10 +626,10 @@ func (s *writerSuite) TestOutOfOrderWithLocalSnaps(c *C) {
 
 	requiredFn := s.makeLocalSnap(c, "required")
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
 	c.Assert(err, IsNil)
 
 	_, err = w.SnapsToDownload()
@@ -835,10 +833,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -950,10 +948,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -1109,15 +1107,15 @@ func (s *writerSuite) TestLocalSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Path: contConsumerFn},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -1150,6 +1148,9 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Name: "pc-kernel", Channel: "candidate"},
@@ -1158,9 +1159,6 @@ func (s *writerSuite) TestLocalSnapsCore18FullUse(c *C) {
 		{Path: s.AssertedSnap("cont-producer")},
 		{Path: contConsumerFn},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -1293,10 +1291,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaDefaultTrackCore18(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required18", Channel: "candidate"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required18", Channel: "candidate"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -1361,6 +1359,8 @@ func (s *writerSuite) TestSetRedirectChannelErrors(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
+
 	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 5)
@@ -1392,14 +1392,14 @@ func (s *writerSuite) TestInfoDerivedInfosNotSet(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	_, err = w.LocalSnaps()
@@ -1426,15 +1426,15 @@ func (s *writerSuite) TestInfoDerivedRepeatedLocalSnap(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 		{Path: pcFn, Channel: "edge"},
 		{Path: pcKernelFn},
 		{Path: core18Fn},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -1463,12 +1463,15 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 		"required-snaps": []interface{}{"cont-consumer", "cont-producer"},
 	})
 
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	core18Fn := s.makeLocalSnap(c, "core18")
 	pcKernelFn := s.makeLocalSnap(c, "pc-kernel=18")
 	pcFn := s.makeLocalSnap(c, "pc=18")
-
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
 
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
@@ -1476,9 +1479,6 @@ func (s *writerSuite) TestInfoDerivedInconsistentChannel(c *C) {
 		{Path: pcKernelFn},
 		{Name: "pc", Channel: "beta"},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -1511,12 +1511,12 @@ func (s *writerSuite) TestSetRedirectChannelLocalError(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
 	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
 		{Path: core18Fn},
 	})
-	c.Assert(err, IsNil)
-
-	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -1957,10 +1957,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required", Channel: "beta"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "required", Channel: "beta"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -2082,10 +2082,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -2265,6 +2265,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
+
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
 
 	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
@@ -2797,6 +2799,8 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
+
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 	c.Assert(localSnaps, HasLen, 0)
@@ -2856,14 +2860,14 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 		w, err := seedwriter.New(model, s.opts)
 		c.Assert(err, IsNil)
 
+		err = w.Start(s.db, s.rf)
+		c.Assert(err, IsNil)
+
 		err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{t.optSnap})
 		if err != nil {
 			c.Check(err, ErrorMatches, expectedErr)
 			continue
 		}
-
-		err = w.Start(s.db, s.rf)
-		c.Assert(err, IsNil)
 
 		if t.optSnap.Path != "" {
 			localSnaps, err := w.LocalSnaps()
@@ -2971,10 +2975,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: requiredFn}})
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -3099,10 +3103,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ChannelOverrides(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -3204,6 +3208,8 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ModelOverrideSnapd(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
+
 	snaps, err := w.SnapsToDownload()
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 4)
@@ -3304,10 +3310,10 @@ func (s *writerSuite) TestSnapsToDownloadCore20OptionalSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "optional20-b"}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "optional20-b"}})
 	c.Assert(err, IsNil)
 
 	snaps, err := w.SnapsToDownload()
@@ -3352,10 +3358,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20ExtraSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "cont-producer", Channel: "edge"}, {Name: "core18"}, {Path: contConsumerFn}})
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -3524,10 +3530,10 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20LocalAssertedSnaps(c *C) {
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc"), Channel: "edge"}, {Path: s.AssertedSnap("required20")}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc"), Channel: "edge"}, {Path: s.AssertedSnap("required20")}})
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -3647,11 +3653,11 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 
-	// use a local asserted snap with signed, which is supported
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc")}})
+	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
-	err = w.Start(s.db, s.rf)
+	// use a local asserted snap with signed, which is supported
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Path: s.AssertedSnap("pc")}})
 	c.Assert(err, IsNil)
 
 	localSnaps, err := w.LocalSnaps()
@@ -3946,6 +3952,8 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedInvalid(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
+
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 	c.Assert(localSnaps, HasLen, 0)
@@ -4048,6 +4056,8 @@ func (s *writerSuite) TestValidateValidationSetsCore20EnforcedHappy(c *C) {
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
+
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
@@ -4157,6 +4167,8 @@ func (s *writerSuite) TestValidateValidationSetsCore18EnforcedHappy(c *C) {
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
+
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
@@ -4302,6 +4314,8 @@ func (s *writerSuite) TestManifestCorrectlyProduced(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
+
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
 	c.Assert(localSnaps, HasLen, 0)
@@ -4394,6 +4408,8 @@ func (s *writerSuite) TestManifestPreProvidedFailsMarkSeeding(c *C) {
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
+
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)
@@ -4572,6 +4588,8 @@ func (s *writerSuite) TestValidateValidationSetsManifestsCorrectly(c *C) {
 
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
+
+	c.Assert(w.SetOptionsSnaps(nil), IsNil)
 
 	localSnaps, err := w.LocalSnaps()
 	c.Assert(err, IsNil)

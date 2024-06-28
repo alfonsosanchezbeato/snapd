@@ -300,7 +300,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 		model: model,
 		opts:  opts,
 
-		expectedStep: setOptionsSnapsStep,
+		expectedStep: startStep,
 
 		byNameOptSnaps:  naming.NewSnapSet(nil),
 		byRefLocalSnaps: naming.NewSnapSet(nil),
@@ -342,8 +342,8 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 type writerStep int
 
 const (
-	setOptionsSnapsStep = iota
-	startStep
+	startStep = iota
+	setOptionsSnapsStep
 	localSnapsStep
 	infoDerivedStep
 	snapsToDownloadStep
@@ -376,8 +376,8 @@ func (w *Writer) checkStep(thisStep writerStep) error {
 		// exceptions
 		alright := false
 		switch thisStep {
-		case startStep:
-			if w.expectedStep == setOptionsSnapsStep {
+		case setOptionsSnapsStep:
+			if w.expectedStep == startStep {
 				alright = true
 			}
 		case snapsToDownloadStep:

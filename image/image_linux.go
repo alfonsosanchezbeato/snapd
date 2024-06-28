@@ -407,11 +407,7 @@ func (s *imageSeeder) setModesDirs() error {
 	return nil
 }
 
-func (s *imageSeeder) start(optSnaps []*seedwriter.OptionsSnap) error {
-	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
-		return err
-	}
-
+func (s *imageSeeder) start() error {
 	// TODO: developer database in home or use snapd (but need
 	// a bit more API there, potential issues when crossing stores/series)
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -890,11 +886,15 @@ var setupSeed = func(tsto *tooling.ToolingStore, model *asserts.Model, opts *Opt
 		return err
 	}
 
-	snapOpts, _, err := optionSnaps(opts)
+	if err := s.start(); err != nil {
+		return err
+	}
+
+	optSnaps, _, err := optionSnaps(opts)
 	if err != nil {
 		return err
 	}
-	if err := s.start(snapOpts); err != nil {
+	if err := s.w.SetOptionsSnaps(optSnaps); err != nil {
 		return err
 	}
 
