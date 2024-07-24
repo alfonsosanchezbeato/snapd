@@ -423,6 +423,12 @@ func (snapst *SnapState) IsCurrentComponentRevInAnyNonCurrentSeq(cref naming.Com
 	return snapst.Sequence.IsComponentRevInRefSeqPtInAnyOtherSeqPt(cref, currentIdx)
 }
 
+// IsComponentInSeqPtWithOtherSnapRevision tells us if the component revision specified
+// is used in a sequence point that does not contain the snap revision snapRev.
+func (snapst *SnapState) IsComponentInSeqPtWithOtherSnapRevision(csi *snap.ComponentSideInfo, snapRev snap.Revision) bool {
+	return snapst.Sequence.IsComponentInSeqPtWithOtherSnapRevision(csi, snapRev)
+}
+
 // LocalRevision returns the "latest" local revision. Local revisions
 // start at -1 and are counted down.
 func (snapst *SnapState) LocalRevision() snap.Revision {

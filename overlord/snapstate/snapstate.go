@@ -3541,11 +3541,14 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 	tasks = append(tasks, clearData)
 
 	// Discard components first
+	// doDiscardSnap discards all sequence points that have revision
+	// XXX should it ask for all cinfos in any sequence point for this revision?
+	// Should we remove per "full" revision at all?
 	cinfos, err := snapst.ComponentInfosForRevision(revision)
 	if err != nil {
 		return nil, err
 	}
-	discardCompTasks := make([]*state.Task, len(cinfos))
+	lastCompTasks := make([]*state.Task, len(cinfos))
 	for i, cinfo := range cinfos {
 		compsup := ComponentSetup{
 			CompSideInfo: &cinfo.ComponentSideInfo,
@@ -3561,23 +3564,30 @@ func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID str
 		unlinkComp.Set("snap-setup-task", clearData.ID())
 		unlinkComp.Set("component-setup", compsup)
 		unlinkComp.WaitFor(clearData)
+		tasks = append(tasks, unlinkComp)
 
-		discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
-			"Discard revision for component %q"),
-			compsup.CompSideInfo.Component))
-		discardComp.Set("snap-setup-task", clearData.ID())
-		discardComp.Set("component-setup-task", unlinkComp.ID())
-		discardComp.WaitFor(unlinkComp)
-		discardCompTasks[i] = discardComp
-
-		tasks = append(tasks, unlinkComp, discardComp)
+		// Only discard if not used by other revisions
+		// XXX this won't work as it will never remove any component (the
+		// state has not been updated yet)
+		if !snapst.IsComponentInSeqPtWithOtherSnapRevision(&cinfo.ComponentSideInfo, revision) {
+			discardComp := st.NewTask("discard-component", fmt.Sprintf(i18n.G(
+				"Discard revision for component %q"),
+				compsup.CompSideInfo.Component))
+			discardComp.Set("snap-setup-task", clearData.ID())
+			discardComp.Set("component-setup-task", unlinkComp.ID())
+			discardComp.WaitFor(unlinkComp)
+			lastCompTasks[i] = discardComp
+			tasks = append(tasks, discardComp)
+		} else {
+			lastCompTasks[i] = unlinkComp
+		}
 	}
 
 	discardSnap := st.NewTask("discard-snap",
 		fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
 	discardSnap.Set("snap-setup-task", clearData.ID())
-	if len(discardCompTasks) > 0 {
-		discardSnap.WaitAll(state.NewTaskSet(discardCompTasks...))
+	if len(lastCompTasks) > 0 {
+		discardSnap.WaitAll(state.NewTaskSet(lastCompTasks...))
 	} else {
 		discardSnap.WaitFor(clearData)
 	}

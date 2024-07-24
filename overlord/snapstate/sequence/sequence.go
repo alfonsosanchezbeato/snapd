@@ -255,6 +255,26 @@ func (snapSeq *SnapSequence) IsComponentRevInRefSeqPtInAnyOtherSeqPt(cref naming
 	return false
 }
 
+// IsComponentInSeqPtWithOtherSnapRevision tells us if the component revision specified
+// is used in a sequence point that does not contain the snap revision snapRev.
+func (snapSeq *SnapSequence) IsComponentInSeqPtWithOtherSnapRevision(csi *snap.ComponentSideInfo, snapRev snap.Revision) bool {
+	// Find if the component revision is used elsewhere
+	for _, seqPt := range snapSeq.Revisions {
+		if seqPt.Snap.Revision == snapRev {
+			continue
+		}
+		compInSeqPt := seqPt.FindComponent(csi.Component)
+		if compInSeqPt == nil {
+			continue
+		}
+		if compInSeqPt.SideInfo.Revision == csi.Revision {
+			return true
+		}
+	}
+
+	return false
+}
+
 // MinimumLocalRevision returns the the smallest local revision for the
 // sequence. Local revisions start at -1 and are counted down. 0 will be
 // returned if no local revision for the snap is found.
