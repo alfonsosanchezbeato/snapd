@@ -453,9 +453,9 @@ func (s *sideloadSuite) sideloadComponentCheck(c *check.C, content string,
 	})()
 
 	defer daemon.MockSnapstateInstallComponentPath(func(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
-		path string, flags snapstate.Flags) (*state.TaskSet, error) {
+		path string, opts snapstate.Options) (*state.TaskSet, error) {
 		c.Check(csi, check.DeepEquals, expectedCompSideInfo)
-		c.Check(flags, check.DeepEquals, expectedFlags)
+		c.Check(opts.Flags, check.DeepEquals, expectedFlags)
 		c.Check(path, testutil.FileEquals, "xyzzy")
 
 		installQueue = append(installQueue, csi.Component.String()+"::"+path)
@@ -941,7 +941,7 @@ func (s *sideloadSuite) TestSideloadCleanUpUnusedTempSnapFiles(c *check.C) {
 func (s *sideloadSuite) TestSideloadManySnaps(c *check.C) {
 	d := s.daemonWithFakeSnapManager(c)
 	s.markSeeded(d)
-	expectedFlags := snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps}
+	expectedFlags := snapstate.Flags{RemoveSnapPath: true, DevMode: true, Transaction: client.TransactionAllSnaps, Lane: 1}
 
 	restore := daemon.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, g snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
 		goal := g.(*pathUpdateGoalRecorder)

@@ -329,7 +329,9 @@ func sideloadTaskSets(ctx context.Context, st *state.State, sideload *sideloaded
 			return nil, BadRequest("cannot retrieve information for %q: %v", snapName, err)
 		}
 
-		ts, err := snapstateInstallComponentPath(st, comp.sideInfo, snapInfo, comp.tmpPath, flags)
+		ts, err := snapstateInstallComponentPath(st, comp.sideInfo, snapInfo, comp.tmpPath, snapstate.Options{
+			Flags: flags,
+		})
 		if err != nil {
 			return nil, errToResponse(err, nil, InternalError, "cannot install component %q for snap %q: %v", comp.sideInfo.Component, snapName, err)
 		}
@@ -338,14 +340,12 @@ func sideloadTaskSets(ctx context.Context, st *state.State, sideload *sideloaded
 
 	// handle everything else
 	var pathSnaps []snapstate.PathSnap
-	var paths []string
 	for _, sn := range sideload.snaps {
 		comps := make(map[*snap.ComponentSideInfo]string, len(sn.components))
 		for _, ci := range sn.components {
 			comps[ci.sideInfo] = ci.tmpPath
 		}
 
-		paths = append(paths, sn.origPath)
 		pathSnaps = append(pathSnaps, snapstate.PathSnap{
 			Path:       sn.tmpPath,
 			SideInfo:   sn.sideInfo,
@@ -539,7 +539,9 @@ func sideloadSnap(_ context.Context, st *state.State, snapFile *uploadedContaine
 		contType = "component"
 		message = fmt.Sprintf("%q component for %q snap",
 			compInfo.Component.ComponentName, instanceName)
-		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, flags.Flags)
+		tset, err = snapstateInstallComponentPath(st, snap.NewComponentSideInfo(compInfo.Component, snap.Revision{}), snapInfo, snapFile.tmpPath, snapstate.Options{
+			Flags: flags.Flags,
+		})
 	}
 	if err != nil {
 		return nil, errToResponse(err, []string{sideInfo.RealName}, InternalError, "cannot install %s file: %v", contType)
