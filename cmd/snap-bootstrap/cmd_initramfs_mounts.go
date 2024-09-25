@@ -1710,11 +1710,29 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 
 	for _, essentialSnap := range essSnaps {
 		systemSnaps[essentialSnap.EssentialType] = essentialSnap
-		dir := snapTypeToMountDir[essentialSnap.EssentialType]
-		// TODO:UC20: we need to cross-check the kernel path with snapd_recovery_kernel used by grub
-		if err := doSystemdMount(essentialSnap.Path, filepath.Join(boot.InitramfsRunMntDir, dir), mountReadOnlyOptions); err != nil {
-			return nil, nil, err
+		if essentialSnap.EssentialType == snap.TypeBase {
+			// Create unit to mount directly to /sysroot
+			what := essentialSnap.Path
+			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+				return nil, nil, fmt.Errorf(
+					"cannot write sysroot.mount (what: %s): %v", what, err)
+			}
+		} else {
+			dir := snapTypeToMountDir[essentialSnap.EssentialType]
+			// TODO:UC20: we need to cross-check the kernel path
+			// with snapd_recovery_kernel used by grub
+			if err := doSystemdMount(essentialSnap.Path,
+				filepath.Join(boot.InitramfsRunMntDir, dir),
+				mountReadOnlyOptions); err != nil {
+				return nil, nil, err
+			}
 		}
+	}
+
+	// Do a daemon reload so systemd knows about the new mount units
+	sysd := systemd.New(systemd.SystemMode, nil)
+	if err := sysd.DaemonReload(); err != nil {
+		return nil, nil, err
 	}
 
 	return model, systemSnaps, nil
