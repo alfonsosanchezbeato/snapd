@@ -636,13 +636,6 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(i18n.G("Automatically connect eligible plugs and slots of snap %q"), snapsup.InstanceName()))
 	addTask(autoConnect)
 
-	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
-		// This task needs to run after we're back and running the new
-		// kernel after a reboot was requested in link-snap handler.
-		setupKernel := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
-		addTask(setupKernel)
-	}
-
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(i18n.G("Set automatic aliases for snap %q"), snapsup.InstanceName()))
 	addTask(setAutoAliases)
@@ -684,9 +677,20 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 
 	// check if either the snap currently has kernel module components or any of
 	// the new components are kernel module components
+	var setupKmodComponents, afterSetupKmodComps *state.Task
 	if requiresKmodSetup(snapst, compsups) {
-		setupKmodComponents := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
+		setupKmodComponents = st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(i18n.G("Prepare kernel-modules components for %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(setupKmodComponents)
+	}
+
+	if snapsup.Type == snap.TypeKernel && NeedsKernelSetup(deviceCtx.Model()) {
+		// This task needs to run after we're back and running the new
+		// kernel after a reboot was requested in link-snap handler.
+		discardOldKernelSetup := st.NewTask("discard-old-kernel-snap-setup",
+			fmt.Sprintf(i18n.G("Discard previous kernel driver tree for %q%s"), snapsup.InstanceName(), revisionStr))
+		// Note that if requiresKmodSetup is true, NeedsKernelSetup must be too
+		afterSetupKmodComps = discardOldKernelSetup
+		addTask(discardOldKernelSetup)
 	}
 
 	if snapsup.QuotaGroupName != "" {
@@ -782,10 +786,21 @@ func doInstall(st *state.State, snapst *SnapState, snapsup SnapSetup, compsups [
 	installSet := state.NewTaskSet(tasks...)
 	installSet.MarkEdge(prereq, BeginEdge)
 	installSet.MarkEdge(setupAliases, BeforeHooksEdge)
-	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge)
-	installSet.MarkEdge(linkSnap, MaybeRebootEdge)
-	installSet.MarkEdge(autoConnect, MaybeRebootWaitEdge)
-	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge)
+	installSet.MarkEdge(setupSecurity, BeforeMaybeRebootEdge) // just for testing
+	var rebootTask, waitRebootTask *state.Task
+	if setupKmodComponents == nil {
+		rebootTask = linkSnap
+		waitRebootTask = autoConnect
+	} else {
+		logger.Noticef("reboot will happen after set-up of kernel-modules")
+		rebootTask = setupKmodComponents
+		waitRebootTask = afterSetupKmodComps
+	}
+	installSet.MarkEdge(rebootTask, MaybeRebootEdge)
+	installSet.MarkEdge(waitRebootTask, MaybeRebootWaitEdge)
+	waitRebootTask.Set("is-reboot-edge", true)
+
+	installSet.MarkEdge(setAutoAliases, AfterMaybeRebootWaitEdge) // not needed?
 	if installHook != nil {
 		installSet.MarkEdge(installHook, HooksEdge)
 	}
@@ -873,7 +888,7 @@ func splitComponentTasksForInstall(
 }
 
 func NeedsKernelSetup(model *asserts.Model) bool {
-	// Checkinf if it has modeenv - it must be UC20+ or hybrid
+	// Checking if it has modeenv - it must be UC20+ or hybrid
 	if model.Grade() == asserts.ModelGradeUnset {
 		return false
 	}

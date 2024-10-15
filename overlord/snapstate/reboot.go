@@ -126,8 +126,9 @@ func findUnlinkTask(ts *state.TaskSet) *state.Task {
 	return nil
 }
 
-// setDefaultRestartBoundaries marks edge MaybeRebootEdge (Do) and task "unlink-snap"/"unlink-current-snap" (Undo)
-// as restart boundaries to maintain the old restart logic. This means that a restart must be performed after
+// setDefaultRestartBoundaries marks edge MaybeRebootEdge (Do) and task
+// "unlink-snap"/"unlink-current-snap" (Undo) as restart boundaries to maintain
+// the old restart logic. This means that a restart must be performed after
 // each of those tasks in order for the change to continue.
 func setDefaultRestartBoundaries(ts *state.TaskSet) {
 	linkSnap := ts.MaybeEdge(MaybeRebootEdge)

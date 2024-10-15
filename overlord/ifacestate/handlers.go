@@ -1365,8 +1365,17 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
-	if err := snapstateFinishRestart(task, snapsup); err != nil {
+	isRebootEdge := false
+	if err := task.Get("is-reboot-edge", &isRebootEdge); err != nil &&
+		!errors.Is(err, state.ErrNoState) {
 		return err
+	}
+
+	if isRebootEdge {
+		logger.Debugf("finish restart from doAutoConnect")
+		if err := snapstateFinishRestart(task, snapsup); err != nil {
+			return err
+		}
 	}
 
 	snapName := snapsup.InstanceName()
