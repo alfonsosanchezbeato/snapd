@@ -497,7 +497,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
-func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic bool, fromInitrd bool) {
+func (s *makeBootable20Suite) testMakeSystemRunnable20(c *C, standalone, factoryReset, classic, fromInitrd, withKComps bool) {
 	restore := release.MockOnClassic(classic)
 	defer restore()
 	dirs.SetRootDir(dirs.GlobalRootDir)
@@ -588,6 +588,16 @@ version: 5.0
 	gadgetInSeed := filepath.Join(seedSnapsDirs, gadgetInfo.Filename())
 	err = os.Symlink(gadgetFn, gadgetInSeed)
 	c.Assert(err, IsNil)
+	kModsComps := []boot.BootableKModsComponents{}
+	if withKComps {
+		for _, compName := range []string{"kcomp1", "kcomp2"} {
+			compFn := snaptest.MakeTestComponentWithFiles(c, compName,
+				"component: pc-kernel+kcomp1\ntype: kernel-modules\n", nil)
+			cpi := snap.MinimalComponentContainerPlaceInfo(compName,
+				snap.R(33), "pc-kernel")
+			kModsComps = append(kModsComps, boot.BootableKModsComponents{cpi, compFn})
+		}
+	}
 	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
 type: kernel
 version: 5.0
@@ -610,6 +620,7 @@ version: 5.0
 		Kernel:              kernelInfo,
 		Recovery:            false,
 		UnpackedGadgetDir:   unpackedGadgetDir,
+		KernelMods:          kModsComps,
 	}
 
 	// set up observer state
@@ -826,6 +837,13 @@ version: 5.0
 	c.Check(pcKernelSnap, testutil.FilePresent)
 	c.Check(osutil.IsSymlink(core20Snap), Equals, false)
 	c.Check(osutil.IsSymlink(pcKernelSnap), Equals, false)
+	if withKComps {
+		for _, compName := range []string{"kcomp1", "kcomp2"} {
+			comp := filepath.Join(dirs.SnapBlobDirUnder(installHostWritableDir),
+				"pc-kernel+"+compName+"_33.comp")
+			c.Check(comp, testutil.FilePresent)
+		}
+	}
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
@@ -928,7 +946,17 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = false
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKComps(c *C) {
+	const standalone = false
+	const factoryReset = false
+	const classic = false
+	const fromInitrd = false
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
@@ -936,7 +964,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
 	const factoryReset = false
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
@@ -944,7 +973,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryReset(c *C) {
 	const factoryReset = true
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C) {
@@ -952,7 +982,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C
 	const factoryReset = true
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
@@ -960,7 +991,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = true
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeRunnableSystem20ModeInstallBootConfigErr(c *C) {
@@ -2280,7 +2312,8 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
 	const factoryReset = false
 	const classic = false
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
@@ -2288,7 +2321,8 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic
 	const factoryReset = false
 	const classic = true
 	const fromInitrd = false
-	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd)
+	const withKComps = true
+	s.testMakeSystemRunnable20(c, standalone, factoryReset, classic, fromInitrd, withKComps)
 }
 
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {
