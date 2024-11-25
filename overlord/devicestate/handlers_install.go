@@ -301,37 +301,21 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 
-	// Find out installed components in the temporary system, which will be
-	// the same as those snapd will install in the final system.
-	kModComps, err := kernelModulesComps(st, kernelInfo.SnapName())
+	st.Unlock()
+	// Load seed to find out kernel-modules components in run mode
+	systemAndSnaps, mntPtForType, mntPtForComps, unmount,
+		err := m.loadAndMountSystemLabelSnaps(m.seedLabel, []snap.Type{snap.TypeKernel})
+	st.Lock()
+
 	if err != nil {
 		return err
 	}
-	bootKMods := make([]boot.BootableKModsComponents, 0, len(kModComps))
-	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(kModComps))
-	for _, compInfo := range kModComps {
-		cpi := snap.MinimalComponentContainerPlaceInfo(compInfo.Component.ComponentName,
-			compInfo.Revision, kernelInfo.SnapName())
-		ci := install.KernelModulesComponentInfo{
-			Name:       compInfo.Component.ComponentName,
-			Revision:   compInfo.Revision,
-			MountPoint: cpi.MountDir(),
-		}
-		modulesComps = append(modulesComps, ci)
-		bootKMods = append(bootKMods, boot.BootableKModsComponents{
-			CompPlaceInfo: cpi,
-			CompPath:      cpi.MountFile(),
-		})
-	}
+	defer unmount()
 
-	kSnapInfo := &install.KernelSnapInfo{
-		Name:             kernelInfo.SnapName(),
-		MountPoint:       kernelDir,
-		Revision:         kernelInfo.Revision,
-		IsCore:           !deviceCtx.Classic(),
-		ModulesComps:     modulesComps,
-		NeedsDriversTree: snapstate.NeedsKernelSetup(deviceCtx.Model()),
-	}
+	kernMntPoint := mntPtForType[snap.TypeKernel]
+	isCore := !deviceCtx.Classic()
+	kSnapInfo, bootKMods := kModsInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
+
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
@@ -935,9 +919,7 @@ func mountSeedContainer(filePath, subdir string) (mountpoint string, unmount fun
 		nil
 }
 
-func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (*systemAndEssentialSnaps, map[snap.Type]string, map[string]string, func(), error) {
-
-	essentialTypes := []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget}
+func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string, essentialTypes []snap.Type) (*systemAndEssentialSnaps, map[snap.Type]string, map[string]string, func(), error) {
 	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(systemLabel, essentialTypes)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -963,7 +945,13 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (*syste
 
 	seedSnaps := systemAndSnaps.SeedSnapsByType
 
-	for _, seedSn := range []*seed.Snap{seedSnaps[snap.TypeGadget], seedSnaps[snap.TypeKernel]} {
+	// We might need mount for kernel and gadget only
+	for _, typ := range essentialTypes {
+		if typ != snap.TypeGadget && typ != snap.TypeKernel {
+			continue
+		}
+
+		seedSn := seedSnaps[typ]
 		mntPt, unmountSnap, err := mountSeedContainer(seedSn.Path, string(seedSn.EssentialType))
 		if err != nil {
 			unmount()
@@ -990,6 +978,42 @@ func (m *DeviceManager) loadAndMountSystemLabelSnaps(systemLabel string) (*syste
 	}
 
 	return systemAndSnaps, mntPtForType, mntPtForComp, unmount, nil
+}
+
+func kModsInfo(systemAndSnaps *systemAndEssentialSnaps, kernMntPoint string, mntPtForComps map[string]string, isCore bool) (*install.KernelSnapInfo, []boot.BootableKModsComponents) {
+	kernInfo := systemAndSnaps.InfosByType[snap.TypeKernel]
+
+	// Find out kernel-modules components in the seed
+	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
+	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
+	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(compSeedInfos))
+	for _, compSeedInfo := range compSeedInfos {
+		ci := compSeedInfo.CompInfo
+		if ci.Type == snap.KernelModulesComponent {
+			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
+				ci.Revision, kernInfo.SnapName())
+			modulesComps = append(modulesComps, install.KernelModulesComponentInfo{
+				Name:       ci.Component.ComponentName,
+				Revision:   ci.Revision,
+				MountPoint: mntPtForComps[ci.FullName()],
+			})
+			bootKMods = append(bootKMods, boot.BootableKModsComponents{
+				CompPlaceInfo: cpi,
+				CompPath:      compSeedInfo.CompSeed.Path,
+			})
+		}
+	}
+
+	kSnapInfo := &install.KernelSnapInfo{
+		Name:             kernInfo.SnapName(),
+		Revision:         kernInfo.Revision,
+		MountPoint:       kernMntPoint,
+		IsCore:           isCore,
+		ModulesComps:     modulesComps,
+		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
+	}
+
+	return kSnapInfo, bootKMods
 }
 
 // doInstallFinish performs the finish step of the install. It will
@@ -1028,7 +1052,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	systemAndSnaps, mntPtForType, mntPtForComps, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	systemAndSnaps, mntPtForType, mntPtForComps, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel,
+		[]snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	st.Lock()
 	if err != nil {
 		return err
@@ -1097,42 +1122,16 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 	snapInfos := systemAndSnaps.InfosByType
 	snapSeeds := systemAndSnaps.SeedSnapsByType
-	kernInfo := snapInfos[snap.TypeKernel]
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return fmt.Errorf("cannot get device context: %v", err)
 	}
 
 	// Find out kernel-modules components in the seed
-	compSeedInfos := systemAndSnaps.CompsByType[snap.TypeKernel]
-	bootKMods := make([]boot.BootableKModsComponents, 0, len(compSeedInfos))
-	modulesComps := make([]install.KernelModulesComponentInfo, 0, len(compSeedInfos))
-	for _, compSeedInfo := range compSeedInfos {
-		ci := compSeedInfo.CompInfo
-		if ci.Type == snap.KernelModulesComponent {
-			cpi := snap.MinimalComponentContainerPlaceInfo(ci.Component.ComponentName,
-				ci.Revision, kernInfo.SnapName())
-			modulesComps = append(modulesComps, install.KernelModulesComponentInfo{
-				Name:       ci.Component.ComponentName,
-				Revision:   ci.Revision,
-				MountPoint: mntPtForComps[ci.FullName()],
-			})
-			bootKMods = append(bootKMods, boot.BootableKModsComponents{
-				CompPlaceInfo: cpi,
-				CompPath:      compSeedInfo.CompSeed.Path,
-			})
-		}
-	}
+	isCore := !deviceCtx.Classic()
+	kSnapInfo, bootKMods := kModsInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
 
 	logger.Debugf("writing content to partitions")
-	kSnapInfo := &install.KernelSnapInfo{
-		Name:             kernInfo.SnapName(),
-		Revision:         kernInfo.Revision,
-		MountPoint:       kernMntPoint,
-		IsCore:           !deviceCtx.Classic(),
-		ModulesComps:     modulesComps,
-		NeedsDriversTree: snapstate.NeedsKernelSetup(systemAndSnaps.Model),
-	}
 	timings.Run(perfTimings, "install-content", "Writing content to partitions", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
@@ -1274,7 +1273,8 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 	logger.Debugf("install-setup-storage-encryption for %q on %v", systemLabel, onVolumes)
 
 	st.Unlock()
-	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel)
+	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnaps(systemLabel,
+		[]snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	st.Lock()
 	if err != nil {
 		return err
