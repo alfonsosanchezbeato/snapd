@@ -1937,7 +1937,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	}
 
 	s.state.Lock()
-	s.makeMockInstalledPcKernelAndGadget(c, "", "", core20SnapID)
+	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	s.state.Unlock()
 
 	var saveKey keys.EncryptionKey
@@ -1974,7 +1974,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
-		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
+		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core24_2.snap")
 		c.Check(bootWith.RecoverySystemLabel, Equals, "20191218")
 		c.Check(bootWith.RecoverySystemDir, Equals, "")
 		c.Check(bootWith.UnpackedGadgetDir, Equals, filepath.Join(dirs.SnapMountDir, "pc/1"))
@@ -2128,8 +2128,20 @@ func makeDeviceSerialAssertionInDir(c *C, where string, storeStack *assertstest.
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetNoEncryptionHappyFull(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2200,8 +2212,20 @@ echo "mock output of: $(basename "$0") $*"
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyFull(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2263,8 +2287,20 @@ echo "mock output of: $(basename "$0") $*"
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyAfterReboot(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// for debug timinigs
@@ -2327,8 +2363,20 @@ echo "mock output of: $(basename "$0") $*"
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -2362,8 +2410,20 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialsWithoutKey(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -2387,8 +2447,20 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSerials(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetNoSave(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// no ubuntu-save directory, what makes the whole process behave like reinstall
@@ -2459,8 +2531,20 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetPreviouslyUnencrypted(c *C) 
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetSerialManyOneValid(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save
@@ -2521,6 +2605,18 @@ func (s *deviceMgrInstallModeSuite) findFactoryReset() *state.Change {
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -2547,8 +2643,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 	c.Assert(m.WriteTo(""), IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModel(c, "dangerous")
-	s.makeMockInstalledPcKernelAndGadget(c, "", "", core20SnapID)
+	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.makeMockInstalledPcKernelAndGadget(c, "", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 	s.state.Unlock()
 
@@ -2582,6 +2678,18 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetExpectedTasks(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -2618,8 +2726,8 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 	c.Assert(m.WriteTo(""), IsNil)
 
 	s.state.Lock()
-	s.makeMockInstallModel(c, "dangerous")
-	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "", core20SnapID)
+	s.makeMockInstallModelExtras(c, "dangerous", rawModel)
+	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "", core24SnapID)
 	devicestate.SetSystemMode(s.mgr, "factory-reset")
 	s.state.Unlock()
 
@@ -2671,8 +2779,20 @@ func (s *deviceMgrInstallModeSuite) TestFactoryResetInstallDeviceHook(c *C) {
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetRunsPrepareRunSystemData(c *C) {
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:       false,
+		hasSystemSeed:   true,
+		hasPartial:      false,
+		preseedArtifact: false,
+		types:           []snap.Type{snap.TypeKernel},
+	}
+	_, _, _, _, _, rawModel := s.mockSystemSeedWithLabel(c, "20191218", seedCopyFn, seedOpts)
+
 	s.state.Lock()
-	model := s.makeMockInstallModel(c, "dangerous")
+	model := s.makeMockInstallModelExtras(c, "dangerous", rawModel)
 	s.state.Unlock()
 
 	// pretend snap-bootstrap mounted ubuntu-save

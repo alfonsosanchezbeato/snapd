@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
@@ -97,7 +96,6 @@ func unpackSnap(snapBlob, targetDir string) error {
 
 func (s *deviceMgrInstallSuite) setupSystemSeed(c *C, sysLabel, gadgetYaml string, isClassic bool, kModsRevs map[string]snap.Revision) (*asserts.Model, map[string]interface{}) {
 	s.StoreSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.AddCleanup(sysdb.InjectTrusted(s.StoreSigning.Trusted))
 
 	s.Brands = assertstest.NewSigningAccounts(s.StoreSigning)
 	s.Brands.Register("my-brand", brandPrivKey, nil)
