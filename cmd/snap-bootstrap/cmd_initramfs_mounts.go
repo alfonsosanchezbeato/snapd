@@ -1937,23 +1937,15 @@ func generateMountsCommonInstallRecoverStart(mst *initramfsMountsState) (model *
 			// restrict this to UC24+ for the moment, until we backport
 			// necessary changes to the UC20/22 initramfs.
 			what := essentialSnap.Path
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
+			if err := doSystemdMount(what, "/sysroot", &systemdMountOptions{}); err != nil {
 				return nil, nil, fmt.Errorf(
-					"cannot write sysroot.mount (what: %s): %v", what, err)
+					"cannot start sysroot.mount (what: %s): %v", what, err)
 			}
-			// Do a daemon reload so systemd knows about the new sysroot mount unit
-			// (populate-writable.service depends on sysroot.mount, we need to make
-			// sure systemd knows this unit before snap-initramfs-mounts.service
-			// finishes)
-			sysd := systemd.New(systemd.SystemMode, nil)
-			if err := sysd.DaemonReload(); err != nil {
-				return nil, nil, err
-			}
+
 			if model.Classic() && model.KernelSnap() != nil {
 				// Mount ephemerally for recover mode to gain access to /etc data
 				dir := snapTypeToMountDir[essentialSnap.EssentialType]
-				if err := doSystemdMount(essentialSnap.Path,
-					filepath.Join(boot.InitramfsRunMntDir, dir),
+				if err := doSystemdMount(what, filepath.Join(boot.InitramfsRunMntDir, dir),
 					&systemdMountOptions{
 						Ephemeral: true,
 						ReadOnly:  true,
@@ -2130,12 +2122,17 @@ func createKernelMounts(runWritableDataDir, kernelName string, rev snap.Revision
 		}
 	}
 
-	// daemon-reload is not needed because it is done from initramfs
-	// later, this happens because
-	// 1. On UC /etc/fstab is changed and systemd's
-	//    initrd-parse-etc.service does the reload, as it detects entries
-	//    with the x-initrd.mount option
-	// 2. On hybrid, this is forced from classic-mounts.service
+	// daemon-reload is not needed on UC because it is done from initramfs
+	// later, this happens because /etc/fstab is changed and systemd's
+	// initrd-parse-etc.service does the reload, as it detects entries with
+	// the x-initrd.mount option. However, on hybrid we need systemd to
+	// notice the new units.
+	if isClassic {
+		sysd := systemd.New(systemd.SystemMode, nil)
+		if err := sysd.DaemonReload(); err != nil {
+			return false, err
+		}
+	}
 
 	return true, nil
 }
@@ -2433,14 +2430,15 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		// necessary changes to the UC20/22 initramfs.
 		typesToMount = []snap.Type{snap.TypeGadget, snap.TypeKernel}
 		if isClassic {
-			if err := writeSysrootMountUnit(rootfsDir, ""); err != nil {
-				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", rootfsDir, err)
+			if err := doSystemdMount(rootfsDir, "/sysroot",
+				&systemdMountOptions{Bind: true}); err != nil {
+				return fmt.Errorf("cannot start sysroot.mount (what: %s): %v", rootfsDir, err)
 			}
 		} else {
 			basePlaceInfo := mounts[snap.TypeBase]
 			what := filepath.Join(dirs.SnapBlobDirUnder(rootfsDir), basePlaceInfo.Filename())
-			if err := writeSysrootMountUnit(what, "squashfs"); err != nil {
-				return fmt.Errorf("cannot write sysroot.mount (what: %s): %v", what, err)
+			if err := doSystemdMount(what, "/sysroot", &systemdMountOptions{}); err != nil {
+				return fmt.Errorf("cannot start sysroot.mount (what: %s): %v", what, err)
 			}
 		}
 	}
@@ -2501,12 +2499,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		}
 	}
 
-	// Do a daemon reload so systemd knows about the new sysroot mount unit
-	// (populate-writable.service depends on sysroot.mount, we need to make
-	// sure systemd knows this unit before snap-initramfs-mounts.service
-	// finishes)
-	sysd := systemd.New(systemd.SystemMode, nil)
-	return sysd.DaemonReload()
+	return nil
 }
 
 var tryRecoverySystemHealthCheck = func(model gadget.Model) error {

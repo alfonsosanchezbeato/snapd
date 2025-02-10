@@ -812,15 +812,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		c.Skip("Unknown EFI arch")
 	}
 
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
-
 	// setup the seed
 	// always remove the ubuntu-seed dir, otherwise setupSeed complains the
 	// model file already exists and can't setup the seed
@@ -990,6 +981,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 		s.ubuntuLabelMount("ubuntu-seed", "install"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		{
+			filepath.Join(s.seedDir, "snaps/core24_1.snap"),
+			filepath.Join("/sysroot"),
+			&main.SystemdMountOptions{},
+			nil,
+		},
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
@@ -1018,6 +1015,12 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			s.ubuntuLabelMount("ubuntu-seed", "install"),
 			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			{
+				filepath.Join(s.seedDir, "snaps/core24_1.snap"),
+				filepath.Join("/sysroot"),
+				&main.SystemdMountOptions{},
+				nil,
+			},
 			s.makeSeedSnapSystemdMount(snap.TypeGadget),
 			{
 				filepath.Join(s.seedDir, "snaps/pc-kernel+kcomp1_77.comp"),
@@ -1095,27 +1098,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 			},
 		})
 	}
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
-Where=/sysroot
-Type=squashfs
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
@@ -3595,14 +3577,6 @@ grade=signed
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
-	var systemctlArgs []string
-	systemctlNumCalls := 0
-	systemctlMock := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		systemctlArgs = args
-		systemctlNumCalls++
-		return nil, nil
-	})
-	defer systemctlMock()
 
 	// setup a bootloader for setting the bootenv after we are done
 	bloader := bootloadertest.Mock("mock", c.MkDir())
@@ -3634,6 +3608,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 		s.ubuntuLabelMount("ubuntu-seed", "recover"),
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 		s.makeSeedSnapSystemdMount(snap.TypeKernel),
+		{
+			filepath.Join(s.seedDir, "snaps/core24_1.snap"),
+			filepath.Join("/sysroot"),
+			&main.SystemdMountOptions{},
+			nil,
+		},
 		s.makeSeedSnapSystemdMount(snap.TypeGadget),
 		{
 			"tmpfs",
@@ -3669,27 +3649,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	// we also should have written an empty boot-flags file
 	c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, "")
-
-	// Check sysroot mount unit bits
-	unitDir := dirs.SnapRuntimeServicesDirUnder(dirs.GlobalRootDir)
-	baseUnitPath := filepath.Join(unitDir, "sysroot.mount")
-	c.Assert(baseUnitPath, testutil.FileEquals, `[Unit]
-DefaultDependencies=no
-Before=initrd-root-fs.target
-After=snap-initramfs-mounts.service
-
-[Mount]
-What=/run/mnt/ubuntu-seed/snaps/core24_1.snap
-Where=/sysroot
-Type=squashfs
-`)
-	symlinkPath := filepath.Join(unitDir, "initrd-root-fs.target.wants", "sysroot.mount")
-	target, err := os.Readlink(symlinkPath)
-	c.Assert(err, IsNil)
-	c.Assert(target, Equals, "../sysroot.mount")
-
-	c.Assert(systemctlNumCalls, Equals, 1)
-	c.Assert(systemctlArgs, DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {
