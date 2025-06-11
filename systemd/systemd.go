@@ -429,6 +429,8 @@ type Systemd interface {
 	EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error)
 	// EnsureMountUnitFileWithOptions adds/enables/starts a mount unit with options.
 	EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
+	// StopMount stops and disables a mount unit.
+	StopMount(mountedDir string) error
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
@@ -1570,12 +1572,12 @@ func (s *systemd) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) 
 	return mountUnitName, nil
 }
 
-func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
-	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
-	if unit == "" {
+func (s *systemd) StopMount(mountedDir string) error {
+	isMounted, err := osutilIsMounted(mountedDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
 		return nil
 	}
 
@@ -1583,24 +1585,33 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	// can be unmounted.
 	// note that the long option --lazy is not supported on trusty.
 	// the explicit -d is only needed on trusty.
-	isMounted, err := osutilIsMounted(mountedDir)
-	if err != nil {
-		return err
+	// TODO do we really still need to unmount **and** stop the unit?
+	if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
 	}
-	units := []string{filepath.Base(unit)}
-	if isMounted {
-		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
-		}
 
-		if err := s.Stop(units); err != nil {
-			return err
-		}
+	unitName := EscapeUnitNamePath(dirs.StripRootDir(mountedDir)) + ".mount"
+	units := []string{unitName}
+	return s.Stop(units)
+}
+
+func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	unitPath := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	if unitPath == "" {
+		return nil
 	}
-	if err := s.DisableNoReload(units); err != nil {
+
+	if err := s.StopMount(mountedDir); err != nil {
 		return err
 	}
-	if err := os.Remove(unit); err != nil {
+	if err := s.DisableNoReload([]string{filepath.Base(unitPath)}); err != nil {
+		return err
+	}
+
+	if err := os.Remove(unitPath); err != nil {
 		return err
 	}
 	// daemon-reload to ensure that systemd actually really

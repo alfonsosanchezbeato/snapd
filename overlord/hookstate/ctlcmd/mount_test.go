@@ -50,6 +50,10 @@ type FakeSystemdForMount struct {
 	EnsureMountUnitFileWithOptionsResult ResultForEnsureMountUnitFileWithOptions
 }
 
+func (s *FakeSystemdForMount) StopMount(mountedDir string) error {
+	return nil
+}
+
 func (s *FakeSystemdForMount) RemoveMountUnitFile(baseDir string) error {
 	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, baseDir)
 	return s.RemoveMountUnitFileResult

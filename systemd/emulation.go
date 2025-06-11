@@ -185,24 +185,33 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 	return mountUnitName, nil
 }
 
+func (s *emulation) StopMount(mountedDir string) error {
+	isMounted, err := osutilIsMounted(mountedDir)
+	if err != nil {
+		return err
+	}
+	if !isMounted {
+		return nil
+	}
+	// use detach-loop and lazy unmount
+	if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
+	return nil
+}
+
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
 	if !osutil.FileExists(unit) {
 		return nil
 	}
 
-	isMounted, err := osutilIsMounted(mountedDir)
-	if err != nil {
+	if err := s.StopMount(mountedDir); err != nil {
 		return err
 	}
-	if isMounted {
-		// use detach-loop and lazy unmount
-		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
-		}
-	}
-
-	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {
+	unitName := EscapeUnitNamePath(dirs.StripRootDir(mountedDir)) + ".mount"
+	if err := s.DisableNoReload([]string{filepath.Base(unitName)}); err != nil {
 		return err
 	}
 

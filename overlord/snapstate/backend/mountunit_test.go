@@ -62,6 +62,10 @@ func (s *FakeSystemd) EnsureMountUnitFile(description, what, where, fstype strin
 	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
 }
 
+func (s *FakeSystemd) StopMount(mountedDir string) error {
+	return nil
+}
+
 func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
 	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountDir)
 	return s.RemoveMountUnitFileResult

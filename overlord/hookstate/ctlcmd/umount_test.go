@@ -54,6 +54,10 @@ type FakeSystemdForUmount struct {
 	ListMountUnitsCallsResult ResultForListMountUnits
 }
 
+func (s *FakeSystemdForUmount) StopMount(mountedDir string) error {
+	return nil
+}
+
 func (s *FakeSystemdForUmount) RemoveMountUnitFile(mountedDir string) error {
 	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountedDir)
 	return s.RemoveMountUnitFileCallsResult
